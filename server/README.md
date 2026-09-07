@@ -16,14 +16,25 @@ schema for it — request shapes were reverse-engineered from live responses.
 
 ## Recommended cadence
 
-**`refresh-meetings` should run periodically on its own** — committee agendas
-get published by legislative staff a few days ahead of a meeting, often after
-the meeting row itself already exists in our DB with an empty `agenda_items`
-array. Without a recurring refresh, agendas silently go stale (this happened
-in practice — see the interim-committee agenda gap fixed on 2026-09-06).
+**`refresh-meetings` needs to run periodically on its own** — committee
+agendas get published by legislative staff a few days ahead of a meeting,
+often after the meeting row itself already exists in our DB with an empty
+`agenda_items` array. Without a recurring refresh, agendas silently go stale
+(this happened in practice — see the interim-committee agenda gap fixed on
+2026-09-06).
 
-A systemd user timer running `refresh-meetings` every 6 hours is checked into
-`systemd/` in this directory. To install it on a dev machine:
+**Production (Railway)** runs this on Railway's own cron scheduler — see
+`.railway/railway.ts` at the repo root for the `cron-refresh-meetings`
+(every 6h), `cron-scrape` (daily), `cron-scrape-details` (daily), and
+`cron-generate-summaries` (daily) service definitions. That's the source of
+truth for cadence; nothing local needs to run for the deployed app to stay
+current.
+
+**Local dev**: a systemd user timer doing the same thing against your local
+Postgres is checked into `systemd/` in this directory, for whenever you want
+your local DB to mirror production's freshness without deploying anything.
+It's off by default — local dev data doesn't need to self-refresh the way
+production does, so this is opt-in:
 
 ```sh
 mkdir -p ~/.config/systemd/user
@@ -44,5 +55,5 @@ If the machine isn't logged in continuously, run
 session.
 
 The full `scrape`/`scrape:details` pass is much heavier (re-pulls every bill)
-and doesn't need this cadence — run it manually when a new session starts or
-when bill data itself seems stale, not on a timer.
+and doesn't need a tight cadence — production runs it once daily; locally,
+just run it manually when a new session starts or bill data seems stale.
