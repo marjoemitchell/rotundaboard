@@ -1,0 +1,315 @@
+.page {
+  max-width: 900px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.subhead {
+  margin-top: 4px;
+  max-width: 560px;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.newButton {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--ink);
+  border: 1px solid var(--ink);
+}
+
+.newButton:hover {
+  background: var(--accent, #b9723d);
+  border-color: var(--accent, #b9723d);
+}
+
+.form {
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.formGrid {
+  display: flex;
+  gap: 14px;
+}
+
+.formGrid .formRow {
+  flex: 1;
+}
+
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formLabel {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+}
+
+.formInput {
+  height: 34px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 16px;
+  border: 1px solid var(--border-2);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.formTextarea {
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  border: 1px solid var(--border-2);
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+}
+
+.fileRow {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fileInput {
+  font-size: 16px;
+  color: var(--muted);
+  max-width: 100%;
+}
+
+.fileClear {
+  font-size: 16px;
+  color: var(--faint);
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.fileClear:hover {
+  color: var(--accent, #b9723d);
+}
+
+.attachmentRow {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.attachmentLink {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--accent, #b9723d);
+}
+
+.attachmentLink:hover {
+  text-decoration: underline;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cancelButton {
+  padding: 6px 12px;
+  font-size: 16px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+}
+
+.saveButton {
+  padding: 6px 12px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--ink);
+  border: 1px solid var(--ink);
+}
+
+.saveButton:hover:not(:disabled) {
+  background: var(--accent, #b9723d);
+  border-color: var(--accent, #b9723d);
+}
+
+.saveButton:disabled,
+.cancelButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.section {
+  margin-top: 24px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.sectionCount {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--faint);
+}
+
+.list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.row {
+  background: var(--card);
+  padding: 14px 16px;
+}
+
+.rowHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rowMain {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.billLink {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent, #b9723d);
+}
+
+.billLink:hover {
+  text-decoration: underline;
+}
+
+.billTitle {
+  font-size: 16px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMeta {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusSelect {
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink-2);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+  padding: 3px 5px;
+}
+
+.deleteButton {
+  border: none;
+  background: none;
+  color: var(--faint);
+  font-size: 17px;
+  padding: 0 4px;
+}
+
+.deleteButton:hover {
+  color: var(--accent, #b9723d);
+}
+
+.rowSub {
+  margin-top: 6px;
+  font-size: 16px;
+  color: var(--faint);
+}
+
+.bodyPreview {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 0;
+  text-align: left;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: none;
+  border: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.bodyPreview:hover {
+  color: var(--ink-2);
+}
+
+.editArea {
+  margin-top: 8px;
+}
+
+.editTextarea {
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  border: 1px solid var(--border-2);
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+}
+
+.editActions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

@@ -1,0 +1,132 @@
+.page {
+  max-width: 820px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.subhead {
+  margin-top: 4px;
+  max-width: 620px;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.searchRow {
+  margin: 16px 0;
+}
+
+.searchInput {
+  width: 100%;
+  max-width: 320px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 17px;
+  border: 1px solid var(--border-2);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.resultCount {
+  margin-top: 6px;
+  font-size: 16px;
+  color: var(--faint);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--card);
+  padding: 12px 16px;
+  border-left: 3px solid transparent;
+}
+
+.row:hover {
+  background: var(--soft);
+}
+
+.rowFollowed {
+  border-left-color: var(--teal);
+  background: var(--support-bg);
+}
+
+.rowFollowed:hover {
+  background: var(--support-bg);
+  filter: brightness(0.97);
+}
+
+.rowDate {
+  flex-shrink: 0;
+  width: 90px;
+}
+
+.rowDateDay {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.rowDateTime {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--faint);
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowCommitteeLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rowCommittee {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.followingBadge {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--support-fg);
+  background: var(--card);
+  border: 1px solid var(--support-fg);
+}
+
+.rowMeta {
+  margin-top: 3px;
+  font-size: 16px;
+  color: var(--faint);
+}
+
+.rowAgenda {
+  flex-shrink: 0;
+  font-size: 16px;
+  color: var(--muted);
+  text-align: right;
+  max-width: 160px;
+}

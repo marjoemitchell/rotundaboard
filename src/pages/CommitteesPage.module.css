@@ -1,0 +1,96 @@
+.page {
+  max-width: 820px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.subhead {
+  margin-top: 4px;
+  max-width: 620px;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.searchRow {
+  margin: 16px 0;
+}
+
+.searchInput {
+  width: 100%;
+  max-width: 320px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 17px;
+  border: 1px solid var(--border-2);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.resultCount {
+  margin-top: 6px;
+  font-size: 16px;
+  color: var(--faint);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  padding: 12px 16px;
+}
+
+.row:hover {
+  background: var(--soft);
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowName {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.rowMeta {
+  margin-top: 3px;
+  font-size: 16px;
+  color: var(--faint);
+}
+
+.followButton {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink-2);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+}
+
+.followButton:hover {
+  color: var(--accent, #b9723d);
+  border-color: var(--accent, #b9723d);
+}
+
+.followButtonActive {
+  color: var(--teal);
+  border-color: var(--teal);
+}

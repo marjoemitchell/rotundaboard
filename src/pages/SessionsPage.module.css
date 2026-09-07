@@ -1,0 +1,91 @@
+.page {
+  max-width: 640px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.subhead {
+  margin-top: 4px;
+  font-size: 17px;
+  color: var(--muted);
+}
+
+.list {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.card {
+  display: block;
+  background: var(--card);
+  padding: 16px;
+}
+
+.card:hover {
+  background: var(--soft);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ordinal {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.statusBadge {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+}
+
+.active {
+  background: var(--support-bg);
+  color: var(--support-fg);
+}
+
+.upcoming {
+  background: var(--watch-bg);
+  color: var(--watch-fg);
+}
+
+.past {
+  background: var(--soft);
+  color: var(--muted);
+}
+
+.dates {
+  margin-top: 4px;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.counts {
+  margin-top: 10px;
+  display: flex;
+  gap: 16px;
+  font-size: 16px;
+  color: var(--faint);
+}
+
+.counts strong {
+  font-family: var(--font-mono);
+  color: var(--ink);
+}

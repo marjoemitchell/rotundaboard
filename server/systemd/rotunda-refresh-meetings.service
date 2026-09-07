@@ -1,0 +1,8 @@
+[Unit]
+Description=Refresh Rotunda Board interim committee meeting agendas
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/joe/Projects/rotundaboard/server
+ExecStart=/usr/bin/npm run refresh-meetings

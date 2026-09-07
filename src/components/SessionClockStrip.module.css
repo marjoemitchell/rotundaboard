@@ -1,0 +1,58 @@
+.strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+
+.cell {
+  background: var(--card);
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.value {
+  margin-top: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.unit {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--faint);
+}
+
+.context {
+  margin-top: 6px;
+  font-size: 16px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skeletonValue {
+  height: 25px;
+  width: 60%;
+  margin-top: 8px;
+}
+
+.skeletonContext {
+  height: 11px;
+  width: 80%;
+  margin-top: 8px;
+}
+
+@media (max-width: 1320px) {
+  .strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

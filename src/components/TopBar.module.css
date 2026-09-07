@@ -1,0 +1,171 @@
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 16px;
+  background: var(--ink);
+  color: var(--ink-body);
+  gap: 14px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.logo {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+.wordmark {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.wordmarkLight {
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.palette {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 280px;
+  height: 30px;
+  padding: 0 10px;
+  background: var(--ink-field);
+  border: 1px solid var(--ink-hairline);
+  color: var(--ink-faint);
+  font-size: 16px;
+}
+
+.paletteText {
+  /* The button is a flex item that can be asked to shrink well below its
+     placeholder text's natural width (especially on mobile, or after a
+     font-size bump) — without this, the text just wraps instead of
+     shrinking, which blows up the header's height instead of the text
+     simply truncating. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.palette:hover {
+  border-color: var(--accent, #b9723d);
+}
+
+.paletteHint {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  padding: 1px 5px;
+  border: 1px solid var(--ink-hairline);
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+
+.avatars {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.avatars > * {
+  margin-left: -6px;
+  border: 2px solid var(--ink);
+}
+
+.avatars > *:first-child {
+  margin-left: 0;
+}
+
+.avatarButton {
+  display: block;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.avatarButton:hover {
+  outline: 2px solid var(--accent, #b9723d);
+  outline-offset: 1px;
+}
+
+.overflowWrap {
+  position: relative;
+}
+
+.overflowScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+}
+
+.overflowMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  min-width: 180px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.overflowItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 16px;
+  color: var(--ink);
+  background: none;
+  border: none;
+  border-top: 1px solid var(--rule);
+  text-align: left;
+}
+
+.overflowItem:first-child {
+  border-top: none;
+}
+
+.overflowItem:hover {
+  background: var(--soft);
+}
+
+@media (max-width: 760px) {
+  .palette {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .paletteHint {
+    display: none;
+  }
+
+  /* Keep just the logo mark; the wordmark text is redundant once you're
+     inside the app, and reclaims real width for the search box and
+     avatar row. */
+  .wordmark {
+    display: none;
+  }
+}

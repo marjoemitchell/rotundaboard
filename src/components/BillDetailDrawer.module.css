@@ -1,0 +1,221 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(15, 37, 71, 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  transition: background 220ms ease;
+}
+
+.overlayVisible {
+  background: rgba(15, 37, 71, 0.45);
+}
+
+.modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: min(85vh, 800px);
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 24px 60px rgba(15, 37, 71, 0.3);
+  padding: 24px;
+  opacity: 0;
+  transform: scale(0.94) translateY(8px);
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease;
+}
+
+.modalVisible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Not transition: none — the close handler waits for the modal's
+     transitionend to fire before unmounting, so the transition needs to
+     still occur, just imperceptibly fast, rather than being removed. */
+  .overlay,
+  .modal {
+    transition-duration: 0.01ms;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.identifier {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--accent, #b9723d);
+}
+
+.requestNumber {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--faint);
+}
+
+.closeButton {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  font-size: 19px;
+  border: 1px solid var(--border-2);
+  background: var(--card);
+  color: var(--ink-2);
+}
+
+.title {
+  margin-top: 14px;
+  font-size: 23px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.fullDetailsLink {
+  display: block;
+  margin-top: 14px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--accent, #b9723d);
+  text-align: left;
+}
+
+.fullDetailsLink:hover {
+  text-decoration: underline;
+}
+
+.aiSummary {
+  margin-top: 18px;
+  background: var(--ink);
+  color: var(--ink-body);
+  padding: 16px;
+  border-radius: 4px;
+}
+
+.aiSummaryHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.aiSummaryEyebrow {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+}
+
+.aiSummaryMeta {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--ink-faint);
+}
+
+.aiSummaryText {
+  margin-top: 10px;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--ink-body);
+}
+
+.aiSummaryDisclaimer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ink-hairline);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+.section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+}
+
+.sectionEyebrow {
+  margin-bottom: 10px;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 17px;
+}
+
+.rowLabel {
+  color: var(--faint);
+}
+
+.rowValue {
+  color: var(--ink);
+  text-align: right;
+}
+
+.momentumHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.momentumScore {
+  font-family: var(--font-mono);
+  font-size: 29px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.momentumDelta {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.assignee {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  color: var(--ink);
+}
+
+.editableSelect {
+  border: 1px solid var(--border-2);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+  padding: 5px 7px;
+}
+
+.editableSelect:hover {
+  border-color: var(--accent, #b9723d);
+}

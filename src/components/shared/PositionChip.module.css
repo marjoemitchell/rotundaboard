@@ -1,0 +1,32 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.support {
+  background: var(--support-bg);
+  color: var(--support-fg);
+}
+
+.oppose {
+  background: var(--oppose-bg);
+  color: var(--oppose-fg);
+}
+
+.watch {
+  background: var(--watch-bg);
+  color: var(--watch-fg);
+}
+
+.neutral {
+  background: var(--soft);
+  color: var(--muted);
+}
+
+.empty {
+  color: var(--faint);
+}

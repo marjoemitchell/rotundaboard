@@ -1,0 +1,218 @@
+.page {
+  max-width: 700px;
+}
+
+.header {
+  margin-bottom: 8px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.subhead {
+  margin-top: 4px;
+  font-size: 17px;
+  color: var(--muted);
+}
+
+.notice {
+  margin-top: 16px;
+  padding: 8px 12px;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--soft);
+  border: 1px solid var(--border-2);
+}
+
+.section {
+  margin-top: 28px;
+}
+
+.sectionTitle {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+
+.memberList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.memberRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--card);
+  font-size: 16px;
+}
+
+.memberName {
+  color: var(--ink);
+}
+
+.memberEmail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint);
+}
+
+.dangerZone {
+  margin-top: 20px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--oppose-bg);
+  border: 1px solid var(--oppose-fg);
+}
+
+.dangerTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--oppose-fg);
+}
+
+.dangerText {
+  margin-top: 4px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--oppose-fg);
+}
+
+.dangerButton {
+  align-self: flex-start;
+  padding: 6px 14px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--oppose-fg);
+  border: 1px solid var(--oppose-fg);
+}
+
+.dangerButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.inviteForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.formInput {
+  flex: 1;
+  min-width: 200px;
+  height: 32px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 17px;
+  border: 1px solid var(--border-2);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.roleSelect {
+  height: 32px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 16px;
+  border: 1px solid var(--border-2);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.inviteButton {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--ink);
+  border: 1px solid var(--ink);
+}
+
+.inviteButton:hover:not(:disabled) {
+  background: var(--accent, #b9723d);
+  border-color: var(--accent, #b9723d);
+}
+
+.inviteButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.formError {
+  flex-basis: 100%;
+  font-size: 16px;
+  color: #b3402a;
+}
+
+.inviteList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.inviteRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--card);
+  font-size: 16px;
+}
+
+.inviteEmail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.inviteRole {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+
+.inviteExpires {
+  flex-shrink: 0;
+  font-size: 16px;
+  color: var(--faint);
+}
+
+.textButton {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  font-size: 16px;
+  color: var(--ink-2);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+}
+
+.textButton:hover {
+  color: var(--accent, #b9723d);
+  border-color: var(--accent, #b9723d);
+}

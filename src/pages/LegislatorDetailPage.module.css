@@ -1,0 +1,150 @@
+.page {
+  max-width: 900px;
+}
+
+.backLink {
+  display: inline-block;
+  margin-bottom: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.backLink:hover {
+  color: var(--accent, #b9723d);
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.name {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.meta {
+  margin-top: 6px;
+  font-size: 17px;
+  color: var(--muted);
+}
+
+.partyTag {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.grid {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.mainCol {
+  flex: 1 1 560px;
+  min-width: 0;
+}
+
+.sideCol {
+  flex: 1 1 300px;
+  max-width: 340px;
+  min-width: 0;
+}
+
+.section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.billList {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.billRow {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 16px;
+}
+
+.billRow:first-child {
+  border-top: none;
+}
+
+.billIdentifier {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent, #b9723d);
+}
+
+.billTitle {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tallyRow {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.tallyStat {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.tallyLabel {
+  font-size: 14px;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+}
+
+.voteRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 16px;
+}
+
+.voteRow:first-child {
+  border-top: none;
+}
+
+.voteType {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  width: 40px;
+}
+
+.committeeRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 16px;
+}
+
+.committeeRow:first-child {
+  border-top: none;
+}

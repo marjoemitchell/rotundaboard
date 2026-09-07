@@ -1,0 +1,84 @@
+.card {
+  background: var(--soft);
+  border: 1px solid var(--border);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.hideLink {
+  font-size: 16px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.hideLink:hover {
+  text-decoration: underline;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.weight {
+  flex-shrink: 0;
+  width: 32px;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.barTrack {
+  flex-shrink: 0;
+  width: 34px;
+  height: 5px;
+  background: var(--track);
+}
+
+.barFill {
+  height: 100%;
+  background: var(--accent, #b9723d);
+}
+
+.label {
+  font-size: 16px;
+  color: var(--ink-2);
+  min-width: 0;
+}
+
+.footer {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 16px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.showToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin-bottom: 16px;
+  font-size: 16px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px dashed var(--border-2);
+}
+
+.showToggle:hover {
+  color: var(--ink-2);
+}

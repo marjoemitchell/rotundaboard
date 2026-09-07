@@ -1,0 +1,94 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 37, 71, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 96px;
+}
+
+.panel {
+  width: 100%;
+  max-width: 520px;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(15, 37, 71, 0.25);
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 17px;
+  color: var(--ink);
+  background: transparent;
+}
+
+.hint {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--faint);
+  border: 1px solid var(--border-2);
+  padding: 1px 5px;
+}
+
+.list {
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.groupLabel {
+  padding: 8px 8px 4px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 17px;
+  color: var(--ink);
+}
+
+.optionActive {
+  background: var(--soft);
+}
+
+.optionMeta {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--faint);
+}
+
+.optionId {
+  font-family: var(--font-mono);
+  color: var(--accent, #b9723d);
+  margin-right: 6px;
+}
+
+.empty {
+  padding: 24px 14px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 16px;
+}

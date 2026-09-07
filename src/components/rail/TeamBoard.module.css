@@ -1,0 +1,90 @@
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.openLink {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--accent, #b9723d);
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.openLink:hover {
+  text-decoration: underline;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.item {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0;
+}
+
+.itemBody {
+  min-width: 0;
+}
+
+.itemText {
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.itemActor {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.itemTime {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--faint);
+}
+
+.footer {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.stat {
+  text-align: left;
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.statLabel {
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--faint);
+}

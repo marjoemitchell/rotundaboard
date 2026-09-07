@@ -1,0 +1,41 @@
+{
+  "name": "rotunda-board-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "migrate": "tsx src/migrate.ts",
+    "scrape": "tsx src/scrape.ts",
+    "scrape:details": "tsx src/scrapeBillDetails.ts",
+    "refresh-meetings": "tsx src/refreshCommitteeMeetings.ts",
+    "seed": "tsx src/seedWorkspace.ts",
+    "generate-summaries": "tsx src/generateSummaries.ts",
+    "api": "tsx src/api/server.ts",
+    "api:dev": "tsx watch src/api/server.ts",
+    "e2e:cleanup": "tsx src/e2eCleanup.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "pg": "^8.13.1",
+    "resend": "^6.25.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

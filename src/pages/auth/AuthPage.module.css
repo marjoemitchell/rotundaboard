@@ -1,0 +1,134 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  padding: 20px;
+}
+
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 28px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.wordmark {
+  font-size: 29px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.wordmarkLight {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.title {
+  margin-top: 20px;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.subhead {
+  margin-top: 4px;
+  font-size: 16px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.form {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formLabel {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+}
+
+.formInput {
+  height: 36px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 17px;
+  border: 1px solid var(--border-2);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.error {
+  padding: 8px 10px;
+  font-size: 16px;
+  color: var(--oppose-fg);
+  background: var(--oppose-bg);
+}
+
+.success {
+  padding: 8px 10px;
+  font-size: 16px;
+  color: var(--support-fg);
+  background: var(--support-bg);
+}
+
+.submitButton {
+  margin-top: 4px;
+  height: 38px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--ink);
+  border: 1px solid var(--ink);
+}
+
+.submitButton:hover:not(:disabled) {
+  background: var(--accent, #b9723d);
+  border-color: var(--accent, #b9723d);
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.footer {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  font-size: 16px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.footer a {
+  color: var(--accent, #b9723d);
+  font-weight: 500;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}

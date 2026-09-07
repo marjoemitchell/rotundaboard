@@ -1,0 +1,101 @@
+.page {
+  max-width: 900px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.subhead {
+  margin-top: 4px;
+  font-size: 17px;
+  color: var(--muted);
+}
+
+.searchRow {
+  margin: 16px 0;
+}
+
+.searchInput {
+  width: 100%;
+  max-width: 320px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 17px;
+  border: 1px solid var(--border-2);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.resultCount {
+  margin-top: 6px;
+  font-size: 16px;
+  color: var(--faint);
+}
+
+.table {
+  background: var(--card);
+  border: 1px solid var(--border);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.grid {
+  display: grid;
+  /* Party is a single letter and Sponsored a bare number — both were sized
+     as if they held real prose, which just pushed empty space in front of
+     every column after them. Name and District now share the leftover
+     growth instead of dumping it all into Name alone. */
+  grid-template-columns: minmax(160px, 1.3fr) 90px 70px minmax(140px, 1fr) 90px;
+}
+
+.headerRow {
+  display: contents;
+}
+
+.headerCell {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--soft);
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.row {
+  display: contents;
+}
+
+.cell {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  background: var(--card);
+  font-size: 16px;
+}
+
+.row:hover .cell {
+  background: var(--soft);
+}
+
+.name {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.partyBadge {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+}

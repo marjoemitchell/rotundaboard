@@ -1,0 +1,36 @@
+:root {
+  --ink: #0f2547;
+  --ink-2: #2b3f5c;
+  --muted: #5c6b80;
+  --faint: #8697ab;
+  --paper: #eef1f5;
+  --card: #ffffff;
+  --soft: #e8edf3;
+  --border: #d3dae4;
+  --border-2: #c2ccd9;
+  --rule: #e5eaf0;
+  --track: #dfe5ec;
+  --accent: #b9723d;
+  --teal: #2b7f8c;
+  --teal-bright: #4fb3a5;
+  --mid: #c08b4a;
+  --low: #9fb0c2;
+
+  /* dark-surface tones */
+  --ink-field: #1c4176;
+  --ink-hairline: #2c5590;
+  --ink-faint: #7d97ba;
+  --ink-muted: #b7c8dd;
+  --ink-body: #dbe5f0;
+
+  /* position chips */
+  --support-bg: #d7ebee;
+  --support-fg: #1f6470;
+  --oppose-bg: #f4e2d4;
+  --oppose-fg: #8f5426;
+  --watch-bg: #e4e9f0;
+  --watch-fg: #4a5a6e;
+
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+}

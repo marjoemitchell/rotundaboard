@@ -1,0 +1,12 @@
+node_modules
+dist
+.DS_Store
+*.local
+server/.env
+test-results
+playwright-report
+blob-report
+/playwright/.cache
+tsconfig.tsbuildinfo
+.claude/
+

@@ -1,0 +1,49 @@
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.openLink {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--accent, #b9723d);
+}
+
+.openLink:hover {
+  text-decoration: underline;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item {
+  display: block;
+}
+
+.itemName {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.itemName:hover {
+  color: var(--accent, #b9723d);
+}
+
+.itemMeta {
+  margin-top: 2px;
+  font-size: 16px;
+  color: var(--faint);
+}
