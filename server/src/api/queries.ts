@@ -116,16 +116,26 @@ export async function getBills(workspaceId: number) {
     statusesByBill.set(row.bill_id, list)
   }
 
-  const { rows: cosponsorRows } = await pool.query<{ bill_id: number; n: string }>(
-    `SELECT bill_id, count(*) AS n FROM bill_cosponsors WHERE bill_id = ANY($1) GROUP BY bill_id`,
+  const { rows: activityRows } = await pool.query<{ bill_id: number; occurred_at: string }>(
+    `SELECT bill_id, occurred_at FROM bill_votes WHERE bill_id = ANY($1) AND occurred_at IS NOT NULL
+     UNION ALL
+     SELECT cbh.bill_id, cm.meeting_time AS occurred_at
+     FROM committee_bill_hearings cbh
+     JOIN committee_meetings cm ON cm.id = cbh.committee_meeting_id
+     WHERE cbh.bill_id = ANY($1) AND cm.meeting_time IS NOT NULL`,
     [billIds],
   )
-  const cosponsorCountByBill = new Map(cosponsorRows.map((r) => [r.bill_id, Number(r.n)]))
+  const activityDatesByBill = new Map<number, Date[]>()
+  for (const row of activityRows) {
+    const list = activityDatesByBill.get(row.bill_id) ?? []
+    list.push(new Date(row.occurred_at))
+    activityDatesByBill.set(row.bill_id, list)
+  }
 
   return rows.map((r) => {
     const sponsorName = r.sponsor_first_name || r.sponsor_last_name ? `${r.sponsor_first_name ?? ''} ${r.sponsor_last_name ?? ''}`.trim() : ''
     const statuses = statusesByBill.get(r.bill_id) ?? []
-    const momentum = computeMomentum(statuses, cosponsorCountByBill.get(r.bill_id) ?? 0)
+    const momentum = computeMomentum(statuses, activityDatesByBill.get(r.bill_id) ?? [])
 
     return {
       id: String(r.bill_id),
@@ -171,7 +181,7 @@ export async function getMomentumFactors() {
   return [
     { weight: 60, label: 'Progress reached — furthest legislative stage achieved' },
     { weight: 25, label: 'Action recency — days since last status change' },
-    { weight: 15, label: 'Cosponsor count, capped at 20' },
+    { weight: 15, label: 'Legislative activity — floor votes + hearings, capped at 10' },
   ]
 }
 
@@ -576,7 +586,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
   const core = coreRows[0]
   if (!core) return null
 
-  const [statusRows, cosponsorCountRows, statusHistoryRows, voteRows, executiveActionRows, cosponsorRows, hearingRows, amendmentRows] =
+  const [statusRows, statusHistoryRows, voteRows, executiveActionRows, cosponsorRows, hearingRows, amendmentRows] =
     await Promise.all([
       pool.query<{ occurred_at: string; progress_code: number | null }>(
         `SELECT bs.occurred_at, pc.code AS progress_code
@@ -584,7 +594,6 @@ export async function getBillDetail(billId: number, workspaceId: number) {
          WHERE bs.draft_id = $1`,
         [core.draft_id],
       ),
-      pool.query<{ n: string }>('SELECT count(*) AS n FROM bill_cosponsors WHERE bill_id = $1', [billId]),
       pool.query<{
         id: number
         occurred_at: string
@@ -677,8 +686,11 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     occurredAt: new Date(r.occurred_at),
     progressCode: r.progress_code,
   }))
-  const cosponsorCount = Number(cosponsorCountRows.rows[0]?.n ?? 0)
-  const momentum = computeMomentum(statuses, cosponsorCount)
+  const activityDates: Date[] = [
+    ...new Set(voteRows.rows.map((r) => r.occurred_at).filter((d): d is string => d != null)),
+    ...hearingRows.rows.map((r) => r.meeting_time).filter((d): d is string => d != null),
+  ].map((d) => new Date(d))
+  const momentum = computeMomentum(statuses, activityDates)
 
   const votesById = new Map<
     number,
