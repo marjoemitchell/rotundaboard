@@ -56,18 +56,14 @@ function WorkspaceSection({
   isAdmin,
   workspaceName,
   onRename,
-  onDelete,
 }: {
   isAdmin: boolean
   workspaceName: string
   onRename: (name: string) => Promise<void>
-  onDelete: () => Promise<void>
 }) {
   const [name, setName] = useState(workspaceName)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [confirmText, setConfirmText] = useState('')
-  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => setName(workspaceName), [workspaceName])
 
@@ -85,15 +81,6 @@ function WorkspaceSection({
     }
   }
 
-  const handleDelete = async () => {
-    setDeleting(true)
-    try {
-      await onDelete()
-    } finally {
-      setDeleting(false)
-    }
-  }
-
   return (
     <section className={styles.section}>
       <h2 className={styles.sectionTitle}>Workspace</h2>
@@ -108,31 +95,54 @@ function WorkspaceSection({
       ) : (
         <p className={styles.subhead}>{workspaceName}</p>
       )}
+    </section>
+  )
+}
 
-      {isAdmin && (
-        <div className={styles.dangerZone}>
-          <div>
-            <div className={styles.dangerTitle}>Delete this workspace</div>
-            <p className={styles.dangerText}>
-              Permanently deletes {workspaceName} and everything tracked in it — bills, notes, testimony, digests,
-              saved views. This can't be undone.
-            </p>
-          </div>
-          <input
-            className={styles.formInput}
-            placeholder={`Type "${workspaceName}" to confirm`}
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-          />
-          <button
-            className={styles.dangerButton}
-            disabled={confirmText !== workspaceName || deleting}
-            onClick={handleDelete}
-          >
-            {deleting ? 'Deleting…' : 'Delete workspace'}
-          </button>
+function DangerZoneSection({
+  workspaceName,
+  onDelete,
+}: {
+  workspaceName: string
+  onDelete: () => Promise<void>
+}) {
+  const [confirmText, setConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      await onDelete()
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.sectionTitle}>Danger zone</h2>
+      <div className={styles.dangerZone}>
+        <div>
+          <div className={styles.dangerTitle}>Delete this workspace</div>
+          <p className={styles.dangerText}>
+            Permanently deletes {workspaceName} and everything tracked in it — bills, notes, testimony, digests,
+            saved views. This can't be undone.
+          </p>
         </div>
-      )}
+        <input
+          className={styles.formInput}
+          placeholder={`Type "${workspaceName}" to confirm`}
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+        />
+        <button
+          className={styles.dangerButton}
+          disabled={confirmText !== workspaceName || deleting}
+          onClick={handleDelete}
+        >
+          {deleting ? 'Deleting…' : 'Delete workspace'}
+        </button>
+      </div>
     </section>
   )
 }
@@ -253,12 +263,7 @@ export function SettingsPage() {
       {notice && <div className={styles.notice}>{notice}</div>}
 
       {session?.currentWorkspace && (
-        <WorkspaceSection
-          isAdmin={isAdmin}
-          workspaceName={session.currentWorkspace.name}
-          onRename={handleRename}
-          onDelete={handleDeleteWorkspace}
-        />
+        <WorkspaceSection isAdmin={isAdmin} workspaceName={session.currentWorkspace.name} onRename={handleRename} />
       )}
 
       <section className={styles.section}>
@@ -328,6 +333,10 @@ export function SettingsPage() {
             </div>
           )}
         </section>
+      )}
+
+      {isAdmin && session?.currentWorkspace && (
+        <DangerZoneSection workspaceName={session.currentWorkspace.name} onDelete={handleDeleteWorkspace} />
       )}
     </div>
   )
