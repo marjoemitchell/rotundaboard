@@ -41,6 +41,7 @@
   border: 1px solid var(--border);
   max-height: 70vh;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .grid {
@@ -48,8 +49,14 @@
   /* Party is a single letter and Sponsored a bare number — both were sized
      as if they held real prose, which just pushed empty space in front of
      every column after them. Name and District now share the leftover
-     growth instead of dumping it all into Name alone. */
-  grid-template-columns: minmax(160px, 1.3fr) 90px 70px minmax(140px, 1fr) 90px;
+     growth instead of dumping it all into Name alone. Chamber/Party/
+     Sponsored are wide enough to fit their own uppercase header text with
+     real margin — at the old widths, "Sponsored" measured 4px wider than
+     its column and spilled out of the grid track (fixed-width tracks don't
+     clip overflow by default), which is what let the page pan horizontally.
+     .headerCell/.cell now also clip+ellipsize as a backstop so no future
+     overflow can do that again. */
+  grid-template-columns: minmax(160px, 1.3fr) 100px 80px minmax(140px, 1fr) 116px;
 }
 
 .headerRow {
@@ -69,6 +76,9 @@
   letter-spacing: 0.08em;
   color: var(--muted);
   border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .row {
@@ -83,6 +93,9 @@
   min-width: 0;
   background: var(--card);
   font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .row:hover .cell {
