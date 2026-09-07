@@ -59,6 +59,26 @@ test.describe('Hearings page', () => {
     await expect(page.locator('h1', { hasText: committeeName })).toBeVisible()
   })
 
+  test('hearing times render as real Mountain wall-clock times, not shifted by a timezone bug', async ({ page }) => {
+    // Regression test: a plain TIMESTAMP (no time zone) column holding a
+    // naive Mountain-local value (e.g. "08:00:00") used to round-trip
+    // through node-postgres's default OID 1114 parser as if it were UTC,
+    // then get shifted again on display — turning a real 8am hearing into
+    // "2am". See server/src/db.ts's setTypeParser(1114, ...) fix.
+    await signUpFreshWorkspace(page)
+    await page.goto('/hearings')
+    await expect(page.locator('a[class*="row"]').first()).toBeVisible()
+
+    const times = await page.locator('[class*="rowDateTime"]').allTextContents()
+    expect(times.length).toBeGreaterThan(0)
+    for (const t of times) {
+      // No real legislative hearing is scheduled overnight — this is the
+      // exact symptom the timezone bug produced (an 8am hearing rendering
+      // as "2:00 AM").
+      expect(t).not.toMatch(/^\s*(12|[1-5]):\d{2}\s*AM/i)
+    }
+  })
+
   test('following a committee highlights its hearing rows', async ({ page }) => {
     await signUpFreshWorkspace(page)
     await page.goto('/hearings')
