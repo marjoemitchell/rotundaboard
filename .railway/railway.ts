@@ -1,7 +1,8 @@
-import { defineRailway, empty, postgres, preserve, project, service } from "railway/iac";
+import { defineRailway, github, postgres, preserve, project, service } from "railway/iac";
 
 export default defineRailway(() => {
   const db = postgres("db");
+  const repo = github("marjoemitchell/rotundaboard", { branch: "main" });
 
   // Real secrets (Anthropic/Resend keys) and environment-specific URLs are
   // declared here as preserve() so `config apply` never overwrites or wipes
@@ -9,7 +10,7 @@ export default defineRailway(() => {
   // the services exist (domains aren't known until then anyway), and stay
   // untouched by future applies of this file.
   const api = service("api", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run api",
@@ -27,7 +28,7 @@ export default defineRailway(() => {
   });
 
   const web = service("web", {
-    source: empty(),
+    source: repo,
     deploy: {
       startCommand: "npx vite preview --host 0.0.0.0 --port $PORT",
     },
@@ -44,11 +45,12 @@ export default defineRailway(() => {
   });
 
   const cronRefreshMeetings = service("cron-refresh-meetings", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run refresh-meetings",
       cronSchedule: "0 */6 * * *",
+      restartPolicyType: "NEVER",
     },
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
@@ -57,11 +59,12 @@ export default defineRailway(() => {
   });
 
   const cronScrape = service("cron-scrape", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run scrape",
       cronSchedule: "0 8 * * *",
+      restartPolicyType: "NEVER",
     },
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
@@ -70,11 +73,12 @@ export default defineRailway(() => {
   });
 
   const cronScrapeDetails = service("cron-scrape-details", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run scrape:details",
       cronSchedule: "0 9 * * *",
+      restartPolicyType: "NEVER",
     },
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
@@ -83,11 +87,12 @@ export default defineRailway(() => {
   });
 
   const cronGenerateSummaries = service("cron-generate-summaries", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run generate-summaries",
       cronSchedule: "0 10 * * *",
+      restartPolicyType: "NEVER",
     },
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
