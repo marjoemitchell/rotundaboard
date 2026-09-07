@@ -87,7 +87,7 @@
   background: transparent;
   border: 1px dashed var(--border-2);
   color: var(--muted);
-  font-size: 16px;
+  font-size: 18px;
 }
 
 .addSelect {
@@ -96,6 +96,7 @@
   opacity: 0;
   width: 100%;
   cursor: pointer;
+  font-size: 18px;
 }
 
 .spacer {
