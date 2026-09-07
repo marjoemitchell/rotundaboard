@@ -9,4 +9,5 @@ blob-report
 /playwright/.cache
 tsconfig.tsbuildinfo
 .claude/
+.git-commit-msg.txt
 
