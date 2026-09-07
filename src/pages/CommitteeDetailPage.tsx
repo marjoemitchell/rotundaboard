@@ -73,7 +73,12 @@ export function CommitteeDetailPage() {
 
   const committee = detail.data
   const now = Date.now()
-  const upcoming = committee.meetings.filter((m) => m.meetingTime && new Date(m.meetingTime).getTime() >= now)
+  const upcoming = committee.meetings
+    .filter((m) => m.meetingTime && new Date(m.meetingTime).getTime() >= now)
+    // committee.meetings comes from the API sorted newest-first (right for
+    // "past", since you want the most recent past meeting on top) — upcoming
+    // needs the opposite: soonest meeting first, not furthest away.
+    .sort((a, b) => new Date(a.meetingTime!).getTime() - new Date(b.meetingTime!).getTime())
   const past = committee.meetings.filter((m) => !m.meetingTime || new Date(m.meetingTime).getTime() < now)
 
   const handleToggleFollow = async () => {
