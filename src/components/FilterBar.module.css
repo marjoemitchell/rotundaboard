@@ -34,9 +34,9 @@
 }
 
 .selectWrap {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
 }
 
 .select {
@@ -46,7 +46,10 @@
   color: inherit;
   font: inherit;
   font-weight: 500;
-  padding: 2px 0;
+  /* Right padding extends the select's own clickable box under the caret
+     (rendered on top, see .selectCaret) so clicking the caret opens the
+     dropdown too, not just clicking the value text next to it. */
+  padding: 2px 19px 2px 0;
 }
 
 .select option {
@@ -54,7 +57,11 @@
 }
 
 .selectCaret {
-  flex-shrink: 0;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
   opacity: 0.9;
   font-size: 20px;
   line-height: 1;
