@@ -1,8 +1,21 @@
-import { defineRailway, github, postgres, preserve, project, service } from "railway/iac";
+import { defineRailway, empty, github, postgres, preserve, project, service } from "railway/iac";
 
 export default defineRailway(() => {
   const db = postgres("db");
   const repo = github("marjoemitchell/rotundaboard", { branch: "main" });
+
+  // The 4 cron services deliberately do NOT use `repo` as their source.
+  // Discovered 2026-09-07: connecting them to GitHub meant every push to
+  // main (for completely unrelated api/web work) rebuilt and redeployed
+  // them, and their cronSchedule silently stopped actually firing —
+  // confirmed by zero deployment records across ~13 hours spanning 4
+  // scheduled fires, even though `railway status` kept reporting a
+  // plausible next-run time throughout. Disconnecting them from GitHub
+  // (source: empty()) and deploying manually via `railway up`/`redeploy`
+  // whenever their scripts actually change removes the confounding
+  // variable. A cron/batch job doesn't need continuous deployment on
+  // every commit the way a live service does, so this is the right
+  // architecture regardless of the exact platform mechanism at fault.
 
   // Real secrets (Anthropic/Resend keys) and environment-specific URLs are
   // declared here as preserve() so `config apply` never overwrites or wipes
@@ -45,7 +58,7 @@ export default defineRailway(() => {
   });
 
   const cronRefreshMeetings = service("cron-refresh-meetings", {
-    source: repo,
+    source: empty(),
     root: "server",
     deploy: {
       startCommand: "npm run refresh-meetings",
@@ -59,7 +72,7 @@ export default defineRailway(() => {
   });
 
   const cronScrape = service("cron-scrape", {
-    source: repo,
+    source: empty(),
     root: "server",
     deploy: {
       startCommand: "npm run scrape",
@@ -73,7 +86,7 @@ export default defineRailway(() => {
   });
 
   const cronScrapeDetails = service("cron-scrape-details", {
-    source: repo,
+    source: empty(),
     root: "server",
     deploy: {
       startCommand: "npm run scrape:details",
@@ -87,7 +100,7 @@ export default defineRailway(() => {
   });
 
   const cronGenerateSummaries = service("cron-generate-summaries", {
-    source: repo,
+    source: empty(),
     root: "server",
     deploy: {
       startCommand: "npm run generate-summaries",
