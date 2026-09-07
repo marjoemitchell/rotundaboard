@@ -320,7 +320,6 @@ export function AuthenticatedApp() {
           activeId={effectiveNavActive}
           navCounts={data.navCounts}
           savedViews={data.savedViews}
-          sessionCalendar={data.sessionCalendar}
           isOpen={mobileNavOpen}
           onNavigate={handleNavigate}
           onDeleteView={handleDeleteSavedView}

@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
-import type { LoadState, NavCounts, SavedView, SessionCalendar } from '../types'
+import type { LoadState, NavCounts, SavedView } from '../types'
 import { useAuth } from '../auth/AuthContext'
-import { formatDate, formatOrdinal } from '../lib/format'
 import { InitialsSquare } from './shared/InitialsSquare'
 import styles from './LeftNav.module.css'
 
@@ -67,7 +66,6 @@ export function LeftNav({
   activeId,
   navCounts,
   savedViews,
-  sessionCalendar,
   isOpen,
   onNavigate,
   onDeleteView,
@@ -75,7 +73,6 @@ export function LeftNav({
   activeId: NavId
   navCounts: LoadState<NavCounts>
   savedViews: LoadState<SavedView[]>
-  sessionCalendar: LoadState<SessionCalendar>
   isOpen: boolean
   onNavigate: (id: NavId) => void
   onDeleteView: (viewId: string) => void
@@ -84,20 +81,11 @@ export function LeftNav({
   const counts = navCounts.status === 'ready' ? navCounts.data : null
   const countsLoading = navCounts.status === 'loading'
   const views = savedViews.status === 'ready' ? savedViews.data : []
-  const calendar = sessionCalendar.status === 'ready' ? sessionCalendar.data : null
-
-  const sessionLabel =
-    calendar?.sessionNumber && calendar.convenesOn
-      ? `${formatOrdinal(calendar.sessionNumber)} Session · ${formatDate(calendar.convenesOn)}`
-      : 'Sessions'
 
   return (
     <nav className={`${styles.nav} ${isOpen ? styles.navOpen : ''}`} aria-label="Primary">
       <button className={styles.sessionSelector} onClick={() => onNavigate('sessions')}>
-        <span className={styles.sessionSelectorLabel}>{sessionLabel}</span>
-        <span className={styles.sessionSelectorCaret} aria-hidden>
-          ▾
-        </span>
+        Browse sessions
       </button>
 
       <div className={styles.navScroll}>
