@@ -16,9 +16,19 @@ test.describe('dashboard bill table and drawer', () => {
     await expect(drawer.locator('text=AI-generated summary')).toBeVisible()
     await expect(drawer.locator('[class*="aiSummaryText"]')).not.toBeEmpty()
 
+    // Links straight to the bill on bills.legmt.gov itself, not just our
+    // own full-details page — this is the one URL scheme confirmed to
+    // resolve for a bill at any stage (verified against both an enacted
+    // law and one that died in committee).
+    const drawerOfficialLink = drawer.locator('a', { hasText: 'View on official site' })
+    await expect(drawerOfficialLink).toHaveAttribute('href', /^https:\/\/bills\.legmt\.gov\/#\/laws\/bill\/\d+\/[A-Za-z0-9]+\?open_tab=bill$/)
+
     await page.click('text=View full details')
     await page.waitForURL(/\/bills\/.+/)
     await expect(page.locator('[aria-label*="details"]')).not.toBeVisible()
+
+    const pageOfficialLink = page.locator('a', { hasText: 'View on official site' })
+    await expect(pageOfficialLink).toHaveAttribute('href', /^https:\/\/bills\.legmt\.gov\/#\/laws\/bill\/\d+\/[A-Za-z0-9]+\?open_tab=bill$/)
   })
 })
 

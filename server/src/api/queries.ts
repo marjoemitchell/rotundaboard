@@ -21,6 +21,15 @@ function formatIdentifier(billTypeCode: string | null, billNumber: number | null
   return match ? `${match[1]} ${match[2]}` : draftNumber
 }
 
+// bills.legmt.gov's own SPA is hash-routed and keys a bill by legislature id
+// + its LC draft number, not by bill type/number or our own bill id — this
+// works for a bill at any stage (confirmed against both an enacted law and
+// one that died in committee), so it's the one link that always resolves.
+function buildOfficialBillUrl(legislatureId: number | null, draftNumber: string): string | null {
+  if (!legislatureId) return null
+  return `https://bills.legmt.gov/#/laws/bill/${legislatureId}/${draftNumber}?open_tab=bill`
+}
+
 export async function getBills(workspaceId: number) {
   const { rows } = await pool.query<{
     bill_id: number
@@ -30,6 +39,7 @@ export async function getBills(workspaceId: number) {
     draft_id: number
     draft_number: string
     short_title: string
+    legislature_id: number | null
     sponsor_first_name: string | null
     sponsor_last_name: string | null
     sponsor_district: string | null
@@ -50,6 +60,7 @@ export async function getBills(workspaceId: number) {
       d.id AS draft_id,
       d.draft_number,
       d.short_title,
+      s.legislature_id,
       sp.first_name AS sponsor_first_name,
       sp.last_name AS sponsor_last_name,
       dist.name AS sponsor_district,
@@ -63,6 +74,7 @@ export async function getBills(workspaceId: number) {
     FROM tracked_bills tb
     JOIN bills b ON b.id = tb.bill_id
     JOIN drafts d ON d.id = b.draft_id
+    LEFT JOIN sessions s ON s.id = d.session_id
     LEFT JOIN bill_types bt ON bt.id = b.bill_type_id
     LEFT JOIN legislators sp ON sp.id = b.sponsor_id
     LEFT JOIN districts dist ON dist.id = sp.district_id
@@ -141,6 +153,7 @@ export async function getBills(workspaceId: number) {
       id: String(r.bill_id),
       identifier: formatIdentifier(r.bill_type_code, r.bill_number, r.draft_number),
       title: r.short_title,
+      officialUrl: buildOfficialBillUrl(r.legislature_id, r.draft_number),
       sponsor: { name: sponsorName, district: r.sponsor_district ?? '', party: r.sponsor_party ?? '' },
       committee: r.committee_name ?? undefined,
       chamber: r.chamber ? (r.chamber.toLowerCase() as 'house' | 'senate') : undefined,
@@ -510,6 +523,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     draft_number: string
     is_tracked: boolean
     short_title: string
+    legislature_id: number | null
     sponsor_first_name: string | null
     sponsor_last_name: string | null
     sponsor_district: string | null
@@ -533,6 +547,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
       d.id AS draft_id,
       d.draft_number,
       d.short_title,
+      s.legislature_id,
       sp.first_name AS sponsor_first_name,
       sp.last_name AS sponsor_last_name,
       dist.name AS sponsor_district,
@@ -549,6 +564,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
       bsum.generated_at AS summary_generated_at
     FROM bills b
     JOIN drafts d ON d.id = b.draft_id
+    LEFT JOIN sessions s ON s.id = d.session_id
     LEFT JOIN tracked_bills tb ON tb.bill_id = b.id AND tb.workspace_id = $2
     LEFT JOIN bill_summaries bsum ON bsum.bill_id = b.id
     LEFT JOIN bill_types bt ON bt.id = b.bill_type_id
@@ -753,6 +769,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     id: String(core.bill_id),
     identifier: formatIdentifier(core.bill_type_code, core.bill_number, core.draft_number),
     draftNumber: core.draft_number,
+    officialUrl: buildOfficialBillUrl(core.legislature_id, core.draft_number),
     title: core.short_title,
     sponsor: { name: sponsorName, district: core.sponsor_district ?? '', party: core.sponsor_party ?? '' },
     committee: core.committee_name ?? undefined,

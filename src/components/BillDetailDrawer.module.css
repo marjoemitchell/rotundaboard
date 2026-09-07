@@ -67,6 +67,17 @@
   color: var(--faint);
 }
 
+.officialLink {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.officialLink:hover {
+  color: var(--accent, #b9723d);
+}
+
 .closeButton {
   flex-shrink: 0;
   width: 30px;

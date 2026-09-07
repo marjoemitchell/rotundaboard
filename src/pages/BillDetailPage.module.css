@@ -45,6 +45,15 @@
   color: var(--faint);
 }
 
+.officialLink {
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.officialLink:hover {
+  color: var(--accent, #b9723d);
+}
+
 .title {
   margin-top: 6px;
   font-size: 25px;

@@ -20,6 +20,7 @@ export interface Bill {
   id: string
   identifier: string // "LC 0412" or "HB 512"
   requestNumber?: string // "req. 2026-0412"
+  officialUrl: string | null
   title: string
   sponsor: Sponsor
   committee?: string

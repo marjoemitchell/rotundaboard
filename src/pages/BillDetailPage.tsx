@@ -527,6 +527,11 @@ export function BillDetailPage({
             {!bill.identifier.startsWith('LC') && (
               <span className={styles.draftNumber}>{formatDraftNumber(bill.draftNumber)}</span>
             )}
+            {bill.officialUrl && (
+              <a className={styles.officialLink} href={bill.officialUrl} target="_blank" rel="noreferrer">
+                View on official site ↗
+              </a>
+            )}
           </div>
           <h1 className={styles.title}>{bill.title}</h1>
         </div>

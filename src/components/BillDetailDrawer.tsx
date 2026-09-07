@@ -92,6 +92,11 @@ export function BillDetailDrawer({
           <div>
             <div className={styles.identifier}>{bill.identifier}</div>
             {bill.requestNumber && <div className={styles.requestNumber}>{bill.requestNumber}</div>}
+            {bill.officialUrl && (
+              <a className={styles.officialLink} href={bill.officialUrl} target="_blank" rel="noreferrer">
+                View on official site ↗
+              </a>
+            )}
           </div>
           <button className={styles.closeButton} onClick={handleClose} aria-label="Close">
             ×
