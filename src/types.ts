@@ -192,6 +192,7 @@ export interface NonStandingCommitteeDetail {
   name: string
   committeeType: string | null
   isFollowed: boolean
+  meetingMaterialsHtml: string | null
   members: CommitteeMember[]
   meetings: CommitteeMeeting[]
 }

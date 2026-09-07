@@ -101,6 +101,52 @@
   margin-bottom: 16px;
 }
 
+.materials {
+  margin-top: 8px;
+  max-height: 480px;
+  overflow-y: auto;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.materials h4,
+.materials h3,
+.materials h2 {
+  margin: 16px 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.materials h4:first-child,
+.materials h3:first-child,
+.materials h2:first-child {
+  margin-top: 0;
+}
+
+.materials p {
+  margin: 6px 0;
+}
+
+.materials ul,
+.materials ol {
+  margin: 4px 0 10px;
+  padding-left: 20px;
+}
+
+.materials li {
+  margin: 3px 0;
+}
+
+.materials a {
+  color: var(--accent, #b9723d);
+}
+
+.materials a:hover {
+  text-decoration: underline;
+}
+
 .meetingRow {
   padding: 10px 0;
   border-top: 1px solid var(--rule);

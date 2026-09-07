@@ -45,4 +45,32 @@ test.describe('interim committees', () => {
     await page.locator('button', { hasText: 'Following' }).click()
     await expect(page.locator('button', { hasText: '+ Follow' })).toBeVisible()
   })
+
+  test('a committee with published meeting materials shows them, with working document links', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    await page.goto('/committees')
+    await expect(page.locator('div[class^="_row_"]').first()).toBeVisible()
+    const rowLinks = page.locator('a[class*="rowMain"]')
+    const count = await rowLinks.count()
+    expect(count).toBeGreaterThan(0)
+
+    // Not every committee has published materials — check rows until one
+    // does, rather than assuming a specific committee (data comes from a
+    // live scrape, not a fixture).
+    let found = false
+    for (let i = 0; i < Math.min(count, 15); i++) {
+      await page.goto('/committees')
+      await rowLinks.nth(i).click()
+      await page.waitForURL(/\/committees\/.+/)
+      if (await page.locator('.eyebrow', { hasText: 'Meeting materials' }).isVisible()) {
+        found = true
+        break
+      }
+    }
+    expect(found).toBe(true)
+
+    const materialsLink = page.locator('[class*="materials"] a').first()
+    await expect(materialsLink).toBeVisible()
+    await expect(materialsLink).toHaveAttribute('href', /^https:\/\//)
+  })
 })

@@ -1334,7 +1334,7 @@ export async function getNonStandingCommitteeDetail(committeeId: number, workspa
   const core = coreRows[0]
   if (!core) return null
 
-  const [{ rows: memberRows }, { rows: meetingRows }] = await Promise.all([
+  const [{ rows: memberRows }, { rows: meetingRows }, { rows: materialsRows }] = await Promise.all([
     pool.query<{
       legislator_id: number | null
       first_name: string | null
@@ -1366,6 +1366,11 @@ export async function getNonStandingCommitteeDetail(committeeId: number, workspa
        ORDER BY meeting_time DESC`,
       [committeeId],
     ),
+    pool.query<{ content_html: string }>(
+      `SELECT content_html FROM non_standing_committee_materials
+       WHERE committee_id = $1 AND tab_title = 'Meeting Materials'`,
+      [committeeId],
+    ),
   ])
 
   return {
@@ -1373,6 +1378,7 @@ export async function getNonStandingCommitteeDetail(committeeId: number, workspa
     name: core.name,
     committeeType: core.committee_type,
     isFollowed: core.is_followed,
+    meetingMaterialsHtml: materialsRows[0]?.content_html ?? null,
     members: memberRows.map((r) => ({
       legislatorId: r.legislator_id != null ? String(r.legislator_id) : null,
       name: legislatorLabel(r.first_name, r.last_name),

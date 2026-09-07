@@ -265,3 +265,31 @@ export interface RawNonStandingCommitteeMeetingPage {
   content: RawNonStandingCommitteeMeeting[]
   totalElements: number
 }
+
+// From www.legmt.gov's WordPress CMS (a different host/API entirely from
+// bearbeta.legmt.gov) — each committee has editorial content tabs
+// ("Meeting Materials", "Studies / Topics", etc.) authored by legislative
+// staff as rich HTML, with embedded links to the actual PDF documents
+// (agendas, exhibits, reports). This is genuinely separate from the
+// structured agendaItems on a meeting — a meeting can show 0 agendaItems
+// while still having a real agenda published here as a linked PDF.
+export interface RawCommitteeTabLayout {
+  layout: string
+  content: string | null
+}
+
+export interface RawCommitteeTabSection {
+  sectionTitle: string | null
+  layouts: RawCommitteeTabLayout[]
+}
+
+export interface RawCommitteeTab {
+  tabTitle: string
+  sections: RawCommitteeTabSection[]
+}
+
+export interface RawCommitteeTabsResponse {
+  lawsId: number
+  title: string
+  tabs: RawCommitteeTab[]
+}

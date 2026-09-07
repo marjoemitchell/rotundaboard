@@ -1,5 +1,7 @@
+import sanitizeHtml from 'sanitize-html'
 import { pool } from './db.js'
 import * as api from './legmtClient.js'
+import { runWithConcurrency } from './concurrency.js'
 import type {
   RawBillStatusCode,
   RawBillType,
@@ -333,6 +335,53 @@ export async function upsertNonStandingCommitteeMeetings(committeeIds: number[])
   console.log(`fetched ${count} interim committee meetings`)
 }
 
+// This content comes from legmt.gov's own public WordPress site (a
+// different host and system entirely from bearbeta.legmt.gov), so it's
+// sanitized on the way in — we don't control that system, and it gets
+// rendered as real HTML in the app (see CommitteeDetailPage.tsx).
+const MATERIALS_CONCURRENCY = Number(process.env.SCRAPE_CONCURRENCY ?? 6)
+
+export async function upsertCommitteeMaterials(committeeIds: number[]) {
+  let committeesWithContent = 0
+  let tabsWritten = 0
+  await runWithConcurrency(committeeIds, MATERIALS_CONCURRENCY, async (committeeId) => {
+    let response
+    try {
+      response = await api.getCommitteeTabs(committeeId)
+    } catch (err) {
+      // Not every committee necessarily has a WordPress page (e.g. one
+      // created mid-interim with no content yet) — skip rather than fail
+      // the whole run over one missing committee.
+      console.warn(`  committee ${committeeId}: ${err instanceof Error ? err.message : err}`)
+      return
+    }
+    let wroteAny = false
+    for (const tab of response.tabs ?? []) {
+      const html = (tab.sections ?? [])
+        .flatMap((s) => s.layouts ?? [])
+        .map((l) => l.content ?? '')
+        .join('\n')
+        .trim()
+      if (!html) continue
+      const clean = sanitizeHtml(html, {
+        allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']),
+        allowedAttributes: { a: ['href', 'target', 'rel'], '*': ['class'] },
+        allowedSchemes: ['http', 'https', 'mailto'],
+      })
+      await pool.query(
+        `INSERT INTO non_standing_committee_materials (committee_id, tab_title, content_html, updated_at)
+         VALUES ($1, $2, $3, now())
+         ON CONFLICT (committee_id, tab_title) DO UPDATE SET content_html = $3, updated_at = now()`,
+        [committeeId, tab.tabTitle, clean],
+      )
+      tabsWritten += 1
+      wroteAny = true
+    }
+    if (wroteAny) committeesWithContent += 1
+  })
+  console.log(`fetched committee materials: ${tabsWritten} tabs across ${committeesWithContent} committees`)
+}
+
 async function main() {
   console.log(`looking up session ${TARGET_SESSION_ORDINALS}...`)
   const sessions = await api.getSessions()
@@ -381,6 +430,7 @@ async function main() {
     [target.legislature.id],
   )
   await upsertNonStandingCommitteeMeetings(nonStandingCommittees.map((c) => c.id))
+  await upsertCommitteeMaterials(nonStandingCommittees.map((c) => c.id))
 
   console.log('fetching bills...')
   let count = 0

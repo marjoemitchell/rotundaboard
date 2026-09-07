@@ -5,6 +5,7 @@ import type {
   RawBillFilterPage,
   RawBillVote,
   RawCommitteeMeetingBillHearing,
+  RawCommitteeTabsResponse,
   RawExecutiveAction,
   RawLegislator,
   RawNonStandingCommittee,
@@ -14,6 +15,10 @@ import type {
 } from './legmtTypes.js'
 
 const BASE = process.env.LEGMT_API_BASE ?? 'https://bearbeta.legmt.gov'
+// The committee "tabs" content (Meeting Materials, Studies/Topics, etc.) is
+// served by legmt.gov's public WordPress site, not the bearbeta API — a
+// completely separate host and system.
+const WP_BASE = process.env.LEGMT_WP_BASE ?? 'https://www.legmt.gov'
 const USER_AGENT = 'RotundaBoard/0.1 (bill-tracking research tool; contact: rotundaboard project)'
 
 async function getJson<T>(url: string): Promise<T> {
@@ -90,6 +95,12 @@ export async function* iterateBillsForSession(sessionId: number) {
     if (result.content.length < PAGE_SIZE) break
     page += 1
   }
+}
+
+export function getCommitteeTabs(lawsId: number): Promise<RawCommitteeTabsResponse> {
+  return getJson(
+    `${WP_BASE}/wp-json/legmt/v1/committees/search?committeesEntity=NonStandingCommittee&lawsId=${lawsId}`,
+  )
 }
 
 export async function* iterateNonStandingCommitteeMeetings(committeeIds: number[]) {

@@ -113,6 +113,19 @@ export function CommitteeDetailPage() {
 
       <div className={styles.grid}>
         <div className={styles.mainCol}>
+          {committee.meetingMaterialsHtml && (
+            <section className={styles.section}>
+              <div className="eyebrow">Meeting materials</div>
+              <div
+                className={styles.materials}
+                // Sanitized server-side before storage (see
+                // scrapeCommitteeMaterials in server/src/scrape.ts) — this
+                // is legmt.gov's own published content, not user input.
+                dangerouslySetInnerHTML={{ __html: committee.meetingMaterialsHtml }}
+              />
+            </section>
+          )}
+
           <section className={styles.section}>
             <div className="eyebrow">Upcoming meetings</div>
             {upcoming.length === 0 ? (
