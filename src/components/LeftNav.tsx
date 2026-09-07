@@ -124,9 +124,9 @@ export function LeftNav({
                 className={styles.deleteViewButton}
                 onClick={async (e) => {
                   e.stopPropagation()
-                  if (await confirm(`Remove saved view "${view.name}"?`, { confirmLabel: 'Remove' })) onDeleteView(view.id)
+                  if (await confirm(`Remove saved filter "${view.name}"?`, { confirmLabel: 'Remove' })) onDeleteView(view.id)
                 }}
-                aria-label={`Delete saved view ${view.name}`}
+                aria-label={`Delete saved filter ${view.name}`}
               >
                 ×
               </button>
@@ -134,7 +134,7 @@ export function LeftNav({
           ))}
           {savedViews.status === 'ready' && views.length === 0 && (
             <div className={styles.groupLabel} style={{ color: 'var(--faint)', fontSize: 16 }}>
-              No saved views yet
+              No saved filters yet
             </div>
           )}
         </div>

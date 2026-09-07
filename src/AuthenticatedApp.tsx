@@ -8,6 +8,7 @@ import { LeftNav, type NavId } from './components/LeftNav'
 import { CommandPalette } from './components/CommandPalette'
 import { BillDetailDrawer } from './components/BillDetailDrawer'
 import { Toast } from './components/shared/Toast'
+import { usePrompt } from './hooks/usePrompt'
 import { DashboardPage } from './pages/DashboardPage'
 import { BillDetailPage } from './pages/BillDetailPage'
 import { SessionsPage } from './pages/SessionsPage'
@@ -90,6 +91,7 @@ export function AuthenticatedApp() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const { prompt, promptDialog } = usePrompt()
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -225,7 +227,7 @@ export function AuthenticatedApp() {
           if (value) setFilter(key as keyof FilterState, value)
         }
         setIdentifierFilter('all')
-        setNotice(`Applied saved view "${view.name}".`)
+        setNotice(`Applied saved filter "${view.name}".`)
       }
       return
     }
@@ -235,10 +237,10 @@ export function AuthenticatedApp() {
 
   const handleSaveView = async () => {
     if (Object.keys(filters).length === 0) {
-      setNotice('Add at least one filter before saving a view.')
+      setNotice('Add at least one filter before saving it.')
       return
     }
-    const name = window.prompt('Name this saved view:')
+    const name = await prompt('Name this filter:', { placeholder: 'e.g. Coalition priority' })
     if (!name) return
     const query = Object.entries(filters)
       .map(([key, value]) => {
@@ -249,9 +251,9 @@ export function AuthenticatedApp() {
     try {
       await client.createSavedView(name, '#5c6b80', query)
       data.refetchSavedViews()
-      setNotice(`Saved view "${name}".`)
+      setNotice(`Saved filter "${name}".`)
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Could not save this view.')
+      setNotice(err instanceof Error ? err.message : 'Could not save this filter.')
     }
   }
 
@@ -259,9 +261,9 @@ export function AuthenticatedApp() {
     try {
       await client.deleteSavedView(viewId)
       data.refetchSavedViews()
-      setNotice('Saved view removed.')
+      setNotice('Saved filter removed.')
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Could not remove this view.')
+      setNotice(err instanceof Error ? err.message : 'Could not remove this filter.')
     }
   }
 
@@ -309,6 +311,7 @@ export function AuthenticatedApp() {
 
   return (
     <>
+      {promptDialog}
       {mobileNavOpen && <div className={styles.navScrim} onClick={() => setMobileNavOpen(false)} />}
       <TopBar
         teamMembers={data.teamMembers}

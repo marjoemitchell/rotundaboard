@@ -160,7 +160,7 @@ export function FilterBar({
 
       <div className={styles.spacer} />
       <button className={styles.saveLink} onClick={onSaveView}>
-        Save as view
+        Save as filter
       </button>
     </div>
   )

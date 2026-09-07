@@ -54,6 +54,21 @@
   color: var(--ink-2);
 }
 
+.promptInput {
+  width: 100%;
+  margin-top: 12px;
+  padding: 7px 10px;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+}
+
+.promptInput:focus {
+  outline: none;
+  border-color: var(--accent, #b9723d);
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;

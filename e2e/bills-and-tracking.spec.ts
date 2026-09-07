@@ -88,8 +88,9 @@ test.describe('saved views', () => {
     // to the nav button itself rather than a bare text= match.
     const savedViewButton = page.getByRole('button', { name: 'My saved view', exact: true })
 
-    page.once('dialog', (d) => d.accept('My saved view'))
-    await page.click('button:has-text("Save as view")')
+    await page.click('button:has-text("Save as filter")')
+    await page.getByRole('dialog').locator('input').fill('My saved view')
+    await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click()
     await expect(savedViewButton).toBeVisible()
 
     await page.locator('[aria-label="Remove Chamber filter"]').click()
@@ -98,7 +99,7 @@ test.describe('saved views', () => {
     await savedViewButton.click()
     await expect(page.locator('[class*="chipActive"]')).toBeVisible()
 
-    await page.locator('[aria-label="Delete saved view My saved view"]').click()
+    await page.locator('[aria-label="Delete saved filter My saved view"]').click()
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click()
     await expect(savedViewButton).not.toBeVisible()
   })

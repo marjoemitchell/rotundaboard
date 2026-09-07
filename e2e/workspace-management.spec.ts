@@ -104,8 +104,9 @@ test.describe('ownership-gated deletes', () => {
     // The owner needs a tracked bill to have something to filter/save a view from.
     await owner.page.goto('/')
     await owner.page.locator('select[aria-label="Add filter"]').selectOption('chamber')
-    owner.page.once('dialog', (d) => d.accept('Owner View'))
-    await owner.page.click('button:has-text("Save as view")')
+    await owner.page.click('button:has-text("Save as filter")')
+    await owner.page.getByRole('dialog').locator('input').fill('Owner View')
+    await owner.page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click()
     await expect(owner.page.getByRole('button', { name: 'Owner View', exact: true })).toBeVisible()
 
     // Bystander can see the view (shared within the workspace) but can't delete it.
