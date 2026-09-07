@@ -113,18 +113,23 @@ export function FilterBar({
         return (
           <span key={key} className={`${styles.chip} ${styles.chipActive}`}>
             <span className={styles.key}>{def.label}</span>
-            <select
-              className={styles.select}
-              value={filters[key]}
-              onChange={(e) => onSetFilter(key, e.target.value)}
-              aria-label={def.label}
-            >
-              {def.options.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <span className={styles.selectWrap}>
+              <select
+                className={styles.select}
+                value={filters[key]}
+                onChange={(e) => onSetFilter(key, e.target.value)}
+                aria-label={def.label}
+              >
+                {def.options.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <span className={styles.selectCaret} aria-hidden>
+                ▾
+              </span>
+            </span>
             <button
               className={styles.remove}
               onClick={() => onRemoveFilter(key)}
