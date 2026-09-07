@@ -4,10 +4,12 @@ import * as client from '../data/client'
 import type { LoadState, Note } from '../types'
 import { formatDate, formatTime } from '../lib/format'
 import { EmptyState } from '../components/shared/EmptyState'
+import { useConfirm } from '../hooks/useConfirm'
 import styles from './NotesPage.module.css'
 
 export function NotesPage() {
   const [notes, setNotes] = useState<LoadState<Note[]>>({ status: 'loading' })
+  const { confirm, confirmDialog } = useConfirm()
 
   const load = () => {
     client
@@ -19,13 +21,14 @@ export function NotesPage() {
   useEffect(load, [])
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this note?')) return
+    if (!(await confirm('Delete this note?', { confirmLabel: 'Delete' }))) return
     await client.deleteNote(id)
     load()
   }
 
   return (
     <div className={styles.page}>
+      {confirmDialog}
       <h1 className={styles.title}>Notes</h1>
       <p className={styles.subhead}>Everything the team has logged — bill notes and hearing clips, newest first.</p>
 

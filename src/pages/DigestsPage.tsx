@@ -4,11 +4,20 @@ import * as client from '../data/client'
 import type { Digest, LoadState } from '../types'
 import { formatDate, formatTime } from '../lib/format'
 import { EmptyState } from '../components/shared/EmptyState'
+import { useConfirm, type ConfirmFn } from '../hooks/useConfirm'
 import styles from './DigestsPage.module.css'
 
-function DigestCard({ digest, onDeleted }: { digest: Digest; onDeleted: () => void }) {
+function DigestCard({
+  digest,
+  onDeleted,
+  confirm,
+}: {
+  digest: Digest
+  onDeleted: () => void
+  confirm: ConfirmFn
+}) {
   const handleDelete = async () => {
-    if (!window.confirm('Delete this digest?')) return
+    if (!(await confirm('Delete this digest?', { confirmLabel: 'Delete' }))) return
     await client.deleteDigest(digest.id)
     onDeleted()
   }
@@ -60,6 +69,7 @@ function DigestCard({ digest, onDeleted }: { digest: Digest; onDeleted: () => vo
 export function DigestsPage() {
   const [digests, setDigests] = useState<LoadState<Digest[]>>({ status: 'loading' })
   const [generating, setGenerating] = useState(false)
+  const { confirm, confirmDialog } = useConfirm()
 
   const load = () => {
     client
@@ -82,6 +92,7 @@ export function DigestsPage() {
 
   return (
     <div className={styles.page}>
+      {confirmDialog}
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Digests</h1>
@@ -103,7 +114,7 @@ export function DigestsPage() {
       {digests.status === 'ready' && (
         <div className={styles.list}>
           {digests.data.map((d) => (
-            <DigestCard key={d.id} digest={d} onDeleted={load} />
+            <DigestCard key={d.id} digest={d} onDeleted={load} confirm={confirm} />
           ))}
         </div>
       )}

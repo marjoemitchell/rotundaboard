@@ -98,8 +98,8 @@ test.describe('saved views', () => {
     await savedViewButton.click()
     await expect(page.locator('[class*="chipActive"]')).toBeVisible()
 
-    page.once('dialog', (d) => d.accept())
     await page.locator('[aria-label="Delete saved view My saved view"]').click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click()
     await expect(savedViewButton).not.toBeVisible()
   })
 })

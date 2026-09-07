@@ -13,8 +13,8 @@ test.describe('digests', () => {
     await expect(page.locator('[class*="period"]').first()).toBeVisible()
     await expect(page.locator('[class*="summary"]').first()).toBeVisible()
 
-    page.on('dialog', (d) => d.accept())
     await page.click('button[aria-label="Delete digest"]')
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
     await expect(page.locator('text=No digests yet')).toBeVisible()
   })
 })

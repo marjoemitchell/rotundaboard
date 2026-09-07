@@ -70,9 +70,9 @@ test.describe('member removal', () => {
     const member = await inviteAndAcceptMember(page, browser)
 
     await page.goto('/settings')
-    page.on('dialog', (d) => d.accept())
     const memberRow = page.locator('[class*="memberRow"]', { hasText: member.email })
     await memberRow.locator('button:has-text("Remove")').click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click()
     await expect(page.locator('text=was removed')).toBeVisible()
     await expect(page.locator('[class*="memberRow"]', { hasText: member.email })).toHaveCount(0)
 

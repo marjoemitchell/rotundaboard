@@ -154,7 +154,6 @@ test.describe('invites', () => {
   })
 
   test('revoke invalidates the token and resend issues a working one', async ({ page }) => {
-    page.on('dialog', (d) => d.accept())
     await signUpFreshWorkspace(page)
     const inviteEmail = `e2e-revoke-${uniqueSuffix()}@example.dev`
     await page.goto('/settings')
@@ -164,6 +163,7 @@ test.describe('invites', () => {
     const firstToken = await getLastEmailToken(page.request, inviteEmail)
 
     await page.click('button:has-text("Revoke")')
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Revoke', exact: true }).click()
     await page.waitForTimeout(300)
     await page.reload()
     await expect(pendingInviteRow(page, inviteEmail)).not.toBeVisible()

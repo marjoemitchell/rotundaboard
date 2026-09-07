@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import * as client from '../data/client'
 import type { LoadState, SessionBillSummary, SubjectCode, SubjectWatch, Tag } from '../types'
 import { EmptyState } from '../components/shared/EmptyState'
+import { useConfirm } from '../hooks/useConfirm'
 import styles from './SubjectWatchesPage.module.css'
 
 function NewWatchForm({
@@ -167,6 +168,7 @@ export function SubjectWatchesPage() {
   const [tags, setTags] = useState<Tag[]>([])
   const [creating, setCreating] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const { confirm, confirmDialog } = useConfirm()
 
   const loadWatches = () => {
     client
@@ -188,7 +190,7 @@ export function SubjectWatchesPage() {
   }
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Delete the "${name}" watch?`)) return
+    if (!(await confirm(`Delete the "${name}" watch?`, { confirmLabel: 'Delete' }))) return
     await client.deleteSubjectWatch(id)
     if (expandedId === id) setExpandedId(null)
     loadWatches()
@@ -196,6 +198,7 @@ export function SubjectWatchesPage() {
 
   return (
     <div className={styles.page}>
+      {confirmDialog}
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Subject watches</h1>

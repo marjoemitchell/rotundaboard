@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { LoadState, NavCounts, SavedView } from '../types'
 import { useAuth } from '../auth/AuthContext'
+import { useConfirm } from '../hooks/useConfirm'
 import { InitialsSquare } from './shared/InitialsSquare'
 import styles from './LeftNav.module.css'
 
@@ -81,9 +82,11 @@ export function LeftNav({
   const counts = navCounts.status === 'ready' ? navCounts.data : null
   const countsLoading = navCounts.status === 'loading'
   const views = savedViews.status === 'ready' ? savedViews.data : []
+  const { confirm, confirmDialog } = useConfirm()
 
   return (
     <nav className={`${styles.nav} ${isOpen ? styles.navOpen : ''}`} aria-label="Primary">
+      {confirmDialog}
       <button className={styles.sessionSelector} onClick={() => onNavigate('sessions')}>
         Browse sessions
       </button>
@@ -119,9 +122,9 @@ export function LeftNav({
               </button>
               <button
                 className={styles.deleteViewButton}
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation()
-                  if (window.confirm(`Remove saved view "${view.name}"?`)) onDeleteView(view.id)
+                  if (await confirm(`Remove saved view "${view.name}"?`, { confirmLabel: 'Remove' })) onDeleteView(view.id)
                 }}
                 aria-label={`Delete saved view ${view.name}`}
               >

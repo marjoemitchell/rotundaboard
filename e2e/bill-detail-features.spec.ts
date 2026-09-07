@@ -28,8 +28,8 @@ test.describe('bill notes', () => {
     await expect(page.locator(`text=${noteBody}`)).toBeVisible()
     await expect(page.locator(`text=${identifier}`)).toBeVisible()
 
-    page.on('dialog', (d) => d.accept())
     await page.locator('div[class^="_note_"]', { hasText: noteBody }).locator('button[aria-label="Delete note"]').click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
     await expect(page.locator(`text=${noteBody}`)).not.toBeVisible()
   })
 })
@@ -50,8 +50,8 @@ test.describe('testimony from the bill page', () => {
     await page.locator('select[class^="_statusSelect_"]').first().selectOption('submitted')
     await expect(page.locator('span.eyebrow', { hasText: 'Submitted' })).toBeVisible()
 
-    page.on('dialog', (d) => d.accept())
     await page.locator('button[aria-label="Delete testimony"]').first().click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
     await expect(page.locator(`text=${testimonyBody}`)).not.toBeVisible()
   })
 

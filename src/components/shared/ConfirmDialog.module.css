@@ -1,0 +1,90 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 37, 71, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeIn 160ms ease;
+}
+
+.modal {
+  width: 100%;
+  max-width: 380px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 24px 60px rgba(15, 37, 71, 0.3);
+  padding: 20px;
+  animation: popIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes fadeIn {
+  from {
+    background: rgba(15, 37, 71, 0);
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .modal {
+    animation-duration: 0.01ms;
+  }
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.message {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.cancelButton {
+  padding: 6px 14px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+}
+
+.cancelButton:hover {
+  color: var(--ink);
+  border-color: var(--accent, #b9723d);
+}
+
+.confirmButton {
+  padding: 6px 14px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--accent, #b9723d);
+  border: 1px solid var(--accent, #b9723d);
+}
+
+.confirmDanger {
+  background: var(--oppose-fg);
+  border-color: var(--oppose-fg);
+}

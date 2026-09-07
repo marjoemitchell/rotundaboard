@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext'
 import type { LoadState, Role, WorkspaceInvite, WorkspaceMemberDetail } from '../types'
 import { InitialsSquare } from '../components/shared/InitialsSquare'
 import { EmptyState } from '../components/shared/EmptyState'
+import { useConfirm } from '../hooks/useConfirm'
 import styles from './SettingsPage.module.css'
 
 function InviteForm({ onCreate }: { onCreate: (email: string, role: Role) => Promise<void> }) {
@@ -157,6 +158,7 @@ export function SettingsPage() {
   const [members, setMembers] = useState<LoadState<WorkspaceMemberDetail[]>>({ status: 'loading' })
   const [invites, setInvites] = useState<LoadState<WorkspaceInvite[]>>({ status: 'loading' })
   const [notice, setNotice] = useState<string | null>(null)
+  const { confirm, confirmDialog } = useConfirm()
 
   const loadMembers = () => {
     if (!workspaceId) return
@@ -195,7 +197,7 @@ export function SettingsPage() {
 
   const handleRevoke = async (invite: WorkspaceInvite) => {
     if (!workspaceId) return
-    if (!window.confirm(`Revoke the invite for ${invite.email}?`)) return
+    if (!(await confirm(`Revoke the invite for ${invite.email}?`, { confirmLabel: 'Revoke' }))) return
     await client.revokeInvite(workspaceId, invite.id)
     loadInvites()
   }
@@ -241,7 +243,7 @@ export function SettingsPage() {
 
   const handleRemoveMember = async (member: WorkspaceMemberDetail) => {
     if (!workspaceId) return
-    if (!window.confirm(`Remove ${member.name} from this workspace?`)) return
+    if (!(await confirm(`Remove ${member.name} from this workspace?`, { confirmLabel: 'Remove' }))) return
     try {
       await client.removeMember(workspaceId, member.id)
       setNotice(`${member.name} was removed.`)
@@ -253,6 +255,7 @@ export function SettingsPage() {
 
   return (
     <div className={styles.page}>
+      {confirmDialog}
       <div className={styles.header}>
         <h1 className={styles.title}>Settings</h1>
         <p className={styles.subhead}>

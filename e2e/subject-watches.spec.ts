@@ -38,8 +38,8 @@ test.describe('subject watches', () => {
     await page.locator('button[class*="matchCount"]', { hasText: '1 matching' }).click()
     await expect(page.locator('[class*="matchRow"]')).toHaveCount(1)
 
-    page.on('dialog', (d) => d.accept())
     await page.click('button[aria-label="Delete E2E Watch by tag"]')
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
     await expect(page.locator('text=E2E Watch by tag')).not.toBeVisible()
   })
 })

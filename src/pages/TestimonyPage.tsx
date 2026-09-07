@@ -5,6 +5,7 @@ import type { Bill, BillDetail, LoadState, Position, Testimony, TestimonyStatus 
 import { formatDate, formatTime } from '../lib/format'
 import { PositionChip } from '../components/shared/PositionChip'
 import { EmptyState } from '../components/shared/EmptyState'
+import { useConfirm, type ConfirmFn } from '../hooks/useConfirm'
 import styles from './TestimonyPage.module.css'
 
 const POSITION_OPTIONS: { value: NonNullable<Position>; label: string }[] = [
@@ -158,7 +159,15 @@ function NewTestimonyForm({
   )
 }
 
-function TestimonyRow({ item, onChanged }: { item: Testimony; onChanged: () => void }) {
+function TestimonyRow({
+  item,
+  onChanged,
+  confirm,
+}: {
+  item: Testimony
+  onChanged: () => void
+  confirm: ConfirmFn
+}) {
   const [expanded, setExpanded] = useState(false)
   const [draft, setDraft] = useState(item.body)
   const [saving, setSaving] = useState(false)
@@ -179,7 +188,7 @@ function TestimonyRow({ item, onChanged }: { item: Testimony; onChanged: () => v
   }
 
   const handleDelete = async () => {
-    if (!window.confirm('Delete this testimony?')) return
+    if (!(await confirm('Delete this testimony?', { confirmLabel: 'Delete' }))) return
     await client.deleteTestimony(item.id)
     onChanged()
   }
@@ -276,6 +285,7 @@ export function TestimonyPage() {
   const [testimony, setTestimony] = useState<LoadState<Testimony[]>>({ status: 'loading' })
   const [trackedBills, setTrackedBills] = useState<Bill[]>([])
   const [creating, setCreating] = useState(false)
+  const { confirm, confirmDialog } = useConfirm()
 
   const load = () => {
     client
@@ -303,6 +313,7 @@ export function TestimonyPage() {
 
   return (
     <div className={styles.page}>
+      {confirmDialog}
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Testimony</h1>
@@ -338,7 +349,7 @@ export function TestimonyPage() {
               </div>
               <div className={styles.list}>
                 {items.map((item) => (
-                  <TestimonyRow key={item.id} item={item} onChanged={load} />
+                  <TestimonyRow key={item.id} item={item} onChanged={load} confirm={confirm} />
                 ))}
               </div>
             </section>
