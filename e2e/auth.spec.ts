@@ -42,6 +42,32 @@ test.describe('auth', () => {
     await expect(page).toHaveURL(/\/login/)
   })
 
+  test('logging out from a protected page then logging in as someone else lands on the dashboard, not that page', async ({
+    page,
+  }) => {
+    // Regression test: RequireAuth redirects an unauthenticated visitor to
+    // /login with state.from set to whatever page they were on, so LoginPage
+    // can return them there after signing in. Logging out while on a
+    // protected page triggers that same redirect (session drops to null
+    // while still rendering that route) — without AuthContext.logout()
+    // navigating explicitly, the next person to log in on that same /login
+    // page inherited the previous user's state.from and landed on their page
+    // (e.g. Settings) instead of the dashboard.
+    const userA = await signUpFreshWorkspace(page)
+    await logout(page)
+    const userB = await signUpFreshWorkspace(page)
+    await logout(page)
+
+    await login(page, userA.email, userA.password)
+    await page.goto('/settings')
+    await expect(page.locator('h1', { hasText: 'Settings' })).toBeVisible()
+    await logout(page)
+
+    await login(page, userB.email, userB.password)
+    await expect(page).toHaveURL('/')
+    await expect(page.locator('text=' + userB.workspaceName)).toBeVisible()
+  })
+
   test('forgot-password always shows the generic confirmation, even for an unknown email', async ({ page }) => {
     await page.goto('/forgot-password')
     await page.fill('input[type="email"]', `nobody-${uniqueSuffix()}@example.dev`)

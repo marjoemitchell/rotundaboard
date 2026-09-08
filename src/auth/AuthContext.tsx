@@ -34,7 +34,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await client.logout()
-    setSession(null)
+    // A hard reload (rather than setSession(null) + client-side navigate)
+    // sidesteps a render race with RequireAuth's own redirect: once session
+    // drops to null, RequireAuth re-renders and issues its own `<Navigate
+    // state={{from: location}}>` using the page we were just on — a
+    // same-tick client-side navigate() to /login doesn't reliably win that
+    // race, so /login can still end up with state.from pointing at e.g.
+    // Settings. The next person to log in on that same page then inherits
+    // it and lands on Settings too. Unloading the document entirely avoids
+    // the race: the fresh /login load has no leftover history state.
+    window.location.href = '/login'
   }
 
   const switchWorkspace = async (workspaceId: number) => {
