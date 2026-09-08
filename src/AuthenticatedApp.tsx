@@ -63,7 +63,7 @@ function applyFilters(bills: Bill[], filters: FilterState, identifierFilter: 'al
   else if (identifierFilter === 'introduced') list = list.filter((b) => !b.identifier.startsWith('LC'))
 
   if (filters.status) list = list.filter((b) => b.status === filters.status)
-  if (filters.subject) list = list.filter((b) => b.subject === filters.subject)
+  if (filters.subject) list = list.filter((b) => b.subjects.includes(filters.subject!))
   if (filters.position) list = list.filter((b) => b.position === filters.position)
   if (filters.momentumMin) list = list.filter((b) => b.momentum.score >= Number(filters.momentumMin))
   if (filters.committee) list = list.filter((b) => b.committee === filters.committee)

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as client from '../data/client'
-import type { LoadState, SessionBillSummary, SubjectCode, SubjectWatch, Tag } from '../types'
+import type { LoadState, SubjectCode, SubjectWatch, SubjectWatchBillMatch, Tag } from '../types'
 import { EmptyState } from '../components/shared/EmptyState'
 import { useConfirm } from '../hooks/useConfirm'
 import styles from './SubjectWatchesPage.module.css'
@@ -120,7 +120,7 @@ function NewWatchForm({
 }
 
 function WatchBills({ watchId, onTracked }: { watchId: string; onTracked: () => void }) {
-  const [bills, setBills] = useState<LoadState<SessionBillSummary[]>>({ status: 'loading' })
+  const [bills, setBills] = useState<LoadState<SubjectWatchBillMatch[]>>({ status: 'loading' })
 
   const load = () => {
     client
@@ -147,7 +147,14 @@ function WatchBills({ watchId, onTracked }: { watchId: string; onTracked: () => 
           <Link to={`/bills/${b.id}`} className={styles.matchIdentifier}>
             {b.identifier}
           </Link>
-          <span className={styles.matchTitle}>{b.title}</span>
+          <div className={styles.matchMain}>
+            <span className={styles.matchTitle}>{b.title}</span>
+            {b.matchedSubjects.length > 0 && (
+              <span className={styles.matchReason} title={b.matchedSubjects.join(', ')}>
+                via {b.matchedSubjects.join(', ')}
+              </span>
+            )}
+          </div>
           <span className={styles.matchStatus}>{b.status}</span>
           {b.isTracked ? (
             <span className={styles.trackedBadge}>Tracked</span>

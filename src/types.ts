@@ -31,7 +31,10 @@ export interface Bill {
   sponsor: Sponsor
   committee?: string
   chamber?: Chamber
-  subject?: string
+  // Every subject code Montana's own data has tagged this bill with — there's
+  // no reliable "primary" one (see server/src/api/queries.ts), so this is
+  // the full list rather than one arbitrarily chosen subject.
+  subjects: string[]
   status: string
   lastAction: { text: string; date: string }
   position: Position
@@ -139,6 +142,18 @@ export interface SessionBillSummary {
   party: string | null
   status: string
   isTracked: boolean
+}
+
+export interface SubjectWatchBillMatch extends SessionBillSummary {
+  // Which of the watch's subject codes this specific bill carries — a bill
+  // can match a watch through a subject that's incidental to it (see
+  // getSubjectWatchBills in queries.ts), so this is shown so users can judge
+  // relevance for themselves rather than trusting the match blindly.
+  matchedSubjects: string[]
+  // Total subject codes tagged on the bill overall — results are ordered by
+  // this ascending, since a bill carrying only one or two tags overall is a
+  // much stronger signal that a matched subject is actually central to it.
+  subjectCount: number
 }
 
 export interface Tag {

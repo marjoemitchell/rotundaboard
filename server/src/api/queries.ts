@@ -45,7 +45,7 @@ export async function getBills(workspaceId: number) {
     sponsor_last_name: string | null
     sponsor_district: string | null
     sponsor_party: string | null
-    subject: string | null
+    subjects: string[] | null
     committee_name: string | null
     status_name: string | null
     status_occurred_at: string | null
@@ -67,7 +67,7 @@ export async function getBills(workspaceId: number) {
       sp.last_name AS sponsor_last_name,
       dist.name AS sponsor_district,
       pp.code AS sponsor_party,
-      subj.description AS subject,
+      subj.descriptions AS subjects,
       latest_committee.committee_name,
       latest_status.status_name,
       latest_status.occurred_at AS status_occurred_at,
@@ -82,12 +82,16 @@ export async function getBills(workspaceId: number) {
     LEFT JOIN districts dist ON dist.id = sp.district_id
     LEFT JOIN political_parties pp ON pp.id = sp.political_party_id
     LEFT JOIN LATERAL (
-      SELECT subj.description
+      -- Montana's own "primary" flag on subject_codes is a property of the
+      -- subject category itself (nearly every code has it set), not of a
+      -- specific bill's assignment — it does NOT mean "this is the bill's
+      -- main topic", so picking one "primary" subject per bill was
+      -- effectively arbitrary. Surface every tagged subject instead of
+      -- guessing at one.
+      SELECT array_agg(subj.description ORDER BY subj.description) AS descriptions
       FROM draft_subjects ds
       JOIN subject_codes subj ON subj.id = ds.subject_code_id
-      WHERE ds.draft_id = d.id AND ds.is_primary = true
-      ORDER BY ds.subject_code_id
-      LIMIT 1
+      WHERE ds.draft_id = d.id
     ) subj ON true
     LEFT JOIN LATERAL (
       SELECT bsc.name AS status_name, bs.occurred_at
@@ -162,7 +166,7 @@ export async function getBills(workspaceId: number) {
       sponsor: { name: sponsorName, district: r.sponsor_district ?? '', party: r.sponsor_party ?? '' },
       committee: r.committee_name ?? undefined,
       chamber: r.chamber ? (r.chamber.toLowerCase() as 'house' | 'senate') : undefined,
-      subject: r.subject ?? undefined,
+      subjects: r.subjects ?? [],
       status: r.status_name ?? 'Unknown',
       lastAction: {
         text: r.status_name ?? 'No recorded action',
@@ -535,7 +539,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     sponsor_last_name: string | null
     sponsor_district: string | null
     sponsor_party: string | null
-    subject: string | null
+    subjects: string[] | null
     committee_name: string | null
     status_name: string | null
     status_occurred_at: string | null
@@ -560,7 +564,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
       sp.last_name AS sponsor_last_name,
       dist.name AS sponsor_district,
       pp.code AS sponsor_party,
-      subj.description AS subject,
+      subj.descriptions AS subjects,
       latest_committee.committee_name,
       latest_status.status_name,
       latest_status.occurred_at AS status_occurred_at,
@@ -580,12 +584,12 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     LEFT JOIN districts dist ON dist.id = sp.district_id
     LEFT JOIN political_parties pp ON pp.id = sp.political_party_id
     LEFT JOIN LATERAL (
-      SELECT subj.description
+      -- See the matching comment in getBills() — Montana's "primary" flag on
+      -- subject_codes is not per-bill, so we surface every tagged subject.
+      SELECT array_agg(subj.description ORDER BY subj.description) AS descriptions
       FROM draft_subjects ds
       JOIN subject_codes subj ON subj.id = ds.subject_code_id
-      WHERE ds.draft_id = d.id AND ds.is_primary = true
-      ORDER BY ds.subject_code_id
-      LIMIT 1
+      WHERE ds.draft_id = d.id
     ) subj ON true
     LEFT JOIN LATERAL (
       SELECT bsc.name AS status_name, bs.occurred_at
@@ -784,7 +788,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     sponsor: { name: sponsorName, district: core.sponsor_district ?? '', party: core.sponsor_party ?? '' },
     committee: core.committee_name ?? undefined,
     chamber: core.chamber ? (core.chamber.toLowerCase() as 'house' | 'senate') : undefined,
-    subject: core.subject ?? undefined,
+    subjects: core.subjects ?? [],
     status: core.status_name ?? 'Unknown',
     lastAction: {
       text: core.status_name ?? 'No recorded action',
@@ -1252,13 +1256,17 @@ export async function getSubjectWatchBills(watchId: number, workspaceId: number)
     sponsor_party: string | null
     status_name: string | null
     is_tracked: boolean
+    matched_subjects: string[] | null
+    subject_count: number
   }>(
     `
     SELECT
       b.id AS bill_id, bt.code AS bill_type_code, b.bill_number, d.draft_number, d.short_title,
       sp.first_name AS sponsor_first_name, sp.last_name AS sponsor_last_name, pp.code AS sponsor_party,
       latest_status.status_name,
-      (tb.bill_id IS NOT NULL) AS is_tracked
+      (tb.bill_id IS NOT NULL) AS is_tracked,
+      matched.matched_subjects,
+      coalesce(subject_totals.total, 0) AS subject_count
     FROM bills b
     JOIN drafts d ON d.id = b.draft_id
     LEFT JOIN bill_types bt ON bt.id = b.bill_type_id
@@ -1273,6 +1281,14 @@ export async function getSubjectWatchBills(watchId: number, workspaceId: number)
       ORDER BY bs.occurred_at DESC
       LIMIT 1
     ) latest_status ON true
+    LEFT JOIN LATERAL (
+      SELECT array_agg(sc.description ORDER BY sc.description) AS matched_subjects
+      FROM draft_subjects ds JOIN subject_codes sc ON sc.id = ds.subject_code_id
+      WHERE ds.draft_id = d.id AND sc.code = ANY($1)
+    ) matched ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS total FROM draft_subjects ds WHERE ds.draft_id = d.id
+    ) subject_totals ON true
     WHERE b.session_id = ${WORKING_SESSION_SQL}
     AND (
       EXISTS (
@@ -1283,7 +1299,14 @@ export async function getSubjectWatchBills(watchId: number, workspaceId: number)
         SELECT 1 FROM bill_tags bt2 WHERE bt2.bill_id = b.id AND bt2.tag_id = ANY($2)
       )
     )
-    ORDER BY b.bill_number NULLS LAST, d.draft_number
+    -- Montana's subject-code data has no real "primary topic" signal (see
+    -- the comment in getBills()), so a bill tagged with just one or two
+    -- subjects overall is a much stronger sign that a matched subject is
+    -- actually central to it than one carrying a dozen tags. Rank the
+    -- most focused matches first instead of by bare bill number, which
+    -- otherwise surfaces bills like a low-numbered resolution that only
+    -- tangentially touches the watched subject.
+    ORDER BY subject_count ASC, b.bill_number NULLS LAST, d.draft_number
     `,
     [watch.subject_codes, watch.tag_ids, workspaceId],
   )
@@ -1296,6 +1319,8 @@ export async function getSubjectWatchBills(watchId: number, workspaceId: number)
     party: r.sponsor_party,
     status: r.status_name ?? 'Unknown',
     isTracked: r.is_tracked,
+    matchedSubjects: r.matched_subjects ?? [],
+    subjectCount: Number(r.subject_count),
   }))
 }
 

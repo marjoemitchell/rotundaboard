@@ -29,6 +29,7 @@ import type {
   Position,
   SavedView,
   SessionBillSummary,
+  SubjectWatchBillMatch,
   SessionCalendar,
   SubjectCode,
   SubjectWatch,
@@ -274,7 +275,7 @@ export function getSubjectWatches(): Promise<SubjectWatch[]> {
   return getJson('/api/subject-watches')
 }
 
-export function getSubjectWatchBills(watchId: string): Promise<SessionBillSummary[]> {
+export function getSubjectWatchBills(watchId: string): Promise<SubjectWatchBillMatch[]> {
   return getJson(`/api/subject-watches/${watchId}/bills`)
 }
 

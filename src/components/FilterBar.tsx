@@ -30,7 +30,7 @@ function useFilterDefs(bills: Bill[], teamMembers: TeamMember[]): FilterDef[] {
       {
         key: 'subject',
         label: 'Subject',
-        options: unique(bills.map((b) => b.subject)).map((v) => ({ value: v, label: v })),
+        options: unique(bills.flatMap((b) => b.subjects)).map((v) => ({ value: v, label: v })),
       },
       {
         key: 'position',

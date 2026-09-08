@@ -655,10 +655,10 @@ export function BillDetailPage({
                 <span className={styles.rowValue}>{bill.committee}</span>
               </div>
             )}
-            {bill.subject && (
+            {bill.subjects.length > 0 && (
               <div className={styles.row}>
-                <span className={styles.rowLabel}>Subject</span>
-                <span className={styles.rowValue}>{bill.subject}</span>
+                <span className={styles.rowLabel}>{bill.subjects.length > 1 ? 'Subjects' : 'Subject'}</span>
+                <span className={styles.rowValue}>{bill.subjects.join(', ')}</span>
               </div>
             )}
             <div className={styles.row}>
