@@ -5,6 +5,8 @@ import type { AiSummary, Bill, LoadState, Position, TeamMember } from '../types'
 import { formatDate, formatSignedDelta } from '../lib/format'
 import { InitialsSquare } from './shared/InitialsSquare'
 import { Sparkline } from './shared/Sparkline'
+import { Tooltip } from './shared/Tooltip'
+import { MOMENTUM_EXPLANATION } from './shared/MomentumBar'
 import styles from './BillDetailDrawer.module.css'
 
 const POSITION_OPTIONS: { value: NonNullable<Position>; label: string }[] = [
@@ -178,7 +180,9 @@ export function BillDetailDrawer({
         </div>
 
         <div className={styles.section}>
-          <div className={styles.sectionEyebrow}>Momentum</div>
+          <Tooltip label={MOMENTUM_EXPLANATION}>
+            <div className={styles.sectionEyebrow}>Momentum ⓘ</div>
+          </Tooltip>
           <div className={styles.momentumHead}>
             <span className={styles.momentumScore}>{bill.momentum.score}</span>
             <span

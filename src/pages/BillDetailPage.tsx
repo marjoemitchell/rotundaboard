@@ -18,6 +18,8 @@ import { InitialsSquare } from '../components/shared/InitialsSquare'
 import { PositionChip } from '../components/shared/PositionChip'
 import { Sparkline } from '../components/shared/Sparkline'
 import { EmptyState } from '../components/shared/EmptyState'
+import { Tooltip } from '../components/shared/Tooltip'
+import { MOMENTUM_EXPLANATION } from '../components/shared/MomentumBar'
 import styles from './BillDetailPage.module.css'
 
 function formatDraftNumber(draftNumber: string): string {
@@ -665,7 +667,9 @@ export function BillDetailPage({
           </section>
 
           <section className={styles.section}>
-            <div className="eyebrow">Momentum</div>
+            <Tooltip label={MOMENTUM_EXPLANATION}>
+              <div className="eyebrow">Momentum ⓘ</div>
+            </Tooltip>
             <div className={styles.momentumHead}>
               <span className={styles.momentumScore}>{bill.momentum.score}</span>
               <span

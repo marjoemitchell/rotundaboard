@@ -8,7 +8,11 @@ test.describe('dashboard bill table and drawer', () => {
     const { identifier } = await trackFirstAvailableBill(page)
 
     await page.goto('/')
-    await page.locator('[role="row"]', { hasText: identifier }).click()
+    const row = page.locator('[role="row"]', { hasText: identifier })
+    await row.locator('[class*="momentumCell"] [class*="wrap"]').hover()
+    await expect(row.locator('[role="tooltip"]', { hasText: 'How momentum is scored' })).toBeVisible()
+
+    await row.click()
     const drawer = page.locator(`[aria-label="${identifier} details"]`)
     await expect(drawer).toBeVisible()
 
@@ -23,12 +27,20 @@ test.describe('dashboard bill table and drawer', () => {
     const drawerOfficialLink = drawer.locator('a', { hasText: 'View on official site' })
     await expect(drawerOfficialLink).toHaveAttribute('href', /^https:\/\/bills\.legmt\.gov\/#\/laws\/bill\/\d+\/[A-Za-z0-9]+\?open_tab=bill$/)
 
+    // Hovering the Momentum label explains how the score is calculated,
+    // since a bare number/bar gives no sense of what it means.
+    await drawer.locator('[class*="sectionEyebrow"]', { hasText: 'Momentum' }).hover()
+    await expect(drawer.locator('[role="tooltip"]', { hasText: 'How momentum is scored' })).toBeVisible()
+
     await page.click('text=View full details')
     await page.waitForURL(/\/bills\/.+/)
     await expect(page.locator('[aria-label*="details"]')).not.toBeVisible()
 
     const pageOfficialLink = page.locator('a', { hasText: 'View on official site' })
     await expect(pageOfficialLink).toHaveAttribute('href', /^https:\/\/bills\.legmt\.gov\/#\/laws\/bill\/\d+\/[A-Za-z0-9]+\?open_tab=bill$/)
+
+    await page.locator('.eyebrow', { hasText: 'Momentum' }).hover()
+    await expect(page.locator('[role="tooltip"]', { hasText: 'How momentum is scored' })).toBeVisible()
   })
 })
 
