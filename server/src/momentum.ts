@@ -29,6 +29,7 @@
 
 const MAX_PROGRESS_CODE = 190 // "Became Law"
 const PROGRESS_STOPPED_CODE = 5
+const FLOOR_STAGE_CODE = 50 // "First Chamber 2nd Reading Process" — reached an actual floor vote
 const MAX_ACTIVITY_EVENTS = 10 // p90 of bills with any votes/hearings sit at 9
 const RECENCY_HALF_LIFE_DAYS = 180
 const HISTORY_WEEKS = 12
@@ -63,6 +64,26 @@ function scoreAsOf(statuses: StatusPoint[], activityDates: Date[], cutoff: Date)
 
   const raw = 0.6 * progressComponent + 0.25 * recencyComponent + 0.15 * activityComponent
   return Math.round(Math.max(0, Math.min(100, raw)))
+}
+
+export type BillOutcome = 'became_law' | 'failed' | 'died'
+
+// A bill's legislative process is over once it's become law, or once its
+// session has adjourned (sine die) without that happening — at that point a
+// live momentum score/sparkline is misleading (it implies something is still
+// moving) rather than informative, so callers should show a static outcome
+// instead. Montana's own status codes don't cleanly distinguish "died in
+// committee" from "voted down on the floor" (both usually land on the same
+// generic "Died in Process" status), so this falls back to the one signal
+// that IS reliable: whether the bill ever reached a floor reading. A bill
+// that got at least that far and still didn't pass counted as "failed"; one
+// that never left committee "died".
+export function determineOutcome(statuses: StatusPoint[], sessionEnded: boolean): BillOutcome | null {
+  const progressCodes = statuses.map((s) => s.progressCode).filter((c): c is number => c != null && c !== PROGRESS_STOPPED_CODE)
+  const maxProgress = progressCodes.length ? Math.max(...progressCodes) : 0
+  if (maxProgress >= MAX_PROGRESS_CODE) return 'became_law'
+  if (!sessionEnded) return null
+  return maxProgress >= FLOOR_STAGE_CODE ? 'failed' : 'died'
 }
 
 export function computeMomentum(statuses: StatusPoint[], activityDates: Date[], now: Date = new Date()): MomentumResult {

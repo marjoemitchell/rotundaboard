@@ -16,6 +16,12 @@ export interface Momentum {
   history: number[]
 }
 
+// A bill's legislative process is over once it's become law, or once its
+// session adjourned without that happening — at that point the live
+// momentum score is misleading and the UI shows this static outcome
+// instead. null means the bill is still active (still show momentum).
+export type BillOutcome = 'became_law' | 'failed' | 'died' | null
+
 export interface Bill {
   id: string
   identifier: string // "LC 0412" or "HB 512"
@@ -31,6 +37,7 @@ export interface Bill {
   position: Position
   assigneeId: string | null
   momentum: Momentum
+  outcome: BillOutcome
 }
 
 export interface BillStatusEvent {

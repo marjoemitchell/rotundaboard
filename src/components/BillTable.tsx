@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react'
 import type { Bill, LoadState } from '../types'
 import { InitialsSquare } from './shared/InitialsSquare'
 import { MomentumBar } from './shared/MomentumBar'
+import { OutcomeBadge } from './shared/OutcomeBadge'
 import { PositionChip } from './shared/PositionChip'
 import { EmptyState } from './shared/EmptyState'
 import type { TeamMember } from '../types'
@@ -182,7 +183,7 @@ export function BillTable({
                 </div>
                 <div className={styles.cell} role="gridcell">
                   <div className={styles.momentumCell}>
-                    <MomentumBar score={bill.momentum.score} />
+                    {bill.outcome ? <OutcomeBadge outcome={bill.outcome} /> : <MomentumBar score={bill.momentum.score} />}
                   </div>
                 </div>
                 <div className={`${styles.cell} ${styles.assigneeCol}`} role="gridcell">

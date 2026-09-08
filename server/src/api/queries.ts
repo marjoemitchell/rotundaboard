@@ -12,7 +12,7 @@
 // without that, a valid session in one workspace could read a row belonging
 // to another just by knowing its numeric id.
 import { pool } from '../db.js'
-import { computeMomentum, type StatusPoint } from '../momentum.js'
+import { computeMomentum, determineOutcome, type StatusPoint } from '../momentum.js'
 
 function formatIdentifier(billTypeCode: string | null, billNumber: number | null, draftNumber: string): string {
   if (billTypeCode && billNumber != null) return `${billTypeCode} ${billNumber}`
@@ -40,6 +40,7 @@ export async function getBills(workspaceId: number) {
     draft_number: string
     short_title: string
     legislature_id: number | null
+    sine_die_date: string | null
     sponsor_first_name: string | null
     sponsor_last_name: string | null
     sponsor_district: string | null
@@ -61,6 +62,7 @@ export async function getBills(workspaceId: number) {
       d.draft_number,
       d.short_title,
       s.legislature_id,
+      s.sine_die_date,
       sp.first_name AS sponsor_first_name,
       sp.last_name AS sponsor_last_name,
       dist.name AS sponsor_district,
@@ -144,10 +146,13 @@ export async function getBills(workspaceId: number) {
     activityDatesByBill.set(row.bill_id, list)
   }
 
+  const now = new Date()
   return rows.map((r) => {
     const sponsorName = r.sponsor_first_name || r.sponsor_last_name ? `${r.sponsor_first_name ?? ''} ${r.sponsor_last_name ?? ''}`.trim() : ''
     const statuses = statusesByBill.get(r.bill_id) ?? []
     const momentum = computeMomentum(statuses, activityDatesByBill.get(r.bill_id) ?? [])
+    const sessionEnded = r.sine_die_date != null && new Date(r.sine_die_date) < now
+    const outcome = determineOutcome(statuses, sessionEnded)
 
     return {
       id: String(r.bill_id),
@@ -166,6 +171,7 @@ export async function getBills(workspaceId: number) {
       position: r.position as 'support' | 'oppose' | 'watch' | 'neutral' | null,
       assigneeId: r.assignee_id != null ? String(r.assignee_id) : null,
       momentum,
+      outcome,
     }
   })
 }
@@ -524,6 +530,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     is_tracked: boolean
     short_title: string
     legislature_id: number | null
+    sine_die_date: string | null
     sponsor_first_name: string | null
     sponsor_last_name: string | null
     sponsor_district: string | null
@@ -548,6 +555,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
       d.draft_number,
       d.short_title,
       s.legislature_id,
+      s.sine_die_date,
       sp.first_name AS sponsor_first_name,
       sp.last_name AS sponsor_last_name,
       dist.name AS sponsor_district,
@@ -707,6 +715,8 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     ...hearingRows.rows.map((r) => r.meeting_time).filter((d): d is string => d != null),
   ].map((d) => new Date(d))
   const momentum = computeMomentum(statuses, activityDates)
+  const sessionEnded = core.sine_die_date != null && new Date(core.sine_die_date) < new Date()
+  const outcome = determineOutcome(statuses, sessionEnded)
 
   const votesById = new Map<
     number,
@@ -787,6 +797,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
       ? { text: core.summary, model: core.summary_model, generatedAt: core.summary_generated_at }
       : null,
     momentum,
+    outcome,
     statusHistory: statusHistoryRows.rows.map((r) => ({
       id: String(r.id),
       occurredAt: r.occurred_at,

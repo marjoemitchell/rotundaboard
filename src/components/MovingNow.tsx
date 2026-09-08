@@ -52,8 +52,11 @@ export function MovingNow({
   } else if (bills.status === 'empty') {
     body = <EmptyState message="No tracked bills yet." />
   } else {
+    // Bills with a final outcome (became law, or died/failed once their
+    // session ended) aren't "moving" by definition — exclude them so this
+    // list only ever shows bills whose process is still active.
     const moving = bills.data
-      .filter((b) => b.momentum.score >= MOMENTUM_THRESHOLD)
+      .filter((b) => !b.outcome && b.momentum.score >= MOMENTUM_THRESHOLD)
       .sort((a, b) => b.momentum.delta7d - a.momentum.delta7d)
 
     body =

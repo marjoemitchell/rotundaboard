@@ -1,4 +1,10 @@
-import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill } from './fixtures'
+import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill, trackBillWithOutcome } from './fixtures'
+
+const OUTCOME_LABELS: Record<string, string> = {
+  became_law: 'Became law',
+  failed: 'Failed',
+  died: 'Died',
+}
 
 test.describe('dashboard bill table and drawer', () => {
   test('clicking a tracked bill opens the quick-view drawer, and "View full details" navigates to the full page', async ({
@@ -7,10 +13,15 @@ test.describe('dashboard bill table and drawer', () => {
     await signUpFreshWorkspace(page)
     const { identifier } = await trackFirstAvailableBill(page)
 
+    // The only session with real bill data here concluded in 2025, so every
+    // bill in it has a final outcome (see determineOutcome in
+    // server/src/momentum.ts) and shows an outcome badge, not the live
+    // momentum tracker — that path only applies to a bill whose session is
+    // still active, which no seeded/scraped data currently has, so it isn't
+    // covered by this suite.
     await page.goto('/')
     const row = page.locator('[role="row"]', { hasText: identifier })
-    await row.locator('[class*="momentumCell"] [class*="wrap"]').hover()
-    await expect(row.locator('[role="tooltip"]', { hasText: 'How momentum is scored' })).toBeVisible()
+    await expect(row.locator('[class*="momentumCell"] [class*="badge"]')).toBeVisible()
 
     await row.click()
     const drawer = page.locator(`[aria-label="${identifier} details"]`)
@@ -27,10 +38,8 @@ test.describe('dashboard bill table and drawer', () => {
     const drawerOfficialLink = drawer.locator('a', { hasText: 'View on official site' })
     await expect(drawerOfficialLink).toHaveAttribute('href', /^https:\/\/bills\.legmt\.gov\/#\/laws\/bill\/\d+\/[A-Za-z0-9]+\?open_tab=bill$/)
 
-    // Hovering the Momentum label explains how the score is calculated,
-    // since a bare number/bar gives no sense of what it means.
-    await drawer.locator('[class*="sectionEyebrow"]', { hasText: 'Momentum' }).hover()
-    await expect(drawer.locator('[role="tooltip"]', { hasText: 'How momentum is scored' })).toBeVisible()
+    await expect(drawer.locator('[class*="sectionEyebrow"]', { hasText: 'Outcome' })).toBeVisible()
+    await expect(drawer.locator('[class*="badge"]')).toBeVisible()
 
     await page.click('text=View full details')
     await page.waitForURL(/\/bills\/.+/)
@@ -39,8 +48,38 @@ test.describe('dashboard bill table and drawer', () => {
     const pageOfficialLink = page.locator('a', { hasText: 'View on official site' })
     await expect(pageOfficialLink).toHaveAttribute('href', /^https:\/\/bills\.legmt\.gov\/#\/laws\/bill\/\d+\/[A-Za-z0-9]+\?open_tab=bill$/)
 
-    await page.locator('.eyebrow', { hasText: 'Momentum' }).hover()
-    await expect(page.locator('[role="tooltip"]', { hasText: 'How momentum is scored' })).toBeVisible()
+    await expect(page.locator('.eyebrow', { hasText: 'Outcome' })).toBeVisible()
+    await expect(page.locator('[class*="badge"]')).toBeVisible()
+  })
+})
+
+test.describe('resolved bills show their real outcome instead of a live momentum tracker', () => {
+  test('the outcome badge label matches the bill\'s actual outcome, consistently across the table, drawer, and full page', async ({
+    page,
+  }) => {
+    await signUpFreshWorkspace(page)
+    const { billId, identifier } = await trackBillWithOutcome(page)
+
+    const detail = await page.evaluate(async (id) => {
+      const res = await fetch(`http://localhost:4000/api/bills/${id}`, { credentials: 'include' })
+      return (await res.json()) as { outcome: 'became_law' | 'failed' | 'died' }
+    }, billId)
+    const expectedLabel = OUTCOME_LABELS[detail.outcome]
+    expect(expectedLabel).toBeTruthy()
+
+    await page.goto('/')
+    const row = page.locator('[role="row"]', { hasText: identifier })
+    await expect(row.locator('[class*="momentumCell"]')).toHaveText(expectedLabel)
+
+    await row.click()
+    const drawer = page.locator(`[aria-label="${identifier} details"]`)
+    await expect(drawer.locator('[class*="sectionEyebrow"]', { hasText: 'Outcome' })).toBeVisible()
+    await expect(drawer.locator('[class*="momentumHead"] [class*="badge"]')).toHaveText(expectedLabel)
+
+    await page.click('text=View full details')
+    await page.waitForURL(/\/bills\/.+/)
+    await expect(page.locator('.eyebrow', { hasText: 'Outcome' })).toBeVisible()
+    await expect(page.locator('[class*="momentumHead"] [class*="badge"]')).toHaveText(expectedLabel)
   })
 })
 

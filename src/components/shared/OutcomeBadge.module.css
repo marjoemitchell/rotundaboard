@@ -1,0 +1,23 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.became_law {
+  background: var(--support-bg);
+  color: var(--support-fg);
+}
+
+.failed {
+  background: var(--oppose-bg);
+  color: var(--oppose-fg);
+}
+
+.died {
+  background: var(--soft);
+  color: var(--muted);
+}

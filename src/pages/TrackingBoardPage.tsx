@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { Bill, LoadState, Position, TeamMember } from '../types'
 import { InitialsSquare } from '../components/shared/InitialsSquare'
 import { EmptyState } from '../components/shared/EmptyState'
+import { OutcomeBadge } from '../components/shared/OutcomeBadge'
 import styles from './TrackingBoardPage.module.css'
 
 const COLUMNS: { key: Position; label: string }[] = [
@@ -32,7 +33,7 @@ function BoardCard({
       <button className={styles.cardMain} onClick={() => onSelectBill(bill.id)}>
         <div className={styles.cardHead}>
           <span className={styles.cardIdentifier}>{bill.identifier}</span>
-          <span className={styles.cardMomentum}>{bill.momentum.score}</span>
+          {bill.outcome ? <OutcomeBadge outcome={bill.outcome} /> : <span className={styles.cardMomentum}>{bill.momentum.score}</span>}
         </div>
         <div className={styles.cardTitle}>{bill.title}</div>
         <div className={styles.cardStatus}>{bill.status}</div>

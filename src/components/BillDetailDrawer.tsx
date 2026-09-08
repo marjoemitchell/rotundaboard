@@ -7,6 +7,7 @@ import { InitialsSquare } from './shared/InitialsSquare'
 import { Sparkline } from './shared/Sparkline'
 import { Tooltip } from './shared/Tooltip'
 import { MOMENTUM_EXPLANATION } from './shared/MomentumBar'
+import { OutcomeBadge } from './shared/OutcomeBadge'
 import styles from './BillDetailDrawer.module.css'
 
 const POSITION_OPTIONS: { value: NonNullable<Position>; label: string }[] = [
@@ -180,21 +181,32 @@ export function BillDetailDrawer({
         </div>
 
         <div className={styles.section}>
-          <Tooltip label={MOMENTUM_EXPLANATION}>
-            <div className={styles.sectionEyebrow}>Momentum ⓘ</div>
-          </Tooltip>
-          <div className={styles.momentumHead}>
-            <span className={styles.momentumScore}>{bill.momentum.score}</span>
-            <span
-              className={styles.momentumDelta}
-              style={{ color: bill.momentum.delta7d >= 0 ? 'var(--teal)' : 'var(--accent, #b9723d)' }}
-            >
-              {formatSignedDelta(bill.momentum.delta7d)} / 7d
-            </span>
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <Sparkline history={bill.momentum.history} color="var(--low)" />
-          </div>
+          {bill.outcome ? (
+            <>
+              <div className={styles.sectionEyebrow}>Outcome</div>
+              <div className={styles.momentumHead}>
+                <OutcomeBadge outcome={bill.outcome} />
+              </div>
+            </>
+          ) : (
+            <>
+              <Tooltip label={MOMENTUM_EXPLANATION}>
+                <div className={styles.sectionEyebrow}>Momentum ⓘ</div>
+              </Tooltip>
+              <div className={styles.momentumHead}>
+                <span className={styles.momentumScore}>{bill.momentum.score}</span>
+                <span
+                  className={styles.momentumDelta}
+                  style={{ color: bill.momentum.delta7d >= 0 ? 'var(--teal)' : 'var(--accent, #b9723d)' }}
+                >
+                  {formatSignedDelta(bill.momentum.delta7d)} / 7d
+                </span>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <Sparkline history={bill.momentum.history} color="var(--low)" />
+              </div>
+            </>
+          )}
         </div>
 
         <div className={styles.section}>

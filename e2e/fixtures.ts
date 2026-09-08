@@ -87,6 +87,31 @@ export async function trackFirstAvailableBill(page: Page): Promise<{ billId: str
   return { billId: bill.id, identifier: bill.identifier }
 }
 
+// Finds and tracks a bill that reached a final outcome (became law, or
+// died/failed once its session ended) — for coverage of the outcome badge
+// that replaces the live momentum tracker once a bill's process is over.
+// findSessionIdWithBills picks the session with the most bills, which is
+// always the one concluded 2025 session here — every bill in a session
+// whose sine die date has passed gets a non-null outcome (see
+// determineOutcome in server/src/momentum.ts), so the first bill returned
+// already qualifies; no search needed.
+export async function trackBillWithOutcome(page: Page): Promise<{ billId: string; identifier: string }> {
+  const sessionId = await findSessionIdWithBills(page)
+  const bills = await page.evaluate(
+    async ({ apiBase, sessionId }) => {
+      const res = await fetch(`${apiBase}/api/sessions/${sessionId}/bills`, { credentials: 'include' })
+      return (await res.json()) as { id: string; identifier: string }[]
+    },
+    { apiBase: API_BASE, sessionId },
+  )
+  const bill = bills[0]
+
+  await page.goto(`/bills/${bill.id}`)
+  await page.click('button:has-text("+ Track this bill")')
+  await page.waitForSelector('button:has-text("Stop tracking")', { timeout: 10000 })
+  return { billId: bill.id, identifier: bill.identifier }
+}
+
 // Tracks one LC-prefixed (pre-introduction) bill and one introduced (HB/SB)
 // bill from the session with the most bills on record, for tests exercising
 // the Dashboard's LC Drafts / Introduced quick filters.

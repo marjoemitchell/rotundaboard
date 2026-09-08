@@ -20,6 +20,7 @@ import { Sparkline } from '../components/shared/Sparkline'
 import { EmptyState } from '../components/shared/EmptyState'
 import { Tooltip } from '../components/shared/Tooltip'
 import { MOMENTUM_EXPLANATION } from '../components/shared/MomentumBar'
+import { OutcomeBadge } from '../components/shared/OutcomeBadge'
 import styles from './BillDetailPage.module.css'
 
 function formatDraftNumber(draftNumber: string): string {
@@ -667,19 +668,30 @@ export function BillDetailPage({
           </section>
 
           <section className={styles.section}>
-            <Tooltip label={MOMENTUM_EXPLANATION}>
-              <div className="eyebrow">Momentum ⓘ</div>
-            </Tooltip>
-            <div className={styles.momentumHead}>
-              <span className={styles.momentumScore}>{bill.momentum.score}</span>
-              <span
-                className={styles.momentumDelta}
-                style={{ color: bill.momentum.delta7d >= 0 ? 'var(--teal)' : 'var(--accent, #b9723d)' }}
-              >
-                {formatSignedDelta(bill.momentum.delta7d)} / 7d
-              </span>
-            </div>
-            <Sparkline history={bill.momentum.history} color="var(--low)" />
+            {bill.outcome ? (
+              <>
+                <div className="eyebrow">Outcome</div>
+                <div className={styles.momentumHead}>
+                  <OutcomeBadge outcome={bill.outcome} />
+                </div>
+              </>
+            ) : (
+              <>
+                <Tooltip label={MOMENTUM_EXPLANATION}>
+                  <div className="eyebrow">Momentum ⓘ</div>
+                </Tooltip>
+                <div className={styles.momentumHead}>
+                  <span className={styles.momentumScore}>{bill.momentum.score}</span>
+                  <span
+                    className={styles.momentumDelta}
+                    style={{ color: bill.momentum.delta7d >= 0 ? 'var(--teal)' : 'var(--accent, #b9723d)' }}
+                  >
+                    {formatSignedDelta(bill.momentum.delta7d)} / 7d
+                  </span>
+                </div>
+                <Sparkline history={bill.momentum.history} color="var(--low)" />
+              </>
+            )}
           </section>
 
           {bill.cosponsors.length > 0 && (
