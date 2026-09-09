@@ -21,7 +21,6 @@ import { CommitteesPage } from './pages/CommitteesPage'
 import { CommitteeDetailPage } from './pages/CommitteeDetailPage'
 import { TrackingBoardPage } from './pages/TrackingBoardPage'
 import { TestimonyPage } from './pages/TestimonyPage'
-import { DigestsPage } from './pages/DigestsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { HearingsPage } from './pages/HearingsPage'
 import type { Bill, FilterState, LoadState, Position } from './types'
@@ -130,11 +129,9 @@ export function AuthenticatedApp() {
               ? 'tracking-board'
               : location.pathname.startsWith('/testimony')
                 ? 'testimony'
-                : location.pathname.startsWith('/digests')
-                  ? 'digests'
-                  : location.pathname.startsWith('/hearings')
-                    ? 'hearings'
-                    : navActive
+                : location.pathname.startsWith('/hearings')
+                  ? 'hearings'
+                  : navActive
 
   const filteredBills = useMemo<LoadState<Bill[]>>(() => {
     if (data.bills.status !== 'ready') return data.bills
@@ -210,10 +207,6 @@ export function AuthenticatedApp() {
     }
     if (id === 'testimony') {
       navigate('/testimony')
-      return
-    }
-    if (id === 'digests') {
-      navigate('/digests')
       return
     }
     if (id.startsWith('view:')) {
@@ -380,7 +373,6 @@ export function AuthenticatedApp() {
               }
             />
             <Route path="/testimony" element={<TestimonyPage />} />
-            <Route path="/digests" element={<DigestsPage />} />
             <Route path="/legislators" element={<LegislatorsPage />} />
             <Route path="/legislators/:id" element={<LegislatorDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />

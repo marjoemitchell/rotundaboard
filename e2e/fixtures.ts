@@ -142,16 +142,20 @@ export async function trackOneLcAndOneIntroducedBill(
   }
 }
 
-// Reads back an invite/reset-password email captured by the server's
-// dev/test-only inbox (see server/src/auth/email.ts + the
-// /api/__test__/last-email route) and pulls the link's token query param out
-// of it — this works whether or not RESEND_API_KEY is set, since sendEmail()
-// always keeps a copy regardless of where (or whether) it actually sends.
-export async function getLastEmailToken(request: APIRequestContext, to: string): Promise<string> {
+// Reads back an email captured by the server's dev/test-only inbox (see
+// server/src/auth/email.ts + the /api/__test__/last-email route) — this
+// works whether or not RESEND_API_KEY is set, since sendEmail() always keeps
+// a copy regardless of where (or whether) it actually sends.
+export async function getLastEmail(request: APIRequestContext, to: string): Promise<{ to: string; subject: string; html: string }> {
   const res = await request.get(`${API_BASE}/api/__test__/last-email?to=${encodeURIComponent(to)}`)
   if (!res.ok()) throw new Error(`no captured email found for ${to} (${res.status()})`)
-  const body = (await res.json()) as { html: string }
-  const match = body.html.match(/[?&]token=([^"&\s]+)/)
+  return (await res.json()) as { to: string; subject: string; html: string }
+}
+
+// Pulls the link's token query param out of an invite/reset-password email.
+export async function getLastEmailToken(request: APIRequestContext, to: string): Promise<string> {
+  const email = await getLastEmail(request, to)
+  const match = email.html.match(/[?&]token=([^"&\s]+)/)
   if (!match) throw new Error(`captured email for ${to} had no token link`)
   return match[1]
 }

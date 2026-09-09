@@ -13,10 +13,14 @@ export function AIBrief({
   brief,
   bills,
   onSelectBill,
+  onSendBrief,
+  sending,
 }: {
   brief: LoadState<Brief>
   bills: LoadState<Bill[]>
   onSelectBill: (id: string) => void
+  onSendBrief: () => void
+  sending: boolean
 }) {
   const billById = new Map<string, Bill>(
     bills.status === 'ready' ? bills.data.map((b): [string, Bill] => [b.id, b]) : [],
@@ -89,6 +93,10 @@ export function AIBrief({
         Sourced from {b.sourceCounts.actions} actions, {b.sourceCounts.hearings} hearings, and{' '}
         {b.sourceCounts.fiscalNotes} fiscal notes. Every claim above links to its source record.
       </div>
+
+      <button className={styles.sendButton} onClick={onSendBrief} disabled={sending}>
+        {sending ? 'Sending…' : 'Send this brief →'}
+      </button>
     </div>
   )
 }

@@ -8,7 +8,8 @@
 // id, since ids themselves (bill_id, testimony id, etc.) carry no tenant
 // information on their own.
 import { pool } from '../db.js'
-import { getBills, getFollowedCommittees, getSubjectWatches } from './queries.js'
+import { getBrief } from './queries.js'
+import { sendEmail } from '../auth/email.js'
 
 export class MutationError extends Error {
   status: number
@@ -340,119 +341,40 @@ export async function clearTestimonyAttachment(workspaceId: number, id: number) 
   )
 }
 
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+// Mirrors renderSummary() in src/components/rail/AIBrief.tsx — the brief's
+// summary uses **bold** as a lightweight emphasis marker rather than real
+// markdown, so email needs the same conversion the dashboard card does.
+function renderBriefSummaryHtml(summary: string): string {
+  return summary.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
 }
 
-// A digest is a snapshot, not a live view — everything here is computed once
-// at generation time from real data (same rule-based approach as the
-// dashboard's Morning Brief, getBrief() in queries.ts — no AI call, no new
-// cost) and then frozen into the row, so a digest from three weeks ago still
-// reads the way it did the day it was generated.
-export async function generateDigest(workspaceId: number, userId: number) {
-  const { rows: lastDigestRows } = await pool.query<{ period_end: string }>(
-    'SELECT period_end FROM digests WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 1',
-    [workspaceId],
-  )
-  const periodEnd = new Date()
-  const periodStart = lastDigestRows[0]
-    ? new Date(lastDigestRows[0].period_end)
-    : new Date(periodEnd.getTime() - 7 * 24 * 60 * 60 * 1000)
-
-  const [bills, followedCommittees, subjectWatches, activityRows, testimonyCountRows] = await Promise.all([
-    getBills(workspaceId),
-    getFollowedCommittees(workspaceId),
-    getSubjectWatches(workspaceId),
-    pool.query<{ actor_name: string | null; verb: string; detail: string; occurred_at: string }>(
-      `SELECT u.name AS actor_name, al.verb, al.detail, al.occurred_at
-       FROM activity_log al
-       LEFT JOIN users u ON u.id = al.actor_id
-       WHERE al.workspace_id = $1 AND al.occurred_at > $2 AND al.occurred_at <= $3
-       ORDER BY al.occurred_at DESC`,
-      [workspaceId, periodStart.toISOString(), periodEnd.toISOString()],
-    ),
-    pool.query<{ status: string; n: string }>('SELECT status, count(*) AS n FROM testimony WHERE workspace_id = $1 GROUP BY status', [
-      workspaceId,
-    ]),
+// Emails the exact brief the dashboard shows right now (getBrief) to the
+// requesting user — a manual "push" of a view that's otherwise pull-only.
+// Nothing is generated or archived; this always reflects live data, same as
+// the dashboard card itself.
+export async function sendBrief(workspaceId: number, userId: number) {
+  const [{ rows: userRows }, { rows: workspaceRows }, brief] = await Promise.all([
+    pool.query<{ email: string }>('SELECT email FROM users WHERE id = $1', [userId]),
+    pool.query<{ name: string }>('SELECT name FROM workspaces WHERE id = $1', [workspaceId]),
+    getBrief(workspaceId),
   ])
+  const email = userRows[0]?.email
+  if (!email) throw new MutationError(404, 'user not found')
+  const workspaceName = workspaceRows[0]?.name ?? 'your workspace'
 
-  // Momentum highlights — same logic the Morning Brief uses for topMover/biggestDrop.
-  const sorted = [...bills].sort((a, b) => b.momentum.delta7d - a.momentum.delta7d)
-  const topMover = sorted[0]
-  const biggestDrop = sorted[sorted.length - 1]
-  const highlights: { billId: string; identifier: string; title: string; detail: string }[] = []
-  if (topMover && topMover.momentum.delta7d > 0) {
-    highlights.push({
-      billId: topMover.id,
-      identifier: topMover.identifier,
-      title: topMover.title,
-      detail: `Strongest 7-day momentum gain (+${topMover.momentum.delta7d}).`,
-    })
-  }
-  if (biggestDrop && biggestDrop.momentum.delta7d < 0 && biggestDrop.id !== topMover?.id) {
-    highlights.push({
-      billId: biggestDrop.id,
-      identifier: biggestDrop.identifier,
-      title: biggestDrop.title,
-      detail: `Lost the most ground (${biggestDrop.momentum.delta7d}).`,
-    })
-  }
+  const itemsHtml = brief.taggedItems
+    .map((item) => `<li><strong>${item.tag}</strong> — ${item.text}</li>`)
+    .join('')
+  const dashboardUrl = process.env.APP_BASE_URL ?? 'http://localhost:5173'
 
-  const activityItems = activityRows.rows.slice(0, 8).map((r) => `${r.actor_name ?? 'Someone'} ${r.detail}`)
-
-  // Upcoming hearings among followed interim committees — the only
-  // genuinely forward-looking hearing data once a session's concluded.
-  const upcomingItems = followedCommittees
-    .filter((c) => c.nextMeetingAt)
-    .map((c) => `${c.name} meets ${formatWhen(c.nextMeetingAt as string)}${c.nextLocation ? ` · ${c.nextLocation}` : ''}`)
-
-  const testimonyCounts: Record<string, number> = { draft: 0, submitted: 0, delivered: 0 }
-  for (const row of testimonyCountRows.rows) testimonyCounts[row.status] = Number(row.n)
-  const testimonyItems = [`${testimonyCounts.draft} in draft, ${testimonyCounts.submitted} submitted, ${testimonyCounts.delivered} delivered.`]
-
-  const watchItems = subjectWatches
-    .filter((w) => w.untrackedCount > 0)
-    .map((w) => `"${w.name}" has ${w.untrackedCount} untracked bill${w.untrackedCount === 1 ? '' : 's'} matching.`)
-
-  const sections = [
-    { title: 'Team activity', items: activityItems.length > 0 ? activityItems : ['No team activity in this period.'] },
-    {
-      title: 'Upcoming hearings',
-      items: upcomingItems.length > 0 ? upcomingItems : ['No upcoming hearings among followed committees.'],
-    },
-    { title: 'Testimony status', items: testimonyItems },
-    { title: 'Subject watches', items: watchItems.length > 0 ? watchItems : ['No new matches on active subject watches.'] },
-  ]
-
-  const summaryParts: string[] = [
-    `${activityRows.rows.length} team action${activityRows.rows.length === 1 ? '' : 's'} logged since ${formatWhen(periodStart.toISOString())}.`,
-  ]
-  if (highlights.length > 0) summaryParts.push(highlights.map((h) => `${h.identifier} — ${h.detail}`).join(' '))
-  if (upcomingItems.length > 0) {
-    summaryParts.push(
-      `${upcomingItems.length} followed committee${upcomingItems.length === 1 ? '' : 's'} with a hearing coming up.`,
-    )
-  }
-
-  const { rows: inserted } = await pool.query<{ id: number; created_at: string }>(
-    `INSERT INTO digests (workspace_id, period_start, period_end, summary, highlights, sections, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, created_at`,
-    [
-      workspaceId,
-      periodStart.toISOString(),
-      periodEnd.toISOString(),
-      summaryParts.join(' '),
-      JSON.stringify(highlights),
-      JSON.stringify(sections),
-      userId,
-    ],
-  )
-
-  return { id: String(inserted[0].id), createdAt: inserted[0].created_at }
-}
-
-export async function deleteDigest(workspaceId: number, id: number) {
-  const { rowCount } = await pool.query('DELETE FROM digests WHERE workspace_id = $1 AND id = $2', [workspaceId, id])
-  if (rowCount === 0) throw new MutationError(404, `digest ${id} not found`)
+  const html = `
+    <p>${renderBriefSummaryHtml(brief.summary)}</p>
+    ${itemsHtml ? `<ul>${itemsHtml}</ul>` : ''}
+    <p style="color:#5c6b80;font-size:13px;">
+      Sourced from ${brief.sourceCounts.actions} actions, ${brief.sourceCounts.hearings} hearings, and
+      ${brief.sourceCounts.fiscalNotes} fiscal notes.
+    </p>
+    <p><a href="${dashboardUrl}">Open the ${workspaceName} dashboard →</a></p>
+  `
+  await sendEmail(email, `Morning brief — ${workspaceName}`, html)
 }

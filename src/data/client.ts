@@ -14,7 +14,6 @@ import type {
   Bill,
   BillDetail,
   Brief,
-  Digest,
   FollowedCommittee,
   Hearing,
   InviteLookup,
@@ -360,20 +359,8 @@ export function deleteTestimonyAttachment(id: string): Promise<void> {
   return sendJson(`/api/testimony/${id}/attachment`, 'DELETE')
 }
 
-export function getDigests(): Promise<Digest[]> {
-  return getJson('/api/digests')
-}
-
-export function getDigest(id: string): Promise<Digest> {
-  return getJson(`/api/digests/${id}`)
-}
-
-export function generateDigest(): Promise<{ id: string; createdAt: string }> {
-  return sendJson('/api/digests', 'POST')
-}
-
-export function deleteDigest(id: string): Promise<void> {
-  return sendJson(`/api/digests/${id}`, 'DELETE')
+export function sendBrief(): Promise<void> {
+  return sendJson('/api/brief/send', 'POST')
 }
 
 export function trackBill(billId: string): Promise<void> {

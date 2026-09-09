@@ -58,6 +58,19 @@ export function DashboardPage({
     }
   }
 
+  const [sendingBrief, setSendingBrief] = useState(false)
+  const handleSendBrief = async () => {
+    setSendingBrief(true)
+    try {
+      await client.sendBrief()
+      setNotice('Brief sent to your email.')
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Could not send the brief.')
+    } finally {
+      setSendingBrief(false)
+    }
+  }
+
   const handleClipToNotes = async (clip: ClipPayload) => {
     const hearing = data.hearings.status === 'ready' ? data.hearings.data.find((h) => h.id === clip.hearingId) : null
     const sourceHearing = hearing
@@ -126,7 +139,7 @@ export function DashboardPage({
         </div>
 
         <div className={styles.rail}>
-          <AIBrief brief={data.brief} bills={data.bills} onSelectBill={onSelectBill} />
+          <AIBrief brief={data.brief} bills={data.bills} onSelectBill={onSelectBill} onSendBrief={handleSendBrief} sending={sendingBrief} />
           <HearingAudio
             hearings={data.hearings}
             onOpenTranscript={() => setNotice('Full transcript view isn’t part of the dashboard home screen yet.')}

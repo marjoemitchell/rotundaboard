@@ -249,7 +249,6 @@ route('/api/subject-watches', (req) => queries.getSubjectWatches(req.auth!.works
 route('/api/committees', (req) => queries.getNonStandingCommittees(req.auth!.workspaceId))
 route('/api/followed-committees', (req) => queries.getFollowedCommittees(req.auth!.workspaceId))
 route('/api/testimony', (req) => queries.getTestimony(req.auth!.workspaceId))
-route('/api/digests', (req) => queries.getDigests(req.auth!.workspaceId))
 
 app.get('/api/legislators/:id', async (req, res) => {
   const id = Number(req.params.id)
@@ -602,43 +601,12 @@ app.delete('/api/testimony/:id/attachment', async (req, res) => {
   }
 })
 
-app.get('/api/digests/:id', async (req, res) => {
-  const id = Number(req.params.id)
-  if (!Number.isInteger(id)) {
-    res.status(400).json({ error: 'invalid digest id' })
-    return
-  }
+app.post('/api/brief/send', async (req, res) => {
   try {
-    const digest = await queries.getDigest(id, req.auth!.workspaceId)
-    if (!digest) {
-      res.status(404).json({ error: `digest ${id} not found` })
-      return
-    }
-    res.json(digest)
-  } catch (err) {
-    handleError(res, `GET /api/digests/${req.params.id}`, err)
-  }
-})
-
-app.post('/api/digests', async (req, res) => {
-  try {
-    res.status(201).json(await mutations.generateDigest(req.auth!.workspaceId, req.auth!.userId))
-  } catch (err) {
-    handleError(res, 'POST /api/digests', err)
-  }
-})
-
-app.delete('/api/digests/:id', async (req, res) => {
-  const id = Number(req.params.id)
-  if (!Number.isInteger(id)) {
-    res.status(400).json({ error: 'invalid digest id' })
-    return
-  }
-  try {
-    await mutations.deleteDigest(req.auth!.workspaceId, id)
+    await mutations.sendBrief(req.auth!.workspaceId, req.auth!.userId)
     res.status(204).end()
   } catch (err) {
-    handleError(res, `DELETE /api/digests/${req.params.id}`, err)
+    handleError(res, 'POST /api/brief/send', err)
   }
 })
 

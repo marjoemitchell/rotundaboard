@@ -411,7 +411,6 @@ export interface NavCounts {
   subjectWatches: number
   interimCommittees: number
   testimony: number
-  digests: number
 }
 
 export type LoadState<T> =
@@ -419,28 +418,6 @@ export type LoadState<T> =
   | { status: 'empty' }
   | { status: 'ready'; data: T }
 
-export interface DigestHighlight {
-  billId: string
-  identifier: string
-  title: string
-  detail: string
-}
-
-export interface DigestSection {
-  title: string
-  items: string[]
-}
-
-export interface Digest {
-  id: string
-  periodStart: string
-  periodEnd: string
-  summary: string
-  highlights: DigestHighlight[]
-  sections: DigestSection[]
-  createdByName: string | null
-  createdAt: string
-}
 
 export type TestimonyStatus = 'draft' | 'submitted' | 'delivered'
 

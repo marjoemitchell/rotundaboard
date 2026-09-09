@@ -126,7 +126,7 @@ function DangerZoneSection({
         <div>
           <div className={styles.dangerTitle}>Delete this workspace</div>
           <p className={styles.dangerText}>
-            Permanently deletes {workspaceName} and everything tracked in it — bills, notes, testimony, digests,
+            Permanently deletes {workspaceName} and everything tracked in it — bills, notes, testimony,
             saved views. This can't be undone.
           </p>
         </div>

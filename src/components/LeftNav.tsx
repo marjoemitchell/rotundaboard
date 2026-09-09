@@ -17,7 +17,6 @@ export type NavId =
   | 'watches'
   | 'committees'
   | 'testimony'
-  | 'digests'
   | `view:${string}`
 
 // Nav badges mean two different things and were previously styled the
@@ -107,7 +106,6 @@ export function LeftNav({
           <NavItem id="tracking-board" label="Tracking board" count={counts?.trackingBoard} loading={countsLoading} activeId={activeId} onNavigate={onNavigate} emphasize />
           <NavItem id="notes" label="Notes" count={counts?.notes} loading={countsLoading} activeId={activeId} onNavigate={onNavigate} />
           <NavItem id="testimony" label="Testimony" count={counts?.testimony} loading={countsLoading} activeId={activeId} onNavigate={onNavigate} emphasize />
-          <NavItem id="digests" label="Digests" count={counts?.digests} loading={countsLoading} activeId={activeId} onNavigate={onNavigate} />
         </div>
         <div className={styles.group}>
           <div className={`${styles.groupLabel} eyebrow`}>Saved filters</div>

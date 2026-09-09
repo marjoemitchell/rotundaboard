@@ -282,9 +282,6 @@ export async function getNavCounts(workspaceId: number) {
     "SELECT count(*) AS n FROM testimony WHERE workspace_id = $1 AND status = 'draft'",
     [workspaceId],
   )
-  const { rows: digestRows } = await pool.query<{ n: string }>('SELECT count(*) AS n FROM digests WHERE workspace_id = $1', [
-    workspaceId,
-  ])
 
   const row = rows[0]
   return {
@@ -298,7 +295,6 @@ export async function getNavCounts(workspaceId: number) {
     subjectWatches: Number(watchRows[0]?.n ?? 0),
     interimCommittees: Number(committeeRows[0]?.n ?? 0),
     testimony: Number(testimonyDraftRows[0]?.n ?? 0),
-    digests: Number(digestRows[0]?.n ?? 0),
   }
 }
 
@@ -1565,58 +1561,6 @@ export async function getBillTestimony(billId: number, workspaceId: number) {
     [workspaceId, billId],
   )
   return rows.map(shapeTestimony)
-}
-
-// --- Digests -----------------------------------------------------------
-// Archived, dated recaps — see migrations/013_digests.sql and
-// mutations.generateDigest for how a digest gets built. Reads only here;
-// generation is a write (it inserts a row) so it lives in mutations.ts.
-
-type DigestRow = {
-  id: number
-  period_start: string
-  period_end: string
-  summary: string
-  highlights: { billId: string; identifier: string; title: string; detail: string }[]
-  sections: { title: string; items: string[] }[]
-  created_by: number | null
-  created_by_name: string | null
-  created_at: string
-}
-
-function shapeDigest(r: DigestRow) {
-  return {
-    id: String(r.id),
-    periodStart: r.period_start,
-    periodEnd: r.period_end,
-    summary: r.summary,
-    highlights: r.highlights,
-    sections: r.sections,
-    createdByName: r.created_by_name,
-    createdAt: r.created_at,
-  }
-}
-
-const DIGEST_SELECT = `
-  SELECT d.id, d.period_start, d.period_end, d.summary, d.highlights, d.sections, d.created_by,
-         u.name AS created_by_name, d.created_at
-  FROM digests d
-  LEFT JOIN users u ON u.id = d.created_by
-`
-
-export async function getDigests(workspaceId: number) {
-  const { rows } = await pool.query<DigestRow>(`${DIGEST_SELECT} WHERE d.workspace_id = $1 ORDER BY d.created_at DESC`, [
-    workspaceId,
-  ])
-  return rows.map(shapeDigest)
-}
-
-export async function getDigest(id: number, workspaceId: number) {
-  const { rows } = await pool.query<DigestRow>(`${DIGEST_SELECT} WHERE d.id = $1 AND d.workspace_id = $2`, [
-    id,
-    workspaceId,
-  ])
-  return rows[0] ? shapeDigest(rows[0]) : null
 }
 
 export async function getTestimonyAttachment(id: number, workspaceId: number) {

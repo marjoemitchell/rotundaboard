@@ -13,7 +13,6 @@ const DESTINATIONS: { id: NavId; label: string }[] = [
   { id: 'tracking-board', label: 'Tracking board' },
   { id: 'notes', label: 'Notes' },
   { id: 'testimony', label: 'Testimony' },
-  { id: 'digests', label: 'Digests' },
 ]
 
 type Option =

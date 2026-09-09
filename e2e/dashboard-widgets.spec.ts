@@ -1,4 +1,4 @@
-import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill, trackBillWithOutcome } from './fixtures'
+import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill, trackBillWithOutcome, getLastEmail } from './fixtures'
 
 const OUTCOME_LABELS: Record<string, string> = {
   became_law: 'Became law',
@@ -150,5 +150,25 @@ test.describe('hearing audio', () => {
 
     await page.goto('/notes')
     await expect(page.locator('text=From:').first()).toBeVisible()
+  })
+})
+
+test.describe('morning brief', () => {
+  test('"Send this brief" emails the live brief to your own address', async ({ page }) => {
+    // Digests (a manual generate-and-archive page, no actual delivery) was
+    // replaced by this single action — see AIBrief.tsx and
+    // mutations.sendBrief. It sends whatever getBrief() returns right now,
+    // the same content the dashboard card already shows.
+    const info = await signUpFreshWorkspace(page)
+    await trackFirstAvailableBill(page)
+
+    await page.goto('/')
+    await page.waitForSelector('text=Morning brief')
+    await page.click('button:has-text("Send this brief")')
+    await expect(page.locator('text=Brief sent to your email.')).toBeVisible()
+
+    const email = await getLastEmail(page.request, info.email)
+    expect(email.subject).toContain('Morning brief')
+    expect(email.html).toContain(info.workspaceName)
   })
 })

@@ -104,7 +104,6 @@ const WORKSPACE_SCOPED_TABLES = [
   'subject_watches',
   'followed_committees',
   'testimony',
-  'digests',
   'saved_views',
 ]
 
