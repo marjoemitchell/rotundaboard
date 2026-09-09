@@ -154,8 +154,11 @@ export function BillTable({
                 </div>
                 <div className={styles.cell} role="gridcell">
                   <div className={styles.cellStack}>
-                    <span className={styles.inlineBillNumber}>
+                    <span className={styles.inlineTopRow}>
                       <span className={styles.billNumber}>{bill.identifier}</span>
+                      <span className={styles.inlineOutcome}>
+                        {bill.outcome ? <OutcomeBadge outcome={bill.outcome} /> : <MomentumBar score={bill.momentum.score} />}
+                      </span>
                     </span>
                     <span className={styles.billTitle}>{bill.title}</span>
                     <span className={styles.lastAction}>{bill.lastAction.text}</span>
@@ -181,7 +184,7 @@ export function BillTable({
                 <div className={`${styles.cell} ${styles.positionCol}`} role="gridcell">
                   <PositionChip position={bill.position} />
                 </div>
-                <div className={styles.cell} role="gridcell">
+                <div className={`${styles.cell} ${styles.momentumCol}`} role="gridcell">
                   <div className={styles.momentumCell}>
                     {bill.outcome ? <OutcomeBadge outcome={bill.outcome} /> : <MomentumBar score={bill.momentum.score} />}
                   </div>

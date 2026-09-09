@@ -1,4 +1,4 @@
-import { test, expect, signUpFreshWorkspace } from './fixtures'
+import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill } from './fixtures'
 
 test.describe('mobile TopBar', () => {
   test('the header stays a single row and settings/logout stay reachable at phone widths', async ({ page }) => {
@@ -32,5 +32,29 @@ test.describe('mobile TopBar', () => {
     // instead, so it read as near-invisible light-gray-on-light-gray.
     const color = await page.locator('button', { hasText: 'Menu' }).evaluate((el) => getComputedStyle(el).color)
     expect(color).toBe('rgb(43, 63, 92)')
+  })
+
+  test('the outcome/momentum indicator sits beside the bill number at phone widths instead of overflowing the page', async ({
+    page,
+  }) => {
+    // Regression test: at <=760px the bill table used to keep a separate
+    // fixed 76px-wide grid column for the outcome badge/momentum bar —
+    // plenty for a momentum score, but text like "Became law" is wider than
+    // that column and spilled past the edge of the page. It now renders
+    // inline next to the bill number at the top of the card instead, where
+    // a full row of width is available.
+    await page.setViewportSize({ width: 414, height: 846 })
+    await signUpFreshWorkspace(page)
+    await trackFirstAvailableBill(page)
+
+    await page.goto('/')
+    await page.waitForSelector('[class*="inlineTopRow"]')
+
+    const overflowsViewport = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
+    expect(overflowsViewport).toBe(false)
+
+    const topRow = page.locator('[class*="inlineTopRow"]').first()
+    await expect(topRow.locator('[class*="billNumber"]')).toBeVisible()
+    await expect(topRow.locator('[class*="inlineOutcome"]')).toBeVisible()
   })
 })

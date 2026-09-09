@@ -188,22 +188,31 @@
   }
 }
 
-.inlineBillNumber {
+.inlineTopRow {
   display: none;
+}
+
+.inlineOutcome {
+  flex-shrink: 0;
+  width: 110px;
 }
 
 @media (max-width: 760px) {
   .grid {
-    grid-template-columns: minmax(0, 1fr) 76px;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .billCol,
-  .assigneeCol {
+  .assigneeCol,
+  .momentumCol {
     display: none;
   }
 
-  .inlineBillNumber {
-    display: block;
+  .inlineTopRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     margin-bottom: 2px;
   }
 }
