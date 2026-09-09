@@ -230,3 +230,19 @@
 .editableSelect:hover {
   border-color: var(--accent, #b9723d);
 }
+
+.untrackButton {
+  display: block;
+  margin-left: auto;
+  margin-top: 16px;
+  padding: 5px 9px;
+  font-size: 16px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+}
+
+.untrackButton:hover {
+  color: var(--accent, #b9723d);
+  border-color: var(--accent, #b9723d);
+}

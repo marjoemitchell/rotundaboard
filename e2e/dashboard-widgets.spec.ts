@@ -51,6 +51,25 @@ test.describe('dashboard bill table and drawer', () => {
     await expect(page.locator('.eyebrow', { hasText: 'Outcome' })).toBeVisible()
     await expect(page.locator('[class*="badge"]')).toBeVisible()
   })
+
+  test('"Stop tracking" in the quick-view drawer removes the bill without navigating away', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const { identifier } = await trackFirstAvailableBill(page)
+
+    await page.goto('/')
+    await page.locator('[role="row"]', { hasText: identifier }).click()
+    const drawer = page.locator(`[aria-label="${identifier} details"]`)
+    await expect(drawer).toBeVisible()
+
+    await drawer.locator('button:has-text("Stop tracking")').click()
+    await expect(drawer).not.toBeVisible()
+    // Stays on the dashboard rather than navigating to the bill's own page.
+    await expect(page).toHaveURL('/')
+    await expect(page.locator('[role="row"]', { hasText: identifier })).not.toBeVisible()
+
+    await page.goto('/tracking-board')
+    await expect(page.locator('text=No bills are being tracked yet')).toBeVisible()
+  })
 })
 
 test.describe('resolved bills show their real outcome instead of a live momentum tracker', () => {

@@ -407,6 +407,7 @@ export function AuthenticatedApp() {
           onChangePosition={(position) => handleChangePosition(selectedBill.id, position)}
           onChangeAssignee={(assigneeId) => handleChangeAssignee(selectedBill.id, assigneeId)}
           onViewFullDetails={() => handleViewFullDetails(selectedBill.id)}
+          onUntrackBill={() => handleUntrackBill(selectedBill.id)}
         />
       )}
 

@@ -25,6 +25,7 @@ export function BillDetailDrawer({
   onChangePosition,
   onChangeAssignee,
   onViewFullDetails,
+  onUntrackBill,
 }: {
   bill: Bill
   assignee: TeamMember | null
@@ -33,6 +34,7 @@ export function BillDetailDrawer({
   onChangePosition: (position: Position) => void
   onChangeAssignee: (assigneeId: string | null) => void
   onViewFullDetails: () => void
+  onUntrackBill: () => void
 }) {
   // Mounts closed (scaled down and faded out) and flips to open on the next
   // frame so the transition actually has something to animate from —
@@ -228,6 +230,16 @@ export function BillDetailDrawer({
             </select>
           </div>
         </div>
+
+        <button
+          className={styles.untrackButton}
+          onClick={() => {
+            onUntrackBill()
+            handleClose()
+          }}
+        >
+          Stop tracking
+        </button>
       </div>
     </div>
   )
