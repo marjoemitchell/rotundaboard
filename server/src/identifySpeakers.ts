@@ -1,9 +1,14 @@
-// Maps diarized speaker labels ("S1", "3:B", ...) to real people using
-// Claude: the committee roster plus the full legislator list is the
-// candidate set, and the transcript itself carries the evidence (roll call,
-// the chair recognizing "Senator X", witnesses stating their name for the
-// record). Anything Claude isn't confident about stays an anonymous
-// "Speaker N" — a wrong name on a quote is worse than no name.
+// Maps diarized speaker labels ("SPEAKER_03", "S1", "3:B", ...) to real
+// people using Claude: the committee roster plus the full legislator list
+// is the candidate set, and the transcript itself carries the evidence
+// (roll call, the chair recognizing "Senator X", witnesses stating their
+// name for the record). Anything Claude isn't confident about stays an
+// anonymous "Speaker N" — a wrong name on a quote is worse than no name.
+//
+// Besides naming whole labels, it names individual lines whose words prove
+// who's speaking (LineIdentity) — mainly roll-call answers, which are too
+// short for the diarizer to place reliably. speakerAttribution.ts applies
+// both.
 import 'dotenv/config'
 import Anthropic from '@anthropic-ai/sdk'
 import { betaJSONSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/beta/json-schema'
@@ -19,6 +24,15 @@ export interface RosterEntry {
   chamber: string | null
   /** Role on this committee ("Chair", "Member", ...) or null if not a member. */
   committeeRole: string | null
+}
+
+/** A single transcript line whose own text proves who said it. */
+export interface LineIdentity {
+  /** Index into the segments passed to identifySpeakers. */
+  line: number
+  name: string | null
+  legislatorId: number | null
+  confidence: number
 }
 
 export interface SpeakerIdentity {
@@ -37,7 +51,9 @@ Use only evidence in the transcript: roll call ("Senator Smith?" followed by "He
 
 When a speaker is a legislator in the provided roster, return their legislatorId. Staff and witnesses are not in the roster — give their name only if they state it (or are clearly introduced), with legislatorId null. Speech recognition often mangles names, so match roster names by sound as well as spelling.
 
-Calibrate confidence honestly: 0.9+ only when the transcript explicitly ties the name to that label; 0.7–0.9 for strong contextual evidence; below 0.7 when you are guessing. Return every label you were given, using name null and role "unknown" when there is no real evidence. A wrong attribution is much worse than an unknown one.`
+Calibrate confidence honestly: 0.9+ only when the transcript explicitly ties the name to that label; 0.7–0.9 for strong contextual evidence; below 0.7 when you are guessing. Return every label you were given, using name null and role "unknown" when there is no real evidence. A wrong attribution is much worse than an unknown one.
+
+The diarizer places very short utterances badly, so a label can wrongly cover several people — most often during roll call, where each member answers "here" in about a second. So also return "lines": individual transcript lines (by their #number) whose speaker is proven by the words themselves, regardless of the line's label. Typical cases: a roll-call answer ("here", "present", "yes", "no", "aye") on the line right after the clerk or chair calls a specific name; a vote answer right after a name is called; a line where the speaker states their own name ("for the record, my name is…", "Representative Jones, for the record"). Only include a line when its text and the line before it make the speaker unambiguous — not because the line's label is attributed to someone. If a call and its answer are on the same line, skip it. Use the same legislatorId and confidence rules as above. Return an empty list if there are none.`
 
 const OUTPUT_SCHEMA = {
   type: 'object',
@@ -57,8 +73,22 @@ const OUTPUT_SCHEMA = {
         additionalProperties: false,
       },
     },
+    lines: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          line: { type: 'integer' },
+          name: { type: ['string', 'null'] },
+          legislatorId: { type: ['integer', 'null'] },
+          confidence: { type: 'number' },
+        },
+        required: ['line', 'name', 'legislatorId', 'confidence'],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ['speakers'],
+  required: ['speakers', 'lines'],
   additionalProperties: false,
 } as const
 
@@ -74,15 +104,15 @@ export async function identifySpeakers(params: {
   recordedAt: string
   roster: RosterEntry[]
   segments: DiarizedSegment[]
-}): Promise<SpeakerIdentity[]> {
+}): Promise<{ speakers: SpeakerIdentity[]; lines: LineIdentity[] }> {
   const labels = [...new Set(params.segments.map((s) => s.speaker))]
-  if (labels.length === 0) return []
+  if (labels.length === 0) return { speakers: [], lines: [] }
 
   const rosterLines = params.roster.map(
     (r) =>
       `${r.legislatorId}\t${r.name}\t${r.chamber ?? ''}\t${r.committeeRole ? `committee ${r.committeeRole}` : 'not on this committee'}`,
   )
-  const transcriptLines = params.segments.map((s) => `[${s.speaker}] ${clock(s.start)} ${s.text}`)
+  const transcriptLines = params.segments.map((s, i) => `#${i} [${s.speaker}] ${clock(s.start)} ${s.text}`)
 
   const client = new Anthropic()
   const response = await client.beta.messages.parse({
@@ -114,19 +144,20 @@ export async function identifySpeakers(params: {
 
   if (response.stop_reason === 'refusal' || !response.parsed_output) {
     console.warn(`  speaker identification returned no usable output (stop_reason=${response.stop_reason})`)
-    return []
+    return { speakers: [], lines: [] }
   }
 
   const validIds = new Set(params.roster.map((r) => r.legislatorId))
+  // Never trust an id the model made up.
+  const checkedId = (id: number | null) => (id != null && validIds.has(id) ? id : null)
+  const clamp = (c: number) => Math.max(0, Math.min(1, c))
   const wanted = new Set(labels)
-  return response.parsed_output.speakers
-    .filter((s) => wanted.has(s.label))
-    .map((s) => ({
-      label: s.label,
-      name: s.name,
-      // Never trust an id the model made up.
-      legislatorId: s.legislatorId != null && validIds.has(s.legislatorId) ? s.legislatorId : null,
-      role: s.role,
-      confidence: Math.max(0, Math.min(1, s.confidence)),
-    }))
+  return {
+    speakers: response.parsed_output.speakers
+      .filter((s) => wanted.has(s.label))
+      .map((s) => ({ label: s.label, name: s.name, legislatorId: checkedId(s.legislatorId), role: s.role, confidence: clamp(s.confidence) })),
+    lines: response.parsed_output.lines
+      .filter((l) => Number.isInteger(l.line) && l.line >= 0 && l.line < params.segments.length)
+      .map((l) => ({ line: l.line, name: l.name, legislatorId: checkedId(l.legislatorId), confidence: clamp(l.confidence) })),
+  }
 }

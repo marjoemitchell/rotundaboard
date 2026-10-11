@@ -39,8 +39,9 @@ import { pool } from './db.js'
 import { runWithConcurrency } from './concurrency.js'
 import * as nomad from './nomadClient.js'
 import { computeWaveform, probeDurationSeconds } from './hearingAudio.js'
-import { backendUnavailableReason, diarizeAudio, transcribeBackend, type DiarizedSegment, type TranscribeBackend } from './diarize.js'
-import { identifySpeakers, MIN_CONFIDENCE, type RosterEntry, type SpeakerIdentity } from './identifySpeakers.js'
+import { backendUnavailableReason, diarizeAudio, transcribeBackend, type TranscribeBackend } from './diarize.js'
+import { identifySpeakers, type RosterEntry } from './identifySpeakers.js'
+import { attributeSpeakers, mergeSpeakerTurns, speakerCountHint, transcriptionPrompt } from './speakerAttribution.js'
 
 // The archive can lag a meeting by weeks, so the default window is wide —
 // but bounded, so a fresh deploy doesn't pay to diarize years of backlog.
@@ -240,31 +241,6 @@ async function ingestCaptions(rec: RecordingRow): Promise<void> {
 
 // ---------------------------------------------------------------- diarize
 
-// Diarized segments are often single sentences; merge a speaker's
-// consecutive ones into readable turns, capped so each line stays a
-// sensible clip length.
-const TURN_MAX_GAP_SECONDS = 1.5
-const TURN_MAX_SECONDS = 45
-
-function mergeSpeakerTurns(segments: DiarizedSegment[]): DiarizedSegment[] {
-  const merged: DiarizedSegment[] = []
-  for (const seg of segments) {
-    const last = merged[merged.length - 1]
-    if (
-      last &&
-      last.speaker === seg.speaker &&
-      seg.start - last.end <= TURN_MAX_GAP_SECONDS &&
-      seg.end - last.start <= TURN_MAX_SECONDS
-    ) {
-      last.end = Math.max(last.end, seg.end)
-      last.text = `${last.text} ${seg.text}`
-    } else {
-      merged.push({ ...seg })
-    }
-  }
-  return merged
-}
-
 async function loadRoster(committeeId: number | null): Promise<RosterEntry[]> {
   const { rows } = await pool.query<{
     id: number
@@ -289,49 +265,6 @@ async function loadRoster(committeeId: number | null): Promise<RosterEntry[]> {
   }))
 }
 
-function legislatorTitle(chamber: string | null): string {
-  if (chamber === 'SENATE') return 'Sen. '
-  if (chamber === 'HOUSE') return 'Rep. '
-  return ''
-}
-
-// Labels in order of first appearance; confident matches get a real name
-// (canonical roster spelling for legislators), everyone else "Speaker N".
-function buildSpeakerRows(
-  segments: DiarizedSegment[],
-  identities: SpeakerIdentity[],
-  roster: RosterEntry[],
-): { label: string; displayName: string; legislatorId: number | null; role: string | null; confidence: number | null }[] {
-  const byLabel = new Map(identities.map((i) => [i.label, i]))
-  const rosterById = new Map(roster.map((r) => [r.legislatorId, r]))
-  const labels = [...new Set(segments.map((s) => s.speaker))]
-  let unknownCount = 0
-  return labels.map((label) => {
-    if (label === 'UNKNOWN') {
-      return { label, displayName: 'Unidentified speaker', legislatorId: null, role: 'unknown', confidence: null }
-    }
-    const id = byLabel.get(label)
-    const confident = id && id.confidence >= MIN_CONFIDENCE && (id.name || id.legislatorId != null)
-    if (!confident) {
-      unknownCount += 1
-      return { label, displayName: `Speaker ${unknownCount}`, legislatorId: null, role: id?.role ?? null, confidence: id?.confidence ?? null }
-    }
-    const legislator = id.legislatorId != null ? rosterById.get(id.legislatorId) : undefined
-    const displayName = legislator ? `${legislatorTitle(legislator.chamber)}${legislator.name}` : id.name!
-    return { label, displayName, legislatorId: legislator ? legislator.legislatorId : null, role: id.role, confidence: id.confidence }
-  })
-}
-
-// Whisper's initial prompt: biases recognition toward the right spellings
-// of the committee's name and its members' names, which are otherwise the
-// words it gets most wrong (and the ones speaker identification relies on).
-function transcriptionPrompt(committeeName: string, roster: RosterEntry[]): string {
-  const members = roster
-    .filter((r) => r.committeeRole)
-    .map((r) => `${r.chamber === 'SENATE' ? 'Senator' : r.chamber === 'HOUSE' ? 'Representative' : ''} ${r.name}`.trim())
-  return `Montana Legislature, ${committeeName}. ${members.length ? `Members: ${members.join(', ')}.` : ''}`.trim()
-}
-
 async function diarizeRecording(rec: RecordingRow, backend: TranscribeBackend): Promise<void> {
   const workDir = await mkdtemp(path.join(tmpdir(), 'rotunda-hearing-'))
   try {
@@ -343,25 +276,25 @@ async function diarizeRecording(rec: RecordingRow, backend: TranscribeBackend): 
     const waveform = await computeWaveform(audioPath)
 
     const roster = await loadRoster(rec.committee_id)
-    const segments = mergeSpeakerTurns(
+    const diarized = mergeSpeakerTurns(
       await diarizeAudio(
         backend,
         audioPath,
         duration,
         workDir,
-        { prompt: transcriptionPrompt(rec.committee_name, roster) },
+        { prompt: transcriptionPrompt(rec.committee_name, roster), ...speakerCountHint(roster) },
         (m) => console.log(m),
       ),
     )
 
-    let identities: SpeakerIdentity[] = []
+    let identities: Awaited<ReturnType<typeof identifySpeakers>> = { speakers: [], lines: [] }
     if (process.env.ANTHROPIC_API_KEY) {
       try {
         identities = await identifySpeakers({
           committeeName: rec.committee_name,
           recordedAt: rec.recorded_at,
           roster,
-          segments,
+          segments: diarized,
         })
       } catch (err) {
         // Naming is an enhancement on top of a complete transcript — don't
@@ -371,7 +304,7 @@ async function diarizeRecording(rec: RecordingRow, backend: TranscribeBackend): 
     } else {
       console.warn('  ANTHROPIC_API_KEY not set — speakers will be stored unnamed')
     }
-    const speakers = buildSpeakerRows(segments, identities, roster)
+    const { segments, speakers } = attributeSpeakers(diarized, identities, roster)
 
     const client = await pool.connect()
     try {
@@ -400,7 +333,9 @@ async function diarizeRecording(rec: RecordingRow, backend: TranscribeBackend): 
       client.release()
     }
     const named = speakers.filter((s) => s.label !== 'UNKNOWN' && !s.displayName.startsWith('Speaker ')).length
-    console.log(`  diarized: ${segments.length} segments, ${speakers.length} speakers (${named} named)`)
+    console.log(
+      `  diarized: ${segments.length} segments, ${speakers.length} speakers (${named} named, ${identities.lines.length} lines attributed from their text)`,
+    )
   } finally {
     await rm(workDir, { recursive: true, force: true })
   }

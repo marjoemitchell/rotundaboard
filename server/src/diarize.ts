@@ -15,6 +15,14 @@ export interface DiarizedSegment {
 
 export type TranscribeBackend = 'openai' | 'whisperx'
 
+export interface DiarizeOptions {
+  /** Whisper initial prompt (committee and member names). WhisperX only. */
+  prompt?: string
+  /** Speaker-count bounds for the diarizer. WhisperX only. */
+  minSpeakers?: number
+  maxSpeakers?: number
+}
+
 export function transcribeBackend(): TranscribeBackend {
   const value = (process.env.TRANSCRIBE_BACKEND ?? 'openai').toLowerCase()
   if (value !== 'openai' && value !== 'whisperx') {
@@ -35,7 +43,7 @@ export function diarizeAudio(
   audioPath: string,
   durationSeconds: number,
   workDir: string,
-  opts: { prompt?: string },
+  opts: DiarizeOptions,
   log: (msg: string) => void = console.log,
 ): Promise<DiarizedSegment[]> {
   return backend === 'whisperx'
