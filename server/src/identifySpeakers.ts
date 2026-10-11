@@ -114,7 +114,15 @@ export async function identifySpeakers(params: {
   )
   const transcriptLines = params.segments.map((s, i) => `#${i} [${s.speaker}] ${clock(s.start)} ${s.text}`)
 
-  const client = new Anthropic()
+  // Same as generateSummaries.ts: the SDK only auto-attaches
+  // ANTHROPIC_WORKSPACE_ID for credential-file/OIDC auth, so an API key that
+  // isn't scoped to a workspace needs the header set explicitly or every
+  // request 400s.
+  const client = new Anthropic({
+    defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID
+      ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID }
+      : undefined,
+  })
   const response = await client.beta.messages.parse({
     model: MODEL,
     max_tokens: 16000,
