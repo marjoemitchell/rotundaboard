@@ -10,6 +10,7 @@
     "refresh-meetings": "tsx src/refreshCommitteeMeetings.ts",
     "seed": "tsx src/seedWorkspace.ts",
     "generate-summaries": "tsx src/generateSummaries.ts",
+    "transcribe-hearings": "tsx src/transcribeHearings.ts",
     "api": "tsx src/api/server.ts",
     "api:dev": "tsx watch src/api/server.ts",
     "e2e:cleanup": "tsx src/e2eCleanup.ts",
@@ -22,6 +23,8 @@
     "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
+    "ffmpeg-static": "^5.3.0",
+    "openai": "^7.28.0",
     "pg": "^8.13.1",
     "resend": "^6.25.0",
     "sanitize-html": "^2.17.7"
@@ -38,6 +41,7 @@
     "typescript": "^5.6.3"
   },
   "allowScripts": {
-    "esbuild@0.28.2": true
+    "esbuild@0.28.2": true,
+    "ffmpeg-static@5.3.0": true
   }
 }

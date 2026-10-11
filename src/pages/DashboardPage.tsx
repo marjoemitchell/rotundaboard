@@ -12,8 +12,9 @@ import { HearingAudio, type ClipPayload } from '../components/rail/HearingAudio'
 import { TeamBoard } from '../components/rail/TeamBoard'
 import { FollowedCommittees } from '../components/rail/FollowedCommittees'
 import { MomentumModel, MomentumModelToggle } from '../components/rail/MomentumModel'
-import type { Bill, FilterState, LoadState } from '../types'
+import type { Bill, FilterState, HearingSummary, LoadState } from '../types'
 import { formatClock } from '../lib/format'
+import { clipToNote } from '../lib/hearings'
 import styles from '../App.module.css'
 
 function readMomentumPreference(): boolean {
@@ -71,13 +72,9 @@ export function DashboardPage({
     }
   }
 
-  const handleClipToNotes = async (clip: ClipPayload) => {
-    const hearing = data.hearings.status === 'ready' ? data.hearings.data.find((h) => h.id === clip.hearingId) : null
-    const sourceHearing = hearing
-      ? `${hearing.committee}, ${formatClock(clip.startSeconds)}–${formatClock(clip.endSeconds)}`
-      : `Hearing clip, ${formatClock(clip.startSeconds)}–${formatClock(clip.endSeconds)}`
+  const handleClipToNotes = async (clip: ClipPayload, hearing: HearingSummary) => {
     try {
-      await client.createNote({ body: clip.text, sourceHearing })
+      await client.createNote(clipToNote(clip, hearing))
       setNotice(`Clipped ${formatClock(clip.startSeconds)}–${formatClock(clip.endSeconds)} to notes.`)
     } catch (err) {
       setNotice(err instanceof Error ? err.message : 'Could not save this clip.')
@@ -142,7 +139,7 @@ export function DashboardPage({
           <AIBrief brief={data.brief} bills={data.bills} onSelectBill={onSelectBill} onSendBrief={handleSendBrief} sending={sendingBrief} />
           <HearingAudio
             hearings={data.hearings}
-            onOpenTranscript={() => setNotice('Full transcript view isn’t part of the dashboard home screen yet.')}
+            onOpenTranscript={(id) => navigate(`/hearings/recordings/${id}`)}
             onClipToNotes={handleClipToNotes}
           />
           <TeamBoard

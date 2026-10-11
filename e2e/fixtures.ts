@@ -208,3 +208,25 @@ export const test = base.extend<{ freshWorkspace: FreshWorkspace }>({
 })
 
 export { expect }
+
+// Hearing recordings aren't workspace-scoped and normally come from the
+// Legislature's video archive plus a paid transcription pass, so tests
+// insert one with a known transcript via a dev/test-only endpoint (see
+// server/src/api/testFixtures.ts). nomad_item_id is "e2e-<suffix>", which
+// e2eCleanup sweeps. The fixture is recorded "now", so it's the newest
+// recording and leads the dashboard's hearing player.
+export type HearingFixtureSegment = { start: number; end: number; speakerLabel?: string | null; text: string }
+
+export async function createHearingFixture(
+  request: APIRequestContext,
+  input: {
+    status?: 'processing' | 'ready'
+    durationSeconds?: number
+    speakers?: { label: string; displayName: string }[]
+    segments: HearingFixtureSegment[]
+  },
+): Promise<{ id: string; committee: string }> {
+  const res = await request.post(`${API_BASE}/api/__test__/hearing-fixture`, { data: { suffix: uniqueSuffix(), ...input } })
+  if (!res.ok()) throw new Error(`hearing fixture failed: ${res.status()} ${await res.text()}`)
+  return res.json()
+}

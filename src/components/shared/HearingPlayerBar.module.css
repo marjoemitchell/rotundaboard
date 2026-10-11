@@ -1,0 +1,75 @@
+.playerRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.playButton {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: var(--ink);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.playButton:hover {
+  background: var(--accent);
+}
+
+.track {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.waveformBar {
+  flex: 1;
+  min-width: 1px;
+  background: var(--border-2);
+}
+
+.waveformBarPlayed {
+  background: var(--accent);
+}
+
+.progressTrack {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  background: var(--track);
+}
+
+.progressFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+}
+
+.hitMark {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 4px;
+  background: var(--teal);
+  transform: translateX(-1px);
+}
+
+.elapsed {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--muted);
+  min-width: 68px;
+  text-align: right;
+  white-space: nowrap;
+}

@@ -57,7 +57,12 @@ async function main() {
 
   const { rowCount: deletedUsers } = await pool.query('DELETE FROM users WHERE email LIKE $1', [USER_EMAIL_PATTERN])
 
-  console.log(`e2e cleanup: removed ${workspaceIds.length} workspace(s) and ${deletedUsers ?? 0} user(s)`)
+  // Hearing fixtures (see api/testFixtures.ts); segments/speakers cascade.
+  const { rowCount: deletedHearings } = await pool.query("DELETE FROM hearing_recordings WHERE nomad_item_id LIKE 'e2e-%'")
+
+  console.log(
+    `e2e cleanup: removed ${workspaceIds.length} workspace(s), ${deletedUsers ?? 0} user(s), and ${deletedHearings ?? 0} hearing fixture(s)`,
+  )
   await pool.end()
 }
 

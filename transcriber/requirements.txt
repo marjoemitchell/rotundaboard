@@ -1,0 +1,6 @@
+# Pinned: WhisperX's diarization API has changed between minor versions
+# (DiarizationPipeline moved modules; use_auth_token became token).
+whisperx==3.8.6
+fastapi==0.142.2
+uvicorn==0.54.0
+python-multipart==0.0.32

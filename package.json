@@ -15,6 +15,7 @@
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.1.0",
     "@fontsource/ibm-plex-sans": "^5.1.0",
+    "hls.js": "^1.7.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.3"
@@ -29,6 +30,6 @@
     "vite": "^5.4.10"
   },
   "allowScripts": {
-    "esbuild@0.21.5": true
+    "esbuild@0.28.2": true
   }
 }

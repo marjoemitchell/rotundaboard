@@ -11,3 +11,5 @@ tsconfig.tsbuildinfo
 .claude/
 .git-commit-msg.txt
 
+deploy/unraid/.env
+__pycache__

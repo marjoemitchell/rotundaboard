@@ -3,7 +3,7 @@ import * as client from '../data/client'
 import type {
   Bill,
   Brief,
-  Hearing,
+  HearingSummary,
   LoadState,
   MomentumFactor,
   NavCounts,
@@ -43,7 +43,7 @@ export interface DashboardData {
   sessionCalendar: LoadState<SessionCalendar>
   bills: LoadState<Bill[]>
   brief: LoadState<Brief>
-  hearings: LoadState<Hearing[]>
+  hearings: LoadState<HearingSummary[]>
   teamBoard: LoadState<TeamBoardSummary>
   teamMembers: LoadState<TeamMember[]>
   momentumFactors: LoadState<MomentumFactor[]>

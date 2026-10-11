@@ -1,0 +1,40 @@
+# Self-hosted hearing transcription on an Unraid box with an NVIDIA GPU.
+# Setup: deploy/unraid/README.md. Copy .env.example to .env first.
+name: rotunda-transcriber
+
+services:
+  # WhisperX (ASR + word alignment + pyannote diarization) on the GPU.
+  # Not published to the host — only transcribe-job talks to it.
+  whisperx:
+    build: ../../transcriber
+    image: rotunda-whisperx:local
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HF_TOKEN: ${HF_TOKEN}
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      COMPUTE_TYPE: ${COMPUTE_TYPE:-int8_float16}
+      BATCH_SIZE: ${BATCH_SIZE:-8}
+    volumes:
+      # Model weights (~5 GB) download on first use; keep them across rebuilds.
+      - ${MODELS_DIR:-/mnt/user/appdata/rotunda-whisperx}:/models
+    restart: unless-stopped
+
+  # Finds newly posted hearings, ingests captions, sends audio to whisperx,
+  # names speakers with Claude, and writes transcripts to the production DB.
+  transcribe-job:
+    build:
+      context: ../../server
+      dockerfile: ../deploy/unraid/transcribe-job.Dockerfile
+    image: rotunda-transcribe-job:local
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      TRANSCRIBE_BACKEND: whisperx
+      WHISPERX_URL: http://whisperx:8000
+      DIARIZE_LIMIT: ${DIARIZE_LIMIT:-2}
+      INTERVAL_SECONDS: ${INTERVAL_SECONDS:-1800}
+    depends_on:
+      - whisperx
+    restart: unless-stopped

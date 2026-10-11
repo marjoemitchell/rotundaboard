@@ -1,0 +1,215 @@
+.page {
+  max-width: 820px;
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: 16px;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.back:hover {
+  color: var(--accent);
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.subhead {
+  margin-top: 4px;
+  font-size: 17px;
+  color: var(--muted);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-top: 8px;
+  font-size: 16px;
+}
+
+.links a {
+  color: var(--teal);
+}
+
+.status {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--faint);
+}
+
+.status[data-status='ready'] {
+  color: var(--support-fg);
+}
+
+.playerCard {
+  position: sticky;
+  /* Below the sticky TopBar (52px tall, see TopBar.module.css). */
+  top: 52px;
+  z-index: 2;
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.playerError {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--oppose-fg);
+}
+
+.captionNotice {
+  margin-top: 12px;
+  padding: 8px 12px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--watch-fg);
+  background: var(--watch-bg);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 16px 0 10px;
+}
+
+.searchInput {
+  flex: 1 1 220px;
+  max-width: 320px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 17px;
+  border: 1px solid var(--border-2);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.speakerSelect {
+  height: 32px;
+  max-width: 100%;
+  padding: 0 8px;
+  font-size: 16px;
+  border: 1px solid var(--border-2);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.count {
+  font-size: 15px;
+  color: var(--faint);
+}
+
+.lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+.line {
+  display: flex;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--rule);
+  border-left: 3px solid transparent;
+}
+
+.line:last-child {
+  border-bottom: none;
+}
+
+.lineActive {
+  border-left-color: var(--accent);
+  background: var(--soft);
+}
+
+.lineBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.lineBody:hover .lineText {
+  color: var(--ink);
+}
+
+.lineTime {
+  flex-shrink: 0;
+  width: 64px;
+  padding-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--faint);
+}
+
+.lineMain {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lineSpeaker {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.lineText {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.mentionTag {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 6px;
+  font-size: 13px;
+  color: var(--support-fg);
+  background: var(--support-bg);
+}
+
+.clipButton {
+  flex-shrink: 0;
+  margin: 8px 10px 0 0;
+  padding: 3px 8px;
+  font-size: 14px;
+  color: var(--ink-2);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+}
+
+.clipButton:hover {
+  background: var(--soft);
+}
+
+@media (max-width: 640px) {
+  .lineBody {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .lineTime {
+    width: auto;
+  }
+}
