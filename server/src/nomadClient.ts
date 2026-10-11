@@ -208,12 +208,19 @@ export async function downloadHlsAudio(playlistUrl: string, destPath: string): P
   }
 
   const extractor = extractAudioFromStream(destPath)
+  let writeError: unknown = null
   try {
     await writeSegmentsInOrder(urls, extractor.stdin)
+  } catch (err) {
+    writeError = err
   } finally {
     extractor.stdin.end()
   }
+  // Always settle `done` — leaving it unawaited when a write fails turns an
+  // ffmpeg failure into an unhandled rejection that kills the whole job.
+  // If ffmpeg died, that's the root cause (the write error is just EPIPE).
   await extractor.done
+  if (writeError) throw writeError
 }
 
 async function writeSegmentsInOrder(urls: string[], out: Writable): Promise<void> {

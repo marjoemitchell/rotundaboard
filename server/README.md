@@ -106,7 +106,11 @@ are diarized per run. Backfill with `--since=YYYY-MM-DD` (and `--limit=N`);
 reprocess one with `--recording=<nomad item id>`; `--captions-only` skips
 diarization.
 
-ffmpeg comes from the `ffmpeg-static` npm package (its install script must
-stay approved in `package.json` → `allowScripts`). That static build segfaults
-on network input, so audio is always downloaded by Node first and ffmpeg only
-ever reads local files.
+ffmpeg: the pipeline uses `FFMPEG_PATH` if set, else a system `ffmpeg` on
+PATH, else the static binary from the `ffmpeg-static` npm package (its install
+script must stay approved in `package.json` → `allowScripts`). Prefer a system
+ffmpeg wherever you deploy — the Unraid job image installs Debian's, and the
+Railway cron asks Railpack for one via `RAILPACK_DEPLOY_APT_PACKAGES` —
+because ffmpeg-static's 7.0.2 segfaults probing some of the archive's raw
+MPEG-TS recordings. Audio is always downloaded by Node first and ffmpeg only
+ever reads local files (that static build also segfaults on network input).

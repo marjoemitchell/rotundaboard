@@ -1,11 +1,36 @@
-// Local audio processing for the hearing transcription pipeline, all via
-// the ffmpeg binary that ships with the ffmpeg-static npm package (so the
-// Railway cron container doesn't need a system ffmpeg). Only ever pointed
-// at local files — see downloadHlsAudio() in nomadClient.ts for why.
-import { spawn } from 'node:child_process'
+// Local audio processing for the hearing transcription pipeline. Only ever
+// pointed at local files — see downloadHlsAudio() in nomadClient.ts for why.
+//
+// Which ffmpeg: FFMPEG_PATH if set, else a system `ffmpeg` on PATH, else the
+// static binary from the ffmpeg-static npm package. Prefer a system build
+// wherever one can be installed: ffmpeg-static's 7.0.2 segfaults just
+// probing some of the archive's raw MPEG-TS recordings (seen 2026-10-10 on
+// a Long Range Planning clip that Debian's ffmpeg 5.1 and ffmpeg 8.1 read
+// fine), and its network input segfaults too.
+import { spawn, spawnSync } from 'node:child_process'
 import { readFile, rm } from 'node:fs/promises'
 import type { Writable } from 'node:stream'
 import ffmpegPath from 'ffmpeg-static'
+
+let resolvedFfmpeg: string | null = null
+
+export function ffmpegBinary(): string {
+  if (resolvedFfmpeg) return resolvedFfmpeg
+  if (process.env.FFMPEG_PATH) {
+    resolvedFfmpeg = process.env.FFMPEG_PATH
+  } else if (spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0) {
+    resolvedFfmpeg = 'ffmpeg'
+  } else if (ffmpegPath) {
+    resolvedFfmpeg = ffmpegPath as unknown as string
+  } else {
+    throw new Error('no ffmpeg found: install one, set FFMPEG_PATH, or use a platform ffmpeg-static supports')
+  }
+  return resolvedFfmpeg
+}
+
+function exitDescription(code: number | null, signal: NodeJS.Signals | null): string {
+  return signal ? `was killed by ${signal}${signal === 'SIGSEGV' ? ' (crashed)' : ''}` : `exited ${code}`
+}
 
 // allowFailure: `ffmpeg -i file` with no output file exits 1 by design, but
 // still prints the stream info we want to read off stderr.
@@ -13,9 +38,9 @@ function ffmpeg(
   args: string[],
   opts: { captureStdout?: boolean; allowFailure?: boolean } = {},
 ): Promise<{ stdout: Buffer; stderr: string }> {
-  if (!ffmpegPath) throw new Error('ffmpeg-static has no binary for this platform')
+  const bin = ffmpegBinary()
   return new Promise((resolve, reject) => {
-    const proc = spawn(ffmpegPath as unknown as string, ['-hide_banner', '-nostdin', ...args])
+    const proc = spawn(bin, ['-hide_banner', '-nostdin', ...args])
     const out: Buffer[] = []
     let stderr = ''
     proc.stdout.on('data', (d: Buffer) => {
@@ -26,9 +51,9 @@ function ffmpeg(
       if (stderr.length > 20_000) stderr = stderr.slice(-10_000)
     })
     proc.on('error', reject)
-    proc.on('close', (code) => {
-      if (code === 0 || opts.allowFailure) resolve({ stdout: Buffer.concat(out), stderr })
-      else reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-500)}`))
+    proc.on('close', (code, signal) => {
+      if (code === 0 || (opts.allowFailure && !signal)) resolve({ stdout: Buffer.concat(out), stderr })
+      else reject(new Error(`ffmpeg (${bin}) ${exitDescription(code, signal)}: ${stderr.slice(-500)}`))
     })
   })
 }
@@ -116,8 +141,8 @@ export async function clipAsDataUrl(src: string, startSeconds: number, durationS
  * ends it, then awaits `done`.
  */
 export function extractAudioFromStream(dest: string): { stdin: Writable; done: Promise<void> } {
-  if (!ffmpegPath) throw new Error('ffmpeg-static has no binary for this platform')
-  const proc = spawn(ffmpegPath as unknown as string, [
+  const bin = ffmpegBinary()
+  const proc = spawn(bin, [
     '-hide_banner', '-loglevel', 'error', '-y', '-f', 'mpegts', '-i', 'pipe:0', '-vn', '-c:a', 'copy', '-f', 'mp4', dest,
   ])
   let stderr = ''
@@ -129,7 +154,9 @@ export function extractAudioFromStream(dest: string): { stdin: Writable; done: P
   proc.stdin.on('error', () => {})
   const done = new Promise<void>((resolve, reject) => {
     proc.on('error', reject)
-    proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-500)}`))))
+    proc.on('close', (code, signal) =>
+      code === 0 ? resolve() : reject(new Error(`ffmpeg (${bin}) ${exitDescription(code, signal)}: ${stderr.slice(-500)}`)),
+    )
   })
   return { stdin: proc.stdin, done }
 }

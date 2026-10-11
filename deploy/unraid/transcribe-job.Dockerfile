@@ -3,6 +3,11 @@
 # out of server/ itself on purpose: Railway builds that directory and would
 # switch every service there to this Dockerfile if it found one.
 FROM node:22-slim
+# Debian's ffmpeg rather than ffmpeg-static's bundled 7.0.2, which segfaults
+# on some of the archive's raw MPEG-TS recordings (see src/hearingAudio.ts).
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
 WORKDIR /app
 COPY package.json package-lock.json ./
 # Full install: the npm scripts run through tsx (a devDependency).

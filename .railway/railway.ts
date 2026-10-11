@@ -137,6 +137,10 @@ export default defineRailway(() => {
       OPENAI_API_KEY: preserve(),
       ANTHROPIC_API_KEY: preserve(),
       ANTHROPIC_WORKSPACE_ID: preserve(),
+      // A system ffmpeg for the pipeline to prefer over ffmpeg-static's
+      // bundled build, which segfaults on some raw archive recordings (see
+      // server/src/hearingAudio.ts). Read by Railpack, Railway's builder.
+      RAILPACK_DEPLOY_APT_PACKAGES: "ffmpeg",
     },
   });
 
