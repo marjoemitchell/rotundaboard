@@ -34,9 +34,11 @@ export function formatDuration(totalSeconds: number): string {
 }
 
 export function formatClock(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = Math.floor(totalSeconds % 60)
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  const mmss = `${minutes.toString().padStart(hours > 0 ? 2 : 1, '0')}:${seconds.toString().padStart(2, '0')}`
+  return hours > 0 ? `${hours}:${mmss}` : mmss
 }
 
 export function formatOrdinal(n: number): string {

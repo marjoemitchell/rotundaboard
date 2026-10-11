@@ -1,3 +1,4 @@
+import { pipeline, Readable } from 'node:stream'
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import express from 'express'
@@ -12,6 +13,7 @@ import * as workspaces from './workspaces.js'
 import { pool } from '../db.js'
 import { hashToken } from '../auth/tokens.js'
 import { getLastEmailTo } from '../auth/email.js'
+import { createHearingFixture, type HearingFixtureInput } from './testFixtures.js'
 
 const app = express()
 // Railway (and most PaaS runtimes) assign the listen port via $PORT at
@@ -69,6 +71,14 @@ if (process.env.NODE_ENV !== 'production') {
       return
     }
     res.json(email)
+  })
+
+  app.post('/api/__test__/hearing-fixture', async (req, res) => {
+    try {
+      res.status(201).json(await createHearingFixture(req.body as HearingFixtureInput))
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/hearing-fixture', err)
+    }
   })
 }
 
@@ -233,7 +243,7 @@ function route(path: string, handler: (req: Request) => Promise<unknown>) {
 route('/api/session-calendar', () => queries.getSessionCalendar())
 route('/api/bills', (req) => queries.getBills(req.auth!.workspaceId))
 route('/api/brief', (req) => queries.getBrief(req.auth!.workspaceId))
-route('/api/hearings', () => queries.getHearings())
+route('/api/hearings', (req) => queries.getRecordedHearings(req.auth!.workspaceId))
 route('/api/hearings/schedule', (req) => queries.getUpcomingHearings(req.auth!.workspaceId))
 route('/api/team-board', (req) => queries.getTeamBoard(req.auth!.workspaceId))
 route('/api/workspace-members', (req) => queries.getWorkspaceMembers(req.auth!.workspaceId))
@@ -265,6 +275,67 @@ app.get('/api/legislators/:id', async (req, res) => {
     res.json(detail)
   } catch (err) {
     handleError(res, `GET /api/legislators/${req.params.id}`, err)
+  }
+})
+
+// Registered after /api/hearings/schedule above, so "schedule" never
+// reaches this as an id.
+app.get('/api/hearings/:id', async (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: 'invalid hearing id' })
+    return
+  }
+  try {
+    const detail = await queries.getHearingDetail(id, req.auth!.workspaceId)
+    if (!detail) {
+      res.status(404).json({ error: `hearing ${id} not found` })
+      return
+    }
+    res.json(detail)
+  } catch (err) {
+    handleError(res, `GET /api/hearings/${req.params.id}`, err)
+  }
+})
+
+// Same-origin proxy for a recording's HLS stream (playlists + segments).
+// The archive's CDN (streaming-content.legmt.gov) sends no CORS headers, so
+// the browser player can't fetch it directly. Only paths inside the
+// recording's own HLS directory are served — see resolveHearingMediaUrl.
+app.get('/api/hearings/:id/audio/*path', async (req, res) => {
+  const id = Number(req.params.id)
+  const segments = (req.params as unknown as { path: string[] }).path
+  try {
+    const target = Number.isInteger(id) ? await queries.resolveHearingMediaUrl(id, segments) : null
+    if (!target) {
+      res.status(404).json({ error: 'not found' })
+      return
+    }
+    // Players abandon requests constantly (seeking, navigating away): stop
+    // pulling from the archive when the browser goes away.
+    const upstreamAbort = new AbortController()
+    res.on('close', () => upstreamAbort.abort())
+    const upstream = await fetch(target.url, { signal: upstreamAbort.signal }).catch(() => null)
+    if (upstreamAbort.signal.aborted) return
+    if (!upstream) {
+      res.status(502).json({ error: 'archive unreachable' })
+      return
+    }
+    if (!upstream.ok || !upstream.body) {
+      res.status(upstream.status === 404 ? 404 : 502).json({ error: `upstream ${upstream.status}` })
+      return
+    }
+    res.setHeader('Content-Type', target.contentType)
+    const length = upstream.headers.get('content-length')
+    if (length) res.setHeader('Content-Length', length)
+    // Archived VOD content doesn't change once posted.
+    res.setHeader('Cache-Control', target.contentType.includes('mpegurl') ? 'private, max-age=300' : 'private, max-age=86400')
+    // pipeline (not .pipe) so an error on either side — an aborted client,
+    // a dropped upstream — tears both down instead of surfacing as an
+    // unhandled 'error' event that would crash the API process.
+    pipeline(Readable.fromWeb(upstream.body as import('node:stream/web').ReadableStream), res, () => {})
+  } catch (err) {
+    handleError(res, `GET /api/hearings/${req.params.id}/audio`, err)
   }
 })
 

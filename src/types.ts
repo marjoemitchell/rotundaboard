@@ -341,18 +341,37 @@ export interface SessionCalendar {
 
 export interface TranscriptSegment {
   timestamp: number // seconds
-  speaker: string
+  endTimestamp: number
+  // null for caption-sourced segments (no diarization yet)
+  speaker: string | null
+  legislatorId: string | null
   text: string
+  // Tracked bills (by id) this segment mentions, e.g. "House Bill 123".
+  mentionedBillIds: string[]
 }
 
-export interface Hearing {
+// 'processing' = the archive's own captions only (no speakers yet);
+// 'ready' = our diarized, speaker-attributed transcript; 'failed' = the
+// diarized pass gave up, captions (if any) remain.
+export type TranscriptStatus = 'pending' | 'processing' | 'ready' | 'failed'
+
+export interface HearingSummary {
   id: string
   committee: string
+  committeeId: string | null
+  meetingId: string | null
   datetime: string
-  room: string
+  room: string | null
   durationSeconds: number
-  transcriptStatus: 'pending' | 'processing' | 'ready'
-  audioUrl?: string
+  transcriptStatus: TranscriptStatus
+  transcriptSource: 'captions' | 'diarized' | null
+  isFollowed: boolean
+  // The recording's page on the Legislature's own video archive.
+  sourceUrl: string
+}
+
+export interface Hearing extends HearingSummary {
+  audioUrl: string | null
   waveform: number[] // relative amplitude 0-1
   transcript: TranscriptSegment[]
   trackedTermMentions: number

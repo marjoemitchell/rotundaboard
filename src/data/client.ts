@@ -16,6 +16,7 @@ import type {
   Brief,
   FollowedCommittee,
   Hearing,
+  HearingSummary,
   InviteLookup,
   LegislativeSession,
   LegislatorDetail,
@@ -170,8 +171,18 @@ export function getBrief(): Promise<Brief> {
   return getJson('/api/brief')
 }
 
-export function getHearings(): Promise<Hearing[]> {
+export function getHearings(): Promise<HearingSummary[]> {
   return getJson('/api/hearings')
+}
+
+export function getHearing(id: string): Promise<Hearing> {
+  return getJson(`/api/hearings/${id}`)
+}
+
+// The player's stream URL — same-origin-proxied by the API (see the
+// /api/hearings/:id/audio route), so it needs the same base as getJson.
+export function hearingMediaUrl(audioUrl: string): string {
+  return `${API_BASE}${audioUrl}`
 }
 
 export function getUpcomingHearings(): Promise<UpcomingHearing[]> {

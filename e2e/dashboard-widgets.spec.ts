@@ -136,23 +136,6 @@ test.describe('momentum model', () => {
   })
 })
 
-test.describe('hearing audio', () => {
-  test('clipping the active transcript segment to notes creates a note', async ({ page }) => {
-    await signUpFreshWorkspace(page)
-    await page.goto('/')
-
-    const clipButton = page.locator('button', { hasText: 'Clip → notes' })
-    if ((await clipButton.count()) === 0) {
-      test.skip(true, 'no recorded hearing available to clip in this environment')
-    }
-    await clipButton.click()
-    await expect(page.locator('text=Clipped').first()).toBeVisible()
-
-    await page.goto('/notes')
-    await expect(page.locator('text=From:').first()).toBeVisible()
-  })
-})
-
 test.describe('morning brief', () => {
   test('"Send this brief" emails the live brief to your own address', async ({ page }) => {
     // Digests (a manual generate-and-archive page, no actual delivery) was

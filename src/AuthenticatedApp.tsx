@@ -23,6 +23,7 @@ import { TrackingBoardPage } from './pages/TrackingBoardPage'
 import { TestimonyPage } from './pages/TestimonyPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { HearingsPage } from './pages/HearingsPage'
+import { HearingTranscriptPage } from './pages/HearingTranscriptPage'
 import type { Bill, FilterState, LoadState, Position } from './types'
 import styles from './App.module.css'
 
@@ -377,6 +378,7 @@ export function AuthenticatedApp() {
             <Route path="/legislators/:id" element={<LegislatorDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/hearings" element={<HearingsPage />} />
+            <Route path="/hearings/recordings/:id" element={<HearingTranscriptPage />} />
           </Routes>
         </main>
       </div>

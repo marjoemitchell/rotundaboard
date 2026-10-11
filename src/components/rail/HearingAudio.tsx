@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { KeyboardEvent, MouseEvent } from 'react'
-import type { Hearing, LoadState } from '../../types'
+import type { KeyboardEvent } from 'react'
+import * as client from '../../data/client'
+import type { Hearing, HearingSummary, LoadState } from '../../types'
 import { formatClock, formatDate, formatDuration, formatTime } from '../../lib/format'
+import { transcriptStatusLabel } from '../../lib/hearings'
+import { useHearingPlayer } from '../../hooks/useHearingPlayer'
 import { EmptyState } from '../shared/EmptyState'
+import { HearingPlayerBar } from '../shared/HearingPlayerBar'
 import styles from './HearingAudio.module.css'
 
 export interface ClipPayload {
@@ -10,6 +14,7 @@ export interface ClipPayload {
   startSeconds: number
   endSeconds: number
   text: string
+  speaker: string | null
 }
 
 export function HearingAudio({
@@ -17,11 +22,27 @@ export function HearingAudio({
   onOpenTranscript,
   onClipToNotes,
 }: {
-  hearings: LoadState<Hearing[]>
+  hearings: LoadState<HearingSummary[]>
   onOpenTranscript: (hearingId: string) => void
-  onClipToNotes: (clip: ClipPayload) => void
+  onClipToNotes: (clip: ClipPayload, hearing: HearingSummary) => void
 }) {
-  if (hearings.status === 'loading') {
+  const latest = hearings.status === 'ready' ? hearings.data[0] : null
+  const [detail, setDetail] = useState<LoadState<Hearing>>({ status: 'loading' })
+
+  useEffect(() => {
+    if (!latest) return
+    let cancelled = false
+    setDetail({ status: 'loading' })
+    client
+      .getHearing(latest.id)
+      .then((d) => !cancelled && setDetail({ status: 'ready', data: d }))
+      .catch(() => !cancelled && setDetail({ status: 'empty' }))
+    return () => {
+      cancelled = true
+    }
+  }, [latest?.id])
+
+  if (hearings.status === 'loading' || (latest && detail.status === 'loading')) {
     return (
       <div className={styles.card}>
         <div className="skeleton" style={{ height: 14, width: '60%' }} />
@@ -31,7 +52,7 @@ export function HearingAudio({
     )
   }
 
-  if (hearings.status === 'empty') {
+  if (!latest || detail.status !== 'ready') {
     return (
       <div className={styles.card}>
         <div className={styles.head}>
@@ -42,8 +63,7 @@ export function HearingAudio({
     )
   }
 
-  const hearing = hearings.data[0]
-  return <HearingPlayer hearing={hearing} onOpenTranscript={onOpenTranscript} onClipToNotes={onClipToNotes} />
+  return <HearingPlayer hearing={detail.data} onOpenTranscript={onOpenTranscript} onClipToNotes={onClipToNotes} />
 }
 
 function HearingPlayer({
@@ -53,41 +73,27 @@ function HearingPlayer({
 }: {
   hearing: Hearing
   onOpenTranscript: (hearingId: string) => void
-  onClipToNotes: (clip: ClipPayload) => void
+  onClipToNotes: (clip: ClipPayload, hearing: HearingSummary) => void
 }) {
-  const [currentTime, setCurrentTime] = useState(0)
-  const [isPlaying, setIsPlaying] = useState(false)
+  const player = useHearingPlayer(hearing.audioUrl, hearing.durationSeconds)
+  const { currentTime, toggle, seek } = player
   const [query, setQuery] = useState('')
   const [matchIndex, setMatchIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!isPlaying) return
-    const interval = setInterval(() => {
-      setCurrentTime((t) => {
-        if (t + 1 >= hearing.durationSeconds) {
-          setIsPlaying(false)
-          return hearing.durationSeconds
-        }
-        return t + 1
-      })
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [isPlaying, hearing.durationSeconds])
-
-  useEffect(() => {
-    setCurrentTime(0)
-    setIsPlaying(false)
     setQuery('')
   }, [hearing.id])
 
-  const activeSegment = useMemo(() => {
-    let candidate = hearing.transcript[0]
-    for (const seg of hearing.transcript) {
-      if (seg.timestamp <= currentTime) candidate = seg
+  const activeIndex = useMemo(() => {
+    let candidate = -1
+    for (let i = 0; i < hearing.transcript.length; i += 1) {
+      if (hearing.transcript[i].timestamp <= currentTime) candidate = i
+      else break
     }
-    return candidate
+    return candidate === -1 && hearing.transcript.length > 0 ? 0 : candidate
   }, [hearing.transcript, currentTime])
+  const activeSegment = activeIndex >= 0 ? hearing.transcript[activeIndex] : undefined
 
   const matches = useMemo(() => {
     if (!query.trim()) return []
@@ -95,45 +101,35 @@ function HearingPlayer({
     return hearing.transcript.filter((seg) => seg.text.toLowerCase().includes(q))
   }, [hearing.transcript, query])
 
-  const seekTo = (seconds: number) => {
-    setCurrentTime(Math.min(Math.max(seconds, 0), hearing.durationSeconds))
-  }
-
-  const handleWaveformClick = (e: MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const ratio = (e.clientX - rect.left) / rect.width
-    seekTo(ratio * hearing.durationSeconds)
-  }
-
   const jumpToMatch = (index: number) => {
     if (matches.length === 0) return
     const wrapped = ((index % matches.length) + matches.length) % matches.length
     setMatchIndex(wrapped)
-    seekTo(matches[wrapped].timestamp)
+    seek(matches[wrapped].timestamp)
   }
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.code === 'Space' && e.target === containerRef.current) {
       e.preventDefault()
-      setIsPlaying((p) => !p)
+      toggle()
     }
   }
 
-  const playedRatio = hearing.durationSeconds > 0 ? currentTime / hearing.durationSeconds : 0
-  const hasRecording = hearing.waveform.length > 0
-
   const handleClip = () => {
     if (!activeSegment) return
-    const idx = hearing.transcript.indexOf(activeSegment)
-    const next = hearing.transcript[idx + 1]
-    const endSeconds = next ? next.timestamp : hearing.durationSeconds
-    onClipToNotes({
-      hearingId: hearing.id,
-      startSeconds: activeSegment.timestamp,
-      endSeconds,
-      text: activeSegment.text,
-    })
+    onClipToNotes(
+      {
+        hearingId: hearing.id,
+        startSeconds: activeSegment.timestamp,
+        endSeconds: activeSegment.endTimestamp,
+        text: activeSegment.text,
+        speaker: activeSegment.speaker,
+      },
+      hearing,
+    )
   }
+
+  const hasTranscript = hearing.transcript.length > 0
 
   return (
     <div
@@ -148,100 +144,78 @@ function HearingPlayer({
         <div className={styles.committee}>{hearing.committee}</div>
       </div>
       <div className={styles.meta}>
-        {formatDate(hearing.datetime)}, {formatTime(hearing.datetime)} · {hearing.room}
-        {hasRecording && (
-          <>
-            {' '}
-            · {formatDuration(hearing.durationSeconds)} ·{' '}
-            <span className={styles.transcriptStatus}>{hearing.transcriptStatus}</span> transcript
-          </>
-        )}
+        {formatDate(hearing.datetime)}, {formatTime(hearing.datetime)}
+        {hearing.room ? ` · ${hearing.room}` : ''}
+        {hearing.durationSeconds > 0 ? ` · ${formatDuration(hearing.durationSeconds)}` : ''}
+      </div>
+      <div className={styles.transcriptStatus} data-status={hearing.transcriptStatus}>
+        {transcriptStatusLabel(hearing)}
       </div>
 
-      {!hasRecording && <EmptyState message="No recording is available for this hearing yet." />}
-
-      {hasRecording && (
-        <>
-          <div className={styles.searchRow}>
-            <input
-              className={styles.searchInput}
-              placeholder="Search transcript"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value)
-                setMatchIndex(0)
-              }}
-            />
-            {query.trim() && (
-              <>
-                <span className={styles.searchCount}>
-                  {matches.length ? `${matchIndex + 1}/${matches.length}` : '0'}
-                </span>
-                <div className={styles.searchNav}>
-                  <button className={styles.searchNavButton} onClick={() => jumpToMatch(matchIndex - 1)} aria-label="Previous match">
-                    ‹
-                  </button>
-                  <button className={styles.searchNavButton} onClick={() => jumpToMatch(matchIndex + 1)} aria-label="Next match">
-                    ›
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className={styles.playerRow}>
-            <button
-              className={styles.playButton}
-              onClick={() => setIsPlaying((p) => !p)}
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? '❚❚' : '▶'}
-            </button>
-            <div className={styles.waveform} onClick={handleWaveformClick} role="slider" aria-label="Seek" aria-valuenow={Math.round(currentTime)} aria-valuemin={0} aria-valuemax={hearing.durationSeconds}>
-              {hearing.waveform.map((amp, i) => {
-                const barRatio = i / hearing.waveform.length
-                return (
-                  <span
-                    key={i}
-                    className={`${styles.waveformBar} ${barRatio <= playedRatio ? styles.waveformBarPlayed : ''}`}
-                    style={{ height: `${Math.max(amp * 100, 12)}%` }}
-                  />
-                )
-              })}
-              {matches.map((seg, i) => (
-                <span
-                  key={i}
-                  className={styles.hitMark}
-                  style={{ left: `${(seg.timestamp / hearing.durationSeconds) * 100}%` }}
-                />
-              ))}
-            </div>
-            <span className={styles.elapsed}>
-              {formatClock(currentTime)} / {formatClock(hearing.durationSeconds)}
-            </span>
-          </div>
-
-          {activeSegment && (
-            <div className={styles.excerpt}>
-              <div className={styles.excerptHead}>
-                <span>{formatClock(activeSegment.timestamp)}</span>
-                <span className={styles.excerptSpeaker}>{activeSegment.speaker}</span>
+      {hasTranscript && (
+        <div className={styles.searchRow}>
+          <input
+            className={styles.searchInput}
+            placeholder="Search transcript"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setMatchIndex(0)
+            }}
+          />
+          {query.trim() && (
+            <>
+              <span className={styles.searchCount}>{matches.length ? `${matchIndex + 1}/${matches.length}` : '0'}</span>
+              <div className={styles.searchNav}>
+                <button className={styles.searchNavButton} onClick={() => jumpToMatch(matchIndex - 1)} aria-label="Previous match">
+                  ‹
+                </button>
+                <button className={styles.searchNavButton} onClick={() => jumpToMatch(matchIndex + 1)} aria-label="Next match">
+                  ›
+                </button>
               </div>
-              <p className={styles.excerptText}>{activeSegment.text}</p>
-            </div>
+            </>
           )}
-
-          <div className={styles.actions}>
-            <button className={styles.actionButton} onClick={() => onOpenTranscript(hearing.id)}>
-              Full transcript
-            </button>
-            <button className={styles.actionButton} onClick={handleClip}>
-              Clip → notes
-            </button>
-            <button className={styles.actionButton}>{hearing.trackedTermMentions} tracked-term mentions</button>
-          </div>
-        </>
+        </div>
       )}
+
+      {hearing.audioUrl && (
+        <div className={styles.playerWrap}>
+          <HearingPlayerBar
+            player={player}
+            durationSeconds={hearing.durationSeconds}
+            waveform={hearing.waveform}
+            markers={matches.map((m) => m.timestamp)}
+          />
+          {player.error && <div className={styles.playerError}>{player.error}</div>}
+        </div>
+      )}
+
+      {activeSegment && (
+        <div className={styles.excerpt}>
+          <div className={styles.excerptHead}>
+            <span>{formatClock(activeSegment.timestamp)}</span>
+            {activeSegment.speaker && <span className={styles.excerptSpeaker}>{activeSegment.speaker}</span>}
+          </div>
+          <p className={styles.excerptText}>{activeSegment.text}</p>
+        </div>
+      )}
+
+      <div className={styles.actions}>
+        <button className={styles.actionButton} onClick={() => onOpenTranscript(hearing.id)}>
+          Full transcript
+        </button>
+        {activeSegment && (
+          <button className={styles.actionButton} onClick={handleClip}>
+            Clip → notes
+          </button>
+        )}
+        {hearing.trackedTermMentions > 0 && (
+          <span className={styles.mentions}>
+            {hearing.trackedTermMentions} tracked-bill mention{hearing.trackedTermMentions === 1 ? '' : 's'}
+          </span>
+        )}
+      </div>
     </div>
   )
 }

@@ -4,7 +4,7 @@ export default defineRailway(() => {
   const db = postgres("db");
   const repo = github("marjoemitchell/rotundaboard", { branch: "main" });
 
-  // The 4 cron services deliberately do NOT use `repo` as their source.
+  // The cron services deliberately do NOT use `repo` as their source.
   // Discovered 2026-09-07: connecting them to GitHub meant every push to
   // main (for completely unrelated api/web work) rebuilt and redeployed
   // them, and their cronSchedule silently stopped actually firing —
@@ -115,7 +115,45 @@ export default defineRailway(() => {
     },
   });
 
+  // Hearing transcription (see server/src/transcribeHearings.ts). The
+  // primary transcriber is self-hosted WhisperX on a GPU box (deploy/unraid/),
+  // which writes to this same database. This cron is the fallback: it still
+  // discovers recordings and ingests captions every run, but only pays for
+  // OpenAI diarization when the GPU box hasn't checked in for 6h
+  // (--fallback-after-hours) — leaving ample margin on the 24h target. A pg
+  // advisory lock keeps it from overlapping the GPU box's runs. Offset to
+  // :30 so it doesn't start alongside cron-refresh-meetings.
+  const cronTranscribeHearings = service("cron-transcribe-hearings", {
+    source: empty(),
+    root: "server",
+    deploy: {
+      startCommand: "npm run transcribe-hearings -- --fallback-after-hours=6",
+      cronSchedule: "30 */2 * * *",
+      restartPolicyType: "NEVER",
+    },
+    env: {
+      DATABASE_URL: db.env.DATABASE_URL,
+      NODE_ENV: "production",
+      OPENAI_API_KEY: preserve(),
+      ANTHROPIC_API_KEY: preserve(),
+      ANTHROPIC_WORKSPACE_ID: preserve(),
+      // A system ffmpeg for the pipeline to prefer over ffmpeg-static's
+      // bundled build, which segfaults on some raw archive recordings (see
+      // server/src/hearingAudio.ts). Read by Railpack, Railway's builder.
+      RAILPACK_DEPLOY_APT_PACKAGES: "ffmpeg",
+    },
+  });
+
   return project("rotundaboard", {
-    resources: [db, api, web, cronRefreshMeetings, cronScrape, cronScrapeDetails, cronGenerateSummaries],
+    resources: [
+      db,
+      api,
+      web,
+      cronRefreshMeetings,
+      cronScrape,
+      cronScrapeDetails,
+      cronGenerateSummaries,
+      cronTranscribeHearings,
+    ],
   });
 });

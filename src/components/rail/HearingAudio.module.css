@@ -22,7 +22,30 @@
 }
 
 .transcriptStatus {
-  text-transform: capitalize;
+  margin-top: 6px;
+  font-size: 14px;
+  font-family: var(--font-mono);
+  color: var(--faint);
+}
+
+.transcriptStatus[data-status='ready'] {
+  color: var(--support-fg);
+}
+
+.playerWrap {
+  margin-top: 12px;
+}
+
+.playerError {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--oppose-fg);
+}
+
+.mentions {
+  align-self: center;
+  font-size: 14px;
+  color: var(--teal);
 }
 
 .searchRow {
@@ -67,67 +90,13 @@
   white-space: nowrap;
 }
 
-.playerRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-}
 
-.playButton {
-  flex-shrink: 0;
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: var(--ink);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-}
 
-.playButton:hover {
-  background: var(--accent, #b9723d);
-}
 
-.waveform {
-  position: relative;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 32px;
-  cursor: pointer;
-}
 
-.waveformBar {
-  flex: 1;
-  min-width: 2px;
-  background: var(--border-2);
-}
 
-.waveformBarPlayed {
-  background: var(--accent, #b9723d);
-}
 
-.hitMark {
-  position: absolute;
-  top: -4px;
-  width: 2px;
-  height: 4px;
-  background: var(--teal);
-  transform: translateX(-1px);
-}
 
-.elapsed {
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: 16px;
-  color: var(--muted);
-  min-width: 68px;
-  text-align: right;
-}
 
 .excerpt {
   margin-top: 14px;

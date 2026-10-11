@@ -359,7 +359,7 @@ export async function getSessionCalendar() {
 export async function getBrief(workspaceId: number) {
   const [bills, hearings, activityCount] = await Promise.all([
     getBills(workspaceId),
-    getHearings(),
+    getNextInterimMeetings(),
     pool.query<{ n: string }>('SELECT count(*) AS n FROM activity_log WHERE workspace_id = $1', [workspaceId]),
   ])
 
@@ -420,46 +420,193 @@ export async function getBrief(workspaceId: number) {
   }
 }
 
-export async function getHearings() {
-  const { rows } = await pool.query<{
-    id: number
-    committee: string
-    meeting_time: string
-    meeting_end_time: string | null
-    location: string | null
-  }>(`
-    SELECT m.id, nsc.name AS committee, m.meeting_time, m.meeting_end_time, m.location
+// The next few scheduled interim meetings — what the brief's "next up on
+// the calendar" line is built from. Recorded hearings (with transcripts)
+// are getRecordedHearings() below.
+async function getNextInterimMeetings() {
+  const { rows } = await pool.query<{ committee: string; meeting_time: string }>(`
+    SELECT nsc.name AS committee, m.meeting_time
     FROM non_standing_committee_meetings m
     JOIN non_standing_committees nsc ON nsc.id = m.non_standing_committee_id
     WHERE m.meeting_time >= now()
     ORDER BY m.meeting_time ASC
     LIMIT 5
   `)
+  return rows.map((r) => ({ committee: r.committee, datetime: r.meeting_time }))
+}
 
-  return rows.map((r) => {
-    const start = new Date(r.meeting_time)
-    const end = r.meeting_end_time ? new Date(r.meeting_end_time) : null
-    const durationSeconds = end ? Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000)) : 0
+// ---------------------------------------------------------------------------
+// Recorded hearings (see server/src/transcribeHearings.ts for the pipeline).
+
+const NOMAD_ITEM_PAGE = 'https://streaming-video.legmt.gov/browse/item/'
+
+interface RecordingRow {
+  id: number
+  nomad_item_id: string
+  committee_id: number | null
+  committee_name: string
+  meeting_id: number | null
+  recorded_at: string
+  location: string | null
+  duration_seconds: number
+  transcript_status: 'pending' | 'processing' | 'ready' | 'failed'
+  transcript_source: 'captions' | 'diarized' | null
+  is_followed: boolean
+}
+
+const RECORDING_COLUMNS = `
+  r.id, r.nomad_item_id, r.committee_id, r.committee_name, r.meeting_id, r.recorded_at, m.location,
+  r.duration_seconds, r.transcript_status, r.transcript_source, (fc.committee_id IS NOT NULL) AS is_followed`
+
+const RECORDING_JOINS = `
+  LEFT JOIN non_standing_committee_meetings m ON m.id = r.meeting_id
+  LEFT JOIN followed_committees fc ON fc.committee_id = r.committee_id AND fc.workspace_id = $1`
+
+function recordingSummary(r: RecordingRow) {
+  return {
+    id: String(r.id),
+    committee: r.committee_name,
+    committeeId: r.committee_id != null ? String(r.committee_id) : null,
+    meetingId: r.meeting_id != null ? String(r.meeting_id) : null,
+    datetime: r.recorded_at,
+    room: r.location,
+    durationSeconds: r.duration_seconds,
+    transcriptStatus: r.transcript_status,
+    transcriptSource: r.transcript_source,
+    isFollowed: r.is_followed,
+    sourceUrl: `${NOMAD_ITEM_PAGE}${r.nomad_item_id}?videoPlayback=true`,
+  }
+}
+
+// Most recent recordings first, but anything from a committee the
+// workspace follows (in the last 30 days) jumps the queue — the dashboard's
+// player shows the first one.
+export async function getRecordedHearings(workspaceId: number) {
+  const { rows } = await pool.query<RecordingRow>(
+    `SELECT ${RECORDING_COLUMNS}
+     FROM hearing_recordings r ${RECORDING_JOINS}
+     ORDER BY (fc.committee_id IS NOT NULL AND r.recorded_at >= now() - interval '30 days') DESC,
+              r.recorded_at DESC, r.id DESC
+     LIMIT 25`,
+    [workspaceId],
+  )
+  return rows.map(recordingSummary)
+}
+
+// Spoken references to the workspace's tracked bills: "HB 123" / "House
+// Bill 123" / "SB 4" / "LC 1234" as speech recognition writes them.
+// Number-words ("house bill one twenty three") aren't attempted.
+async function trackedBillPatterns(workspaceId: number): Promise<{ billId: string; pattern: RegExp }[]> {
+  const { rows } = await pool.query<{ bill_id: number; code: string | null; bill_number: number | null; draft_number: string | null }>(
+    `SELECT b.id AS bill_id, bt.code, b.bill_number, d.draft_number
+     FROM tracked_bills tb
+     JOIN bills b ON b.id = tb.bill_id
+     LEFT JOIN bill_types bt ON bt.id = b.bill_type_id
+     LEFT JOIN drafts d ON d.id = b.draft_id
+     WHERE tb.workspace_id = $1`,
+    [workspaceId],
+  )
+  const spelledOut: Record<string, string> = { HB: 'House Bill', SB: 'Senate Bill', HJ: 'House Joint Resolution', SJ: 'Senate Joint Resolution', HR: 'House Resolution', SR: 'Senate Resolution' }
+  const patterns: { billId: string; pattern: RegExp }[] = []
+  for (const r of rows) {
+    const alternatives: string[] = []
+    if (r.code && r.bill_number != null) {
+      const words = spelledOut[r.code.toUpperCase()]
+      alternatives.push(`${r.code}\\s*(?:No\\.?\\s*)?${r.bill_number}`)
+      if (words) alternatives.push(`${words.replace(/ /g, '\\s+')}\\s*(?:No\\.?\\s*)?${r.bill_number}`)
+    }
+    const lc = r.draft_number?.match(/^LC\s*0*(\d+)$/i)
+    if (lc) alternatives.push(`LC\\s*0*${lc[1]}`)
+    if (alternatives.length > 0) {
+      patterns.push({ billId: String(r.bill_id), pattern: new RegExp(`\\b(?:${alternatives.join('|')})\\b`, 'i') })
+    }
+  }
+  return patterns
+}
+
+export async function getHearingDetail(recordingId: number, workspaceId: number) {
+  const { rows } = await pool.query<RecordingRow & { waveform: number[]; hls_url: string; audio_playlist_url: string | null }>(
+    `SELECT ${RECORDING_COLUMNS}, r.waveform, r.hls_url, r.audio_playlist_url
+     FROM hearing_recordings r ${RECORDING_JOINS}
+     WHERE r.id = $2`,
+    [workspaceId, recordingId],
+  )
+  const r = rows[0]
+  if (!r) return null
+
+  const [{ rows: segmentRows }, patterns] = await Promise.all([
+    pool.query<{ start_seconds: number; end_seconds: number; text: string; display_name: string | null; legislator_id: number | null }>(
+      `SELECT s.start_seconds, s.end_seconds, s.text, sp.display_name, sp.legislator_id
+       FROM hearing_transcript_segments s
+       LEFT JOIN hearing_speakers sp ON sp.recording_id = s.recording_id AND sp.label = s.speaker_label
+       WHERE s.recording_id = $1
+       ORDER BY s.seq`,
+      [recordingId],
+    ),
+    trackedBillPatterns(workspaceId),
+  ])
+
+  const transcript = segmentRows.map((s) => {
+    const mentionedBillIds = patterns.filter((p) => p.pattern.test(s.text)).map((p) => p.billId)
     return {
-      id: String(r.id),
-      committee: r.committee,
-      datetime: r.meeting_time,
-      room: r.location ?? 'Room TBD',
-      durationSeconds,
-      // No recording/transcript pipeline exists yet — honest 'pending', not fabricated content.
-      transcriptStatus: 'pending' as const,
-      waveform: [] as number[],
-      transcript: [] as { timestamp: number; speaker: string; text: string }[],
-      trackedTermMentions: 0,
+      timestamp: s.start_seconds,
+      endTimestamp: s.end_seconds,
+      speaker: s.display_name,
+      legislatorId: s.legislator_id != null ? String(s.legislator_id) : null,
+      text: s.text,
+      mentionedBillIds,
     }
   })
+
+  // The player streams through our own proxy (GET /api/hearings/:id/audio/*)
+  // because the archive's CDN sends no CORS headers. The path is relative to
+  // the recording's HLS directory, which is all the proxy will serve.
+  const baseDir = r.hls_url.slice(0, r.hls_url.lastIndexOf('/') + 1)
+  const audioPath = r.audio_playlist_url?.startsWith(baseDir) ? r.audio_playlist_url.slice(baseDir.length) : null
+
+  return {
+    ...recordingSummary(r),
+    audioUrl: audioPath ? `/api/hearings/${r.id}/audio/${audioPath}` : null,
+    waveform: Array.isArray(r.waveform) ? r.waveform : [],
+    transcript,
+    trackedTermMentions: transcript.filter((t) => t.mentionedBillIds.length > 0).length,
+  }
+}
+
+// Media types for what an HLS stream is made of; anything else is refused.
+const HEARING_MEDIA_TYPES: Record<string, string> = {
+  '.m3u8': 'application/vnd.apple.mpegurl',
+  '.m4s': 'video/iso.segment',
+  '.mp4': 'video/mp4',
+  '.ts': 'video/mp2t',
+  '.aac': 'audio/aac',
+  '.vtt': 'text/vtt',
+}
+
+/**
+ * Resolves a proxied hearing-media path to its upstream URL, or null if the
+ * path isn't something this recording's stream could contain. Locked to the
+ * recording's own HLS directory so the proxy can't be pointed elsewhere.
+ */
+export async function resolveHearingMediaUrl(
+  recordingId: number,
+  pathSegments: string[],
+): Promise<{ url: string; contentType: string } | null> {
+  if (pathSegments.length === 0) return null
+  if (!pathSegments.every((seg) => /^[A-Za-z0-9_.-]+$/.test(seg) && seg !== '.' && seg !== '..')) return null
+  const file = pathSegments[pathSegments.length - 1]
+  const ext = file.slice(file.lastIndexOf('.')).toLowerCase()
+  const contentType = HEARING_MEDIA_TYPES[ext]
+  if (!contentType) return null
+  const { rows } = await pool.query<{ hls_url: string }>('SELECT hls_url FROM hearing_recordings WHERE id = $1', [recordingId])
+  if (!rows[0]) return null
+  const baseDir = rows[0].hls_url.slice(0, rows[0].hls_url.lastIndexOf('/') + 1)
+  return { url: baseDir + pathSegments.join('/'), contentType }
 }
 
 // Every future interim-committee meeting, across all committees — not just
 // the ones a workspace follows. This is the "browse the full calendar" view
-// the left-nav's Hearings item links to; getHearings() above stays scoped
-// to the dashboard's single-hearing preview widget so that existing shape
-// doesn't change under it. isFollowed is still overlaid per-workspace (same
+// the left-nav's Hearings item links to. isFollowed is still overlaid per-workspace (same
 // LEFT JOIN pattern as getNonStandingCommittees) so the list can highlight
 // hearings for committees the team already follows.
 export async function getUpcomingHearings(workspaceId: number) {
