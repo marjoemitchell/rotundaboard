@@ -14,8 +14,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NLTK_DATA=/opt/nltk_data \
     PATH=/opt/venv/bin:$PATH
 
+# libpython3.12t64: torchcodec (pulled in by pyannote) dlopens the shared
+# libpython, which Ubuntu's python3 package doesn't ship on its own.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 python3-venv ffmpeg ca-certificates curl \
+ && apt-get install -y --no-install-recommends python3 python3-venv libpython3.12t64 ffmpeg ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m venv /opt/venv
