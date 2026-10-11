@@ -34,6 +34,7 @@ import torch
 import whisperx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
+from huggingface_hub import hf_hub_download
 from whisperx.diarize import DiarizationPipeline
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -50,6 +51,8 @@ HF_TOKEN = os.environ.get("HF_TOKEN") or None
 # Debugging only: skip diarization (every segment gets speaker null).
 DIARIZE = os.environ.get("DIARIZE", "1") != "0"
 LANGUAGE = "en"
+# What whisperx.diarize.DiarizationPipeline loads by default.
+DIARIZATION_REPO = "pyannote/speaker-diarization-community-1"
 
 app = FastAPI(title="Rotunda Board transcriber")
 jobs: dict[str, dict] = {}
@@ -168,6 +171,39 @@ def worker() -> None:
 threading.Thread(target=worker, daemon=True).start()
 
 
+# (checked_at, problem-or-None). Success is trusted for an hour, failure
+# re-checked after 5 minutes, so Docker's once-a-minute healthcheck doesn't
+# hit the Hub on every call.
+_hf_access: tuple[float, Optional[str]] = (0.0, "not checked yet")
+
+
+def hf_access_problem() -> Optional[str]:
+    """Confirms HF_TOKEN can fetch the gated diarization model.
+
+    Without this, a token problem (terms not accepted, or a fine-grained
+    token missing "public gated repos" access) only surfaces at the
+    diarization stage — after the whole hearing has been transcribed.
+    """
+    global _hf_access
+    checked_at, problem = _hf_access
+    max_age = 3600 if problem is None else 300
+    if time.time() - checked_at < max_age:
+        return problem
+    try:
+        hf_hub_download(DIARIZATION_REPO, "config.yaml", token=HF_TOKEN)
+        problem = None
+    except Exception as exc:  # noqa: BLE001 — any failure means diarization would fail
+        # huggingface_hub wraps the HTTP error (which says what's actually
+        # wrong) in a generic "can't find it locally" error.
+        cause = exc.__cause__ or exc
+        detail = " ".join(
+            line.strip() for line in str(cause).splitlines() if line.strip() and not line.startswith("(Request ID")
+        )
+        problem = f"can't fetch {DIARIZATION_REPO} with HF_TOKEN: {type(cause).__name__}: {detail[:400]}"
+    _hf_access = (time.time(), problem)
+    return problem
+
+
 @app.get("/health")
 def health():
     info = {
@@ -191,6 +227,10 @@ def health():
                 problems.append(f"this torch build has no kernels for {info['capability']}")
     if DIARIZE and not HF_TOKEN:
         problems.append("HF_TOKEN is not set (needed for pyannote speaker diarization)")
+    elif DIARIZE:
+        hf_problem = hf_access_problem()
+        if hf_problem:
+            problems.append(hf_problem)
     info["ok"] = not problems
     info["problems"] = problems
     return JSONResponse(info, status_code=200 if not problems else 503)
