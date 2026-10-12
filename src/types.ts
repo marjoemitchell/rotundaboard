@@ -366,6 +366,8 @@ export interface HearingSummary {
   transcriptStatus: TranscriptStatus
   transcriptSource: 'captions' | 'diarized' | null
   isFollowed: boolean
+  // True when one or more speakers have a name, not only "Speaker N".
+  speakersNamed: boolean
   // The recording's page on the Legislature's own video archive.
   sourceUrl: string
 }

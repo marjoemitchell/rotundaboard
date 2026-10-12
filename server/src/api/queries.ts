@@ -452,11 +452,16 @@ interface RecordingRow {
   transcript_status: 'pending' | 'processing' | 'ready' | 'failed'
   transcript_source: 'captions' | 'diarized' | null
   is_followed: boolean
+  speakers_named: boolean
 }
 
 const RECORDING_COLUMNS = `
   r.id, r.nomad_item_id, r.committee_id, r.committee_name, r.meeting_id, r.recorded_at, m.location,
-  r.duration_seconds, r.transcript_status, r.transcript_source, (fc.committee_id IS NOT NULL) AS is_followed`
+  r.duration_seconds, r.transcript_status, r.transcript_source, (fc.committee_id IS NOT NULL) AS is_followed,
+  EXISTS (
+    SELECT 1 FROM hearing_speakers sp
+    WHERE sp.recording_id = r.id AND sp.label <> 'UNKNOWN' AND sp.display_name NOT LIKE 'Speaker %'
+  ) AS speakers_named`
 
 const RECORDING_JOINS = `
   LEFT JOIN non_standing_committee_meetings m ON m.id = r.meeting_id
@@ -474,6 +479,7 @@ function recordingSummary(r: RecordingRow) {
     transcriptStatus: r.transcript_status,
     transcriptSource: r.transcript_source,
     isFollowed: r.is_followed,
+    speakersNamed: r.speakers_named,
     sourceUrl: `${NOMAD_ITEM_PAGE}${r.nomad_item_id}?videoPlayback=true`,
   }
 }

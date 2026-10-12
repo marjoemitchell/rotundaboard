@@ -2,10 +2,12 @@ import type { HearingSummary } from '../types'
 import { formatClock, formatDate } from './format'
 
 // Short, honest description of what transcript a hearing currently has.
-export function transcriptStatusLabel(h: Pick<HearingSummary, 'transcriptStatus' | 'transcriptSource'>): string {
+export function transcriptStatusLabel(
+  h: Pick<HearingSummary, 'transcriptStatus' | 'transcriptSource' | 'speakersNamed'>,
+): string {
   switch (h.transcriptStatus) {
     case 'ready':
-      return 'Speaker-attributed transcript'
+      return h.speakersNamed ? 'Speaker-attributed transcript' : 'Transcript · speakers not named yet'
     case 'processing':
       return 'Captions only · speaker transcript in progress'
     case 'failed':

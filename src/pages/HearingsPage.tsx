@@ -42,8 +42,9 @@ export function HearingsPage() {
     <div className={styles.page}>
       <h1 className={styles.title}>Hearings</h1>
       <p className={styles.subhead}>
-        Every scheduled interim committee hearing on record, across all committees — not just the ones you follow.
-        Click one to see its committee's agenda, or open a recent recording to read and search its transcript.
+        These are all the scheduled interim committee hearings, for all committees, not only the committees that you
+        follow. Click a hearing to see the agenda of its committee. Open a recent recording to read and search its
+        transcript.
       </p>
 
       <div className={styles.searchRow}>

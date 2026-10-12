@@ -28,6 +28,8 @@
 //   npm run transcribe-hearings -- --limit=1            # diarize at most 1 hearing
 //   npm run transcribe-hearings -- --recording=<nomad item id>   # (re)process one
 //   npm run transcribe-hearings -- --captions-only      # skip diarization
+//   npm run transcribe-hearings -- --names-only         # only the speaker names step,
+//       for transcripts without names (add --recording=<id> to do one again)
 //   npm run transcribe-hearings -- --fallback-after-hours=6
 //       # diarize only if the WhisperX box hasn't checked in for 6h
 import 'dotenv/config'
@@ -39,9 +41,9 @@ import { pool } from './db.js'
 import { runWithConcurrency } from './concurrency.js'
 import * as nomad from './nomadClient.js'
 import { computeWaveform, probeDurationSeconds } from './hearingAudio.js'
-import { backendUnavailableReason, diarizeAudio, transcribeBackend, type TranscribeBackend } from './diarize.js'
+import { backendUnavailableReason, diarizeAudio, transcribeBackend, type DiarizedSegment, type TranscribeBackend } from './diarize.js'
 import { identifySpeakers, type RosterEntry } from './identifySpeakers.js'
-import { attributeSpeakers, mergeSpeakerTurns, speakerCountHint, transcriptionPrompt } from './speakerAttribution.js'
+import { attributeSpeakers, mergeSpeakerTurns, speakerCountHint, transcriptionPrompt, type SpeakerRow } from './speakerAttribution.js'
 
 // The archive can lag a meeting by weeks, so the default window is wide —
 // but bounded, so a fresh deploy doesn't pay to diarize years of backlog.
@@ -287,43 +289,21 @@ async function diarizeRecording(rec: RecordingRow, backend: TranscribeBackend): 
       ),
     )
 
-    let identities: Awaited<ReturnType<typeof identifySpeakers>> = { speakers: [], lines: [] }
-    if (process.env.ANTHROPIC_API_KEY) {
-      try {
-        identities = await identifySpeakers({
-          committeeName: rec.committee_name,
-          recordedAt: rec.recorded_at,
-          roster,
-          segments: diarized,
-        })
-      } catch (err) {
-        // Naming is an enhancement on top of a complete transcript — don't
-        // throw away a paid transcription because this step failed.
-        console.warn(`  speaker identification failed: ${(err as Error).message}`)
-      }
-    } else {
-      console.warn('  ANTHROPIC_API_KEY not set — speakers will be stored unnamed')
-    }
+    const { identities, identified } = await identifyWithLogging(rec, roster, diarized)
     const { segments, speakers } = attributeSpeakers(diarized, identities, roster)
 
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
-      await replaceSegments(client, rec.id, segments)
-      await client.query('DELETE FROM hearing_speakers WHERE recording_id = $1', [rec.id])
-      for (const s of speakers) {
-        await client.query(
-          `INSERT INTO hearing_speakers (recording_id, label, display_name, legislator_id, role, confidence)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [rec.id, s.label, s.displayName, s.legislatorId, s.role, s.confidence],
-        )
-      }
+      await saveTranscript(client, rec.id, segments, speakers)
       await client.query(
         `UPDATE hearing_recordings
          SET transcript_status = 'ready', transcript_source = 'diarized', waveform = $2,
-             duration_seconds = $3, transcribed_at = now(), last_error = NULL, updated_at = now()
+             duration_seconds = $3, transcribed_at = now(), last_error = NULL, updated_at = now(),
+             speakers_identified_at = CASE WHEN $4 THEN now() END,
+             speaker_id_attempts = CASE WHEN $4 THEN 0 ELSE 1 END
          WHERE id = $1`,
-        [rec.id, JSON.stringify(waveform), Math.round(duration)],
+        [rec.id, JSON.stringify(waveform), Math.round(duration), identified],
       )
       await client.query('COMMIT')
     } catch (err) {
@@ -332,12 +312,108 @@ async function diarizeRecording(rec: RecordingRow, backend: TranscribeBackend): 
     } finally {
       client.release()
     }
-    const named = speakers.filter((s) => s.label !== 'UNKNOWN' && !s.displayName.startsWith('Speaker ')).length
-    console.log(
-      `  diarized: ${segments.length} segments, ${speakers.length} speakers (${named} named, ${identities.lines.length} lines attributed from their text)`,
-    )
+    console.log(`  diarized: ${segments.length} segments, ${describeSpeakers(speakers, identities.lines.length)}`)
   } finally {
     await rm(workDir, { recursive: true, force: true })
+  }
+}
+
+function describeSpeakers(speakers: SpeakerRow[], attributedLines: number): string {
+  const named = speakers.filter((s) => s.label !== 'UNKNOWN' && !s.displayName.startsWith('Speaker ')).length
+  return `${speakers.length} speakers (${named} named, ${attributedLines} lines attributed from their text)`
+}
+
+// The speaker names step. It returns `identified: false` if the step did
+// not run or failed. In that case the transcript is kept without names, and
+// retrySpeakerNames tries the names step again on a later run.
+async function identifyWithLogging(
+  rec: RecordingRow,
+  roster: RosterEntry[],
+  segments: DiarizedSegment[],
+): Promise<{ identities: Awaited<ReturnType<typeof identifySpeakers>>; identified: boolean }> {
+  const none = { speakers: [], lines: [] }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn('  ANTHROPIC_API_KEY is not set. The speakers are stored without names.')
+    return { identities: none, identified: false }
+  }
+  try {
+    const identities = await identifySpeakers({ committeeName: rec.committee_name, recordedAt: rec.recorded_at, roster, segments })
+    return { identities, identified: true }
+  } catch (err) {
+    console.warn(`  speaker identification failed: ${(err as Error).message}`)
+    return { identities: none, identified: false }
+  }
+}
+
+async function saveTranscript(client: PoolClient, recordingId: number, segments: DiarizedSegment[], speakers: SpeakerRow[]) {
+  await replaceSegments(client, recordingId, segments)
+  await client.query('DELETE FROM hearing_speakers WHERE recording_id = $1', [recordingId])
+  for (const s of speakers) {
+    await client.query(
+      `INSERT INTO hearing_speakers (recording_id, label, display_name, legislator_id, role, confidence)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [recordingId, s.label, s.displayName, s.legislatorId, s.role, s.confidence],
+    )
+  }
+}
+
+// Speaker names for finished transcripts that do not have them. This needs
+// only the stored segments and Claude, not the audio or the GPU, so it runs
+// even when the transcription service is not available.
+const SPEAKER_ID_MAX_ATTEMPTS = 3
+const DEFAULT_NAMES_LIMIT = 4
+
+async function retrySpeakerNames(limit: number, onlyRecording?: string): Promise<void> {
+  if (!process.env.ANTHROPIC_API_KEY) return
+  // With --recording, do the names step again even if the transcript has names.
+  const { rows } = await pool.query<RecordingRow>(
+    onlyRecording
+      ? `SELECT * FROM hearing_recordings WHERE nomad_item_id = $1 AND transcript_source = 'diarized'`
+      : `SELECT * FROM hearing_recordings
+         WHERE transcript_source = 'diarized' AND transcript_status = 'ready'
+           AND speakers_identified_at IS NULL AND speaker_id_attempts < $2
+         ORDER BY recorded_at DESC LIMIT $1`,
+    onlyRecording ? [onlyRecording] : [limit, SPEAKER_ID_MAX_ATTEMPTS],
+  )
+  if (rows.length === 0) return
+  console.log(`${rows.length} transcript(s) without speaker names: running the names step again.`)
+
+  for (const rec of rows) {
+    console.log(`naming speakers: ${rec.committee_name} ${rec.recorded_at}...`)
+    const { rows: stored } = await pool.query<{ start_seconds: number; end_seconds: number; speaker_label: string | null; text: string }>(
+      `SELECT start_seconds, end_seconds, speaker_label, text FROM hearing_transcript_segments
+       WHERE recording_id = $1 ORDER BY seq`,
+      [rec.id],
+    )
+    const segments: DiarizedSegment[] = stored.map((s) => ({
+      start: s.start_seconds,
+      end: s.end_seconds,
+      speaker: s.speaker_label ?? 'UNKNOWN',
+      text: s.text,
+    }))
+    const roster = await loadRoster(rec.committee_id)
+    const { identities, identified } = await identifyWithLogging(rec, roster, segments)
+    if (!identified) {
+      await pool.query('UPDATE hearing_recordings SET speaker_id_attempts = speaker_id_attempts + 1 WHERE id = $1', [rec.id])
+      continue
+    }
+    const attributed = attributeSpeakers(segments, identities, roster)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await saveTranscript(client, rec.id, attributed.segments, attributed.speakers)
+      await client.query(
+        `UPDATE hearing_recordings SET speakers_identified_at = now(), speaker_id_attempts = 0, updated_at = now() WHERE id = $1`,
+        [rec.id],
+      )
+      await client.query('COMMIT')
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+    console.log(`  ${describeSpeakers(attributed.speakers, identities.lines.length)}`)
   }
 }
 
@@ -353,12 +429,18 @@ async function main() {
   const limit = Number(arg('limit') ?? DEFAULT_DIARIZE_LIMIT)
   const onlyRecording = arg('recording')
   const captionsOnly = args.includes('--captions-only')
+  const namesOnly = args.includes('--names-only')
   const fallbackArg = arg('fallback-after-hours')
   const fallbackAfterHours = fallbackArg != null ? Number(fallbackArg) : null
 
   const { rows: lock } = await pool.query<{ ok: boolean }>('SELECT pg_try_advisory_lock($1) AS ok', [ADVISORY_LOCK_KEY])
   if (!lock[0].ok) {
     console.log('another transcribe-hearings run is in progress; exiting.')
+    return
+  }
+
+  if (namesOnly) {
+    await retrySpeakerNames(Number(arg('limit') ?? DEFAULT_NAMES_LIMIT), onlyRecording)
     return
   }
 
@@ -386,10 +468,13 @@ async function main() {
   }
 
   if (captionsOnly) return
+  // Before the transcription backend check: this step does not use the GPU.
+  if (!onlyRecording) await retrySpeakerNames(DEFAULT_NAMES_LIMIT)
+
   const backend = transcribeBackend()
   const unavailable = await backendUnavailableReason(backend)
   if (unavailable) {
-    console.warn(`${backend} transcription unavailable (${unavailable}) — captions only this run.`)
+    console.warn(`${backend} transcription is not available (${unavailable}). This run does captions only.`)
     return
   }
   if (backend === 'whisperx') {
@@ -405,10 +490,10 @@ async function main() {
       [WHISPERX_HEARTBEAT, fallbackAfterHours],
     )
     if (rows[0]?.fresh) {
-      console.log(`the WhisperX transcriber checked in within ${fallbackAfterHours}h — leaving diarization to it.`)
+      console.log(`The WhisperX transcriber checked in within ${fallbackAfterHours}h. It does the transcription.`)
       return
     }
-    console.log(`no WhisperX check-in within ${fallbackAfterHours}h — diarizing here as the fallback.`)
+    console.log(`No WhisperX check-in within ${fallbackAfterHours}h. This run does the transcription as the fallback.`)
   }
 
   const { rows: needDiarize } = await pool.query<RecordingRow>(

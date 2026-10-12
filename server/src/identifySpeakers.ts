@@ -150,9 +150,10 @@ export async function identifySpeakers(params: {
     ],
   })
 
+  // An error, not an empty result: the job then tries the names step again
+  // on a later run (see retrySpeakerNames in transcribeHearings.ts).
   if (response.stop_reason === 'refusal' || !response.parsed_output) {
-    console.warn(`  speaker identification returned no usable output (stop_reason=${response.stop_reason})`)
-    return { speakers: [], lines: [] }
+    throw new Error(`no usable output (stop_reason=${response.stop_reason})`)
   }
 
   const validIds = new Set(params.roster.map((r) => r.legislatorId))

@@ -131,6 +131,28 @@ test.describe('hearing transcript page', () => {
     await expect(transcriptLines(page).filter({ hasText: 'Mentions a tracked bill' })).toContainText(identifier)
   })
 
+  test('a transcript whose speakers have no names yet is not labeled speaker-attributed', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const hearing = await createHearingFixture(page.request, {
+      speakers: [
+        { label: 'S1', displayName: 'Speaker 1' },
+        { label: 'S2', displayName: 'Speaker 2' },
+      ],
+      segments: [
+        { start: 5, end: 40, speakerLabel: 'S1', text: 'I call the committee to order.' },
+        { start: 41, end: 60, speakerLabel: 'S2', text: 'Thank you, Madam Chair.' },
+      ],
+    })
+
+    await page.goto(`/hearings/recordings/${hearing.id}`)
+    await expect(page.locator('text=Transcript · speakers not named yet')).toBeVisible()
+    await expect(page.locator('text=Speaker-attributed transcript')).toHaveCount(0)
+
+    await page.goto('/hearings')
+    const row = page.getByRole('region', { name: 'Recent recordings' }).locator(`a[href="/hearings/recordings/${hearing.id}"]`)
+    await expect(row).toContainText('Transcript · speakers not named yet')
+  })
+
   test('an unknown hearing id shows a not-found state', async ({ page }) => {
     await signUpFreshWorkspace(page)
     await page.goto('/hearings/recordings/99999999')
