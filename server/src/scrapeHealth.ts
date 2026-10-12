@@ -260,19 +260,19 @@ export async function alertIfChanged(
   )
   const previous = rows[0]
 
+  // Record an alert only after the email is sent. If the send fails (no
+  // MAINTAINER_EMAIL, or Resend refuses it), the next run tries again.
   if (problems.length === 0) {
     if (!previous) return false
+    if (previous.has_errors) {
+      const sent = await send(to, `Rotunda Board: ${title} is working again`, `<p>The problems with ${escapeHtml(title)} have stopped.</p>`)
+      if (!sent) return false
+    }
     await pool.query('DELETE FROM scrape_health_alerts WHERE key = $1', [key])
-    if (!previous.has_errors) return false
-    return send(to, `Rotunda Board: ${title} is working again`, `<p>The problems with ${escapeHtml(title)} have stopped.</p>`)
+    return previous.has_errors
   }
   if (previous?.signature === signature) return false
 
-  await pool.query(
-    `INSERT INTO scrape_health_alerts (key, signature, has_errors) VALUES ($1, $2, $3)
-     ON CONFLICT (key) DO UPDATE SET signature = $2, has_errors = $3, alerted_at = now()`,
-    [key, signature, hasErrors],
-  )
   const list = problems
     .map(
       (p) =>
@@ -280,7 +280,7 @@ export async function alertIfChanged(
     )
     .join('')
   const subject = `Rotunda Board: ${hasErrors ? 'problem' : 'warning'} with ${title}`
-  return send(
+  const sent = await send(
     to,
     subject,
     `<div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:14px;line-height:1.5;color:#0f2547">
@@ -289,6 +289,14 @@ export async function alertIfChanged(
 <p style="color:#5c6b80">The data comes from bearbeta.legmt.gov, an unpublished API. A change in that API can stop the scrapers.
 You get one email when the problems change, and one email when the errors stop.</p></div>`,
   )
+  if (sent) {
+    await pool.query(
+      `INSERT INTO scrape_health_alerts (key, signature, has_errors) VALUES ($1, $2, $3)
+       ON CONFLICT (key) DO UPDATE SET signature = $2, has_errors = $3, alerted_at = now()`,
+      [key, signature, hasErrors],
+    )
+  }
+  return sent
 }
 
 async function send(to: string | undefined, subject: string, html: string): Promise<boolean> {
@@ -296,8 +304,7 @@ async function send(to: string | undefined, subject: string, html: string): Prom
     console.warn(`[scrape-health] MAINTAINER_EMAIL is not set. Alert not sent: ${subject}`)
     return false
   }
-  await sendEmail(to, subject, html)
-  return true
+  return sendEmail(to, subject, html)
 }
 
 // ---------------------------------------------------------------- run lifecycle

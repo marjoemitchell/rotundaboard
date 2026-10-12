@@ -28,6 +28,11 @@ export default defineConfig({
     {
       command: 'npm run api',
       cwd: './server',
+      // The tests read emails from the API's in-memory copy (GET
+      // /api/__test__/last-email). Do not send them through Resend: its
+      // test mode refuses the e2e addresses, and a refused email counts as
+      // not sent (scrapeHealth.ts sends a not-sent alert again).
+      env: { RESEND_API_KEY: '' },
       url: 'http://localhost:4000/api/health',
       reuseExistingServer: true,
       timeout: 30_000,

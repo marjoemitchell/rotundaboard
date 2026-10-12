@@ -73,6 +73,23 @@ test.describe('scrape health alerts', () => {
     expect((await lastEmail(request, maintainer))?.subject).toContain('working again')
   })
 
+  test('an alert that could not be sent is sent on the next run', async ({ request }) => {
+    const job = `e2e-scrape-${uniqueSuffix()}`
+    const maintainer = `e2e-maintainer-${uniqueSuffix()}@example.dev`
+    const broken = bills(25, { draft: { id: 1, sessionId: 2, billStatuses: [], subjects: [] } })
+    await simulate(request, job, maintainer, bills(25))
+
+    // No address (as when MAINTAINER_EMAIL is not set yet): nothing is sent.
+    const unsent = await simulate(request, job, '', broken)
+    expect(unsent.status).toBe('failed')
+    expect(unsent.alerted).toBe(false)
+
+    // The same problem on the next run: the alert is sent now.
+    const retried = await simulate(request, job, maintainer, broken)
+    expect(retried.alerted).toBe(true)
+    expect((await lastEmail(request, maintainer))?.html).toContain('draft.draftNumber')
+  })
+
   test('a large drop in the item count is an error', async ({ request }) => {
     const job = `e2e-scrape-${uniqueSuffix()}`
     const maintainer = `e2e-maintainer-${uniqueSuffix()}@example.dev`

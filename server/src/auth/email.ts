@@ -14,13 +14,16 @@ type SentEmail = { to: string; subject: string; html: string; sentAt: number }
 const sentEmails: SentEmail[] = []
 const MAX_CAPTURED_EMAILS = 50
 
-export async function sendEmail(to: string, subject: string, html: string) {
+// Returns false if Resend did not accept the email. In local development
+// (no RESEND_API_KEY) the email is only written to the log, which counts as
+// sent.
+export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   sentEmails.push({ to, subject, html, sentAt: Date.now() })
   if (sentEmails.length > MAX_CAPTURED_EMAILS) sentEmails.shift()
 
   if (!resend) {
     console.log(`[email:dev] to=${to} subject="${subject}"\n${html}`)
-    return
+    return true
   }
   const from = process.env.EMAIL_FROM_ADDRESS ?? 'notifications@rotundaboard.example'
   // The Resend SDK does not throw on an API-level failure (unverified
@@ -30,7 +33,9 @@ export async function sendEmail(to: string, subject: string, html: string) {
   const { error } = await resend.emails.send({ from, to, subject, html })
   if (error) {
     console.error(`[email:resend] failed to send "${subject}" to ${to}: ${error.name} - ${error.message}`)
+    return false
   }
+  return true
 }
 
 export function getLastEmailTo(to: string): SentEmail | undefined {

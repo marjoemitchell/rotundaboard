@@ -71,6 +71,7 @@ The API reads `server/.env`. See `server/.env.example` for the variables.
 - Each test makes its own workspace and users. Workspace names start with `E2E ` and emails start with `e2e-`.
   `server/src/e2eCleanup.ts` deletes these rows after each run. Do not use the seeded demo data in tests.
 - Test-only API routes are under `/api/__test__/`. The server does not mount them when `NODE_ENV=production`.
+- Playwright starts the API with an empty `RESEND_API_KEY`, so tests never send real email. If an API server is already running on port 4000, Playwright uses it, so stop your dev API before you run the suite.
 
 ## Data rules
 
