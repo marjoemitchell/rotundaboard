@@ -1,5 +1,6 @@
 import { pool } from './db.js'
 import { runAlertsAfterScrape } from './alerts.js'
+import { withScrapeMonitoring } from './scrapeHealth.js'
 import * as api from './legmtClient.js'
 import { runWithConcurrency } from './concurrency.js'
 import type { RawCommitteeMeeting } from './legmtTypes.js'
@@ -163,7 +164,7 @@ async function main() {
   await runAlertsAfterScrape()
 }
 
-main()
+withScrapeMonitoring('scrape:details', main)
   .catch((err) => {
     console.error(err)
     process.exitCode = 1

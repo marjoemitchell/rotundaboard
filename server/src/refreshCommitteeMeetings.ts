@@ -7,6 +7,7 @@
 // cadence.
 import { pool } from './db.js'
 import { runAlertsAfterScrape } from './alerts.js'
+import { withScrapeMonitoring } from './scrapeHealth.js'
 import { upsertNonStandingCommitteeMeetings, upsertCommitteeMaterials } from './scrape.js'
 
 async function main() {
@@ -18,7 +19,7 @@ async function main() {
   await runAlertsAfterScrape()
 }
 
-main()
+withScrapeMonitoring('refresh-meetings', main)
   .catch((err) => {
     console.error(err)
     process.exitCode = 1

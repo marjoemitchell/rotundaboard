@@ -143,3 +143,28 @@ digest cron need `RESEND_API_KEY`, `APP_BASE_URL` (for links), and
 `EMAIL_FROM_ADDRESS`. While Resend is in test mode it only delivers to the
 account owner's own address; verify a sending domain before relying on alerts
 for anyone else.
+
+## Scrape health checks
+
+`src/scrapeHealth.ts` checks each run of `scrape`, `scrape:details`, and
+`refresh-meetings`, because the data comes from an unpublished API that can
+change with no notice.
+
+- Each response from `bearbeta.legmt.gov` (and the committee pages from
+  `legmt.gov`) is checked against `src/legmtShapes.ts`. That file lists the
+  fields that the scrapers read. A missing field or a field with the wrong
+  type is an error.
+- The item count for each endpoint is compared with the previous good run.
+  A count that falls by more than half, or an endpoint that returns no items,
+  is an error. More than 10% failed requests is an error.
+- Field names that appear or disappear between runs are a warning.
+- Each run is saved in `scrape_runs`. The maintainer (`MAINTAINER_EMAIL`)
+  gets one email when the problems change, and one email when the errors
+  stop.
+- The API server runs a check every hour. It sends an alert if a job has no
+  successful run in its expected time (30 hours for the daily scrapes, 8
+  hours for `refresh-meetings`). This finds a cron that stopped.
+- The dashboard shows when the data was last updated (`/api/data-freshness`).
+
+When the API changes on purpose, update `src/legmtShapes.ts` and
+`src/legmtTypes.ts` together.

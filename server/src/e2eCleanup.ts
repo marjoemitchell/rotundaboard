@@ -62,6 +62,11 @@ async function main() {
   await pool.query("DELETE FROM change_events WHERE key LIKE 'status:-%'")
   await pool.query('DELETE FROM bill_statuses WHERE id < 0')
 
+  // Scrape health fixtures: simulated jobs ("e2e-...") and fixture runs.
+  await pool.query(`DELETE FROM scrape_runs WHERE job LIKE 'e2e-%' OR counts ? 'e2eFixture'`)
+  // The staleness alerts follow the fixture runs, so clear them too (dev and test only).
+  await pool.query(`DELETE FROM scrape_health_alerts WHERE key LIKE 'e2e-%' OR key LIKE 'stale:%'`)
+
   // Hearing fixtures (see api/testFixtures.ts); segments/speakers cascade.
   const { rowCount: deletedHearings } = await pool.query("DELETE FROM hearing_recordings WHERE nomad_item_id LIKE 'e2e-%'")
 

@@ -1,0 +1,24 @@
+.line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--faint);
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--teal);
+}
+
+.warn {
+  color: var(--oppose-fg);
+}
+
+.warn .dot {
+  background: var(--accent);
+}

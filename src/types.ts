@@ -503,3 +503,19 @@ export interface NotificationPreferences {
 }
 
 export type AlertSourceType = 'tracked_bills' | 'subject_watch' | 'followed_committee'
+
+// How recent the scraped Legislature data is (server/src/scrapeHealth.ts).
+export interface DataFreshnessJob {
+  job: string
+  label: string
+  lastSuccessAt: string | null
+  lastRunAt: string | null
+  lastRunFailed: boolean
+  stale: boolean
+}
+
+export interface DataFreshness {
+  status: 'fresh' | 'stale' | 'failing' | 'unknown'
+  lastSuccessfulScrape: string | null
+  jobs: DataFreshnessJob[]
+}

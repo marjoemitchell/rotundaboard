@@ -16,6 +16,7 @@ import type {
   Brief,
   FollowedCommittee,
   AlertDelivery,
+  DataFreshness,
   AlertSourceType,
   Hearing,
   HearingSummary,
@@ -397,4 +398,8 @@ export function setAlertDelivery(delivery: AlertDelivery): Promise<NotificationP
 
 export function setAlertSourceEnabled(type: AlertSourceType, id: string | null, enabled: boolean): Promise<NotificationPreferences> {
   return sendJson('/api/notification-preferences/watches', 'PUT', { type, id, enabled })
+}
+
+export function getDataFreshness(): Promise<DataFreshness> {
+  return getJson('/api/data-freshness')
 }

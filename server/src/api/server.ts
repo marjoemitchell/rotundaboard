@@ -13,7 +13,8 @@ import * as workspaces from './workspaces.js'
 import { pool } from '../db.js'
 import { hashToken } from '../auth/tokens.js'
 import { getLastEmailTo } from '../auth/email.js'
-import { createHearingFixture, createStatusChangeFixture, type HearingFixtureInput } from './testFixtures.js'
+import { createHearingFixture, createScrapeRunFixture, createStatusChangeFixture, type HearingFixtureInput } from './testFixtures.js'
+import { checkStaleness, getDataFreshness, simulateRun, startScrapeWatchdog } from '../scrapeHealth.js'
 import { processAlerts } from '../alerts.js'
 
 const app = express()
@@ -89,6 +90,44 @@ if (process.env.NODE_ENV !== 'production') {
       res.json(await processAlerts({ digest: Boolean((req.body as { digest?: boolean } | undefined)?.digest) }))
     } catch (err) {
       handleError(res, 'POST /api/__test__/alerts/run', err)
+    }
+  })
+
+  // Scrape health: a run with given responses goes through the real checks,
+  // and the alert goes to the address in the request.
+  app.post('/api/__test__/scrape-health/simulate', async (req, res) => {
+    try {
+      const { job, alertTo, responses } = req.body as {
+        job: string
+        alertTo: string
+        responses: { endpoint: string; items?: unknown[]; errors?: number }[]
+      }
+      if (!job?.startsWith('e2e-')) {
+        res.status(400).json({ error: 'job must start with e2e-' })
+        return
+      }
+      res.json(await simulateRun(job, responses, alertTo))
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/scrape-health/simulate', err)
+    }
+  })
+
+  app.post('/api/__test__/scrape-health/check-staleness', async (req, res) => {
+    try {
+      await checkStaleness((req.body as { alertTo: string }).alertTo)
+      res.json({ ok: true })
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/scrape-health/check-staleness', err)
+    }
+  })
+
+  app.post('/api/__test__/scrape-run', async (req, res) => {
+    try {
+      const { job, status, hoursAgo } = req.body as { job: string; status: string; hoursAgo: number }
+      await createScrapeRunFixture(job, status, Number(hoursAgo))
+      res.status(201).json({ ok: true })
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/scrape-run', err)
     }
   })
 
@@ -296,6 +335,8 @@ app.get('/api/legislators/:id', async (req, res) => {
     handleError(res, `GET /api/legislators/${req.params.id}`, err)
   }
 })
+
+route('/api/data-freshness', () => getDataFreshness())
 
 route('/api/notification-preferences', (req) =>
   queries.getNotificationPreferences(req.auth!.userId, req.auth!.workspaceId),
@@ -815,4 +856,7 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 
 app.listen(PORT, () => {
   console.log(`rotunda-board API listening on http://localhost:${PORT}`)
+  // An alert if a scrape job does not have a successful run in time, for
+  // example because its cron stopped. See scrapeHealth.ts.
+  startScrapeWatchdog()
 })
