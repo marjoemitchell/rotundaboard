@@ -482,3 +482,22 @@ export interface FilterState {
   lastActionWithin?: string
   assignee?: string
 }
+
+// Email change alerts (server/src/alerts.ts). delivery applies to the user
+// everywhere; the switches are per workspace.
+export type AlertDelivery = 'immediate' | 'daily' | 'off'
+
+export interface AlertSource {
+  id: string
+  name: string
+  enabled: boolean
+}
+
+export interface NotificationPreferences {
+  delivery: AlertDelivery
+  trackedBills: boolean
+  subjectWatches: AlertSource[]
+  followedCommittees: AlertSource[]
+}
+
+export type AlertSourceType = 'tracked_bills' | 'subject_watch' | 'followed_committee'

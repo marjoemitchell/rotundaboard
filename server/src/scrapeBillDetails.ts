@@ -1,4 +1,5 @@
 import { pool } from './db.js'
+import { runAlertsAfterScrape } from './alerts.js'
 import * as api from './legmtClient.js'
 import { runWithConcurrency } from './concurrency.js'
 import type { RawCommitteeMeeting } from './legmtTypes.js'
@@ -159,6 +160,7 @@ async function main() {
   })
 
   console.log(`done. ${done} bills processed, ${failed} failed.`)
+  await runAlertsAfterScrape()
 }
 
 main()

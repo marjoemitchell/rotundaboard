@@ -13,7 +13,8 @@ import * as workspaces from './workspaces.js'
 import { pool } from '../db.js'
 import { hashToken } from '../auth/tokens.js'
 import { getLastEmailTo } from '../auth/email.js'
-import { createHearingFixture, type HearingFixtureInput } from './testFixtures.js'
+import { createHearingFixture, createStatusChangeFixture, type HearingFixtureInput } from './testFixtures.js'
+import { processAlerts } from '../alerts.js'
 
 const app = express()
 // Railway (and most PaaS runtimes) assign the listen port via $PORT at
@@ -71,6 +72,24 @@ if (process.env.NODE_ENV !== 'production') {
       return
     }
     res.json(email)
+  })
+
+  // Alerts normally run at the end of a scrape; these let the e2e suite
+  // fake a scraped change and run the pipeline on demand.
+  app.post('/api/__test__/status-change', async (req, res) => {
+    try {
+      res.status(201).json(await createStatusChangeFixture(Number((req.body as { billId: string }).billId)))
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/status-change', err)
+    }
+  })
+
+  app.post('/api/__test__/alerts/run', async (req, res) => {
+    try {
+      res.json(await processAlerts({ digest: Boolean((req.body as { digest?: boolean } | undefined)?.digest) }))
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/alerts/run', err)
+    }
   })
 
   app.post('/api/__test__/hearing-fixture', async (req, res) => {
@@ -275,6 +294,29 @@ app.get('/api/legislators/:id', async (req, res) => {
     res.json(detail)
   } catch (err) {
     handleError(res, `GET /api/legislators/${req.params.id}`, err)
+  }
+})
+
+route('/api/notification-preferences', (req) =>
+  queries.getNotificationPreferences(req.auth!.userId, req.auth!.workspaceId),
+)
+
+app.patch('/api/notification-preferences', async (req, res) => {
+  try {
+    await mutations.setAlertDelivery(req.auth!.userId, String((req.body as { delivery?: string }).delivery ?? ''))
+    res.json(await queries.getNotificationPreferences(req.auth!.userId, req.auth!.workspaceId))
+  } catch (err) {
+    handleError(res, 'PATCH /api/notification-preferences', err)
+  }
+})
+
+app.put('/api/notification-preferences/watches', async (req, res) => {
+  try {
+    const { type, id, enabled } = req.body as { type: string; id?: string; enabled: boolean }
+    await mutations.setAlertWatchEnabled(req.auth!.userId, req.auth!.workspaceId, type, Number(id ?? 0), Boolean(enabled))
+    res.json(await queries.getNotificationPreferences(req.auth!.userId, req.auth!.workspaceId))
+  } catch (err) {
+    handleError(res, 'PUT /api/notification-preferences/watches', err)
   }
 })
 

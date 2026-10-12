@@ -57,6 +57,11 @@ async function main() {
 
   const { rowCount: deletedUsers } = await pool.query('DELETE FROM users WHERE email LIKE $1', [USER_EMAIL_PATTERN])
 
+  // Status-change fixtures (negative ids, see api/testFixtures.ts) and the
+  // alert events recorded for them; deliveries cascade off the events.
+  await pool.query("DELETE FROM change_events WHERE key LIKE 'status:-%'")
+  await pool.query('DELETE FROM bill_statuses WHERE id < 0')
+
   // Hearing fixtures (see api/testFixtures.ts); segments/speakers cascade.
   const { rowCount: deletedHearings } = await pool.query("DELETE FROM hearing_recordings WHERE nomad_item_id LIKE 'e2e-%'")
 

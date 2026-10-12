@@ -6,6 +6,7 @@
 // periodically; see server/README or ask for the current recommended
 // cadence.
 import { pool } from './db.js'
+import { runAlertsAfterScrape } from './alerts.js'
 import { upsertNonStandingCommitteeMeetings, upsertCommitteeMaterials } from './scrape.js'
 
 async function main() {
@@ -14,6 +15,7 @@ async function main() {
   await upsertNonStandingCommitteeMeetings(rows.map((r) => r.id))
   await upsertCommitteeMaterials(rows.map((r) => r.id))
   console.log('done.')
+  await runAlertsAfterScrape()
 }
 
 main()

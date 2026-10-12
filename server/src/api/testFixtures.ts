@@ -72,3 +72,19 @@ export async function createHearingFixture(input: HearingFixtureInput): Promise<
     client.release()
   }
 }
+
+// A fake status change on a bill, as if a scrape had just picked one up.
+// Negative ids can't collide with the Legislature's own (all positive) and
+// mark the row as a fixture for e2eCleanup.ts.
+export async function createStatusChangeFixture(billId: number): Promise<{ statusId: number }> {
+  const statusId = -(Math.floor(Math.random() * 1_000_000_000) + 1)
+  const { rowCount } = await pool.query(
+    `INSERT INTO bill_statuses (id, draft_id, occurred_at, bill_status_code_id)
+     SELECT $1, b.draft_id, (now() AT TIME ZONE 'America/Denver')::timestamp(0),
+            (SELECT id FROM bill_status_codes ORDER BY id LIMIT 1)
+     FROM bills b WHERE b.id = $2`,
+    [statusId, billId],
+  )
+  if (!rowCount) throw new Error(`bill ${billId} not found`)
+  return { statusId }
+}
