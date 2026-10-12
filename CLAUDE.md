@@ -60,7 +60,10 @@ The API reads `server/.env`. See `server/.env.example` for the variables.
 
 ## Testing rules
 
-- Every new feature and every behavior change needs Playwright specs in `e2e/`.
+- All feature work must include end-to-end (e2e) tests. This rule has no exceptions.
+  - Write the Playwright specs in `e2e/` in the same change as the feature. Do not put them in a later change.
+  - The specs must test the behavior that the user sees, not only the API.
+  - A bug fix must include a spec that fails without the fix.
 - Run the full suite before you say that work is complete.
 - Use `--workers=4`. With the default worker count, tests fail because the machine runs out of browser resources.
 - Some tests are not stable even at 4 workers: the multi-user tests in `workspace-management` and `workspace-and-invites`, and the command palette test. An occasional timeout in these tests is not a regression.
