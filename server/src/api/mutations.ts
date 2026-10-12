@@ -378,3 +378,55 @@ export async function sendBrief(workspaceId: number, userId: number) {
   `
   await sendEmail(email, `Morning brief — ${workspaceName}`, html)
 }
+
+// ---------------------------------------------------------------------------
+// Change alert preferences (see server/src/alerts.ts).
+
+const DELIVERY_MODES = ['immediate', 'daily', 'off'] as const
+
+export async function setAlertDelivery(userId: number, delivery: string) {
+  if (!(DELIVERY_MODES as readonly string[]).includes(delivery)) {
+    throw new MutationError(400, `delivery must be one of ${DELIVERY_MODES.join(', ')}`)
+  }
+  await pool.query(
+    `INSERT INTO notification_preferences (user_id, delivery) VALUES ($1, $2)
+     ON CONFLICT (user_id) DO UPDATE SET delivery = $2, updated_at = now()`,
+    [userId, delivery],
+  )
+}
+
+const WATCH_TYPES = ['tracked_bills', 'subject_watch', 'followed_committee'] as const
+
+/** Turns one source of alerts on or off for this user in this workspace. */
+export async function setAlertWatchEnabled(
+  userId: number,
+  workspaceId: number,
+  watchType: string,
+  watchId: number,
+  enabled: boolean,
+) {
+  if (!(WATCH_TYPES as readonly string[]).includes(watchType)) {
+    throw new MutationError(400, `type must be one of ${WATCH_TYPES.join(', ')}`)
+  }
+  const id = watchType === 'tracked_bills' ? 0 : watchId
+  if (watchType !== 'tracked_bills') {
+    if (!Number.isInteger(id)) throw new MutationError(400, 'invalid id')
+    const { rows } =
+      watchType === 'subject_watch'
+        ? await pool.query('SELECT 1 FROM subject_watches WHERE id = $1 AND workspace_id = $2', [id, workspaceId])
+        : await pool.query('SELECT 1 FROM followed_committees WHERE committee_id = $1 AND workspace_id = $2', [id, workspaceId])
+    if (rows.length === 0) throw new MutationError(404, `no such ${watchType.replace('_', ' ')} in this workspace`)
+  }
+  if (enabled) {
+    await pool.query(
+      'DELETE FROM alert_mutes WHERE user_id = $1 AND workspace_id = $2 AND watch_type = $3 AND watch_id = $4',
+      [userId, workspaceId, watchType, id],
+    )
+  } else {
+    await pool.query(
+      `INSERT INTO alert_mutes (user_id, workspace_id, watch_type, watch_id) VALUES ($1, $2, $3, $4)
+       ON CONFLICT DO NOTHING`,
+      [userId, workspaceId, watchType, id],
+    )
+  }
+}

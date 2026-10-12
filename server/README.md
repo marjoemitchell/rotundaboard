@@ -13,6 +13,7 @@ schema for it — request shapes were reverse-engineered from live responses.
 | `npm run scrape:details` | Per-bill detail pass (status history, votes, cosponsors, amendments) | Slow, concurrency-limited |
 | `npm run refresh-meetings` | Interim-committee meeting times/locations/agendas only, for committees already in the DB | Fast — no bill data touched |
 | `npm run generate-summaries` | AI-generated bill summaries | Only needs to run after new bills appear |
+| `npm run send-alert-digest` | Daily email digest of change alerts (immediate alerts are sent by the scrape scripts themselves) | Cheap — database only, plus one email per person |
 | `npm run transcribe-hearings` | Finds newly posted committee hearing videos, ingests their captions, and produces speaker-attributed transcripts | Discovery + captions are free; diarization is free on the self-hosted GPU (WhisperX) or ~$0.006/audio-minute on the OpenAI fallback, plus one Claude call per hearing for speaker names |
 
 ## Recommended cadence
@@ -114,3 +115,31 @@ Railway cron asks Railpack for one via `RAILPACK_DEPLOY_APT_PACKAGES` —
 because ffmpeg-static's 7.0.2 segfaults probing some of the archive's raw
 MPEG-TS recordings. Audio is always downloaded by Node first and ffmpeg only
 ever reads local files (that static build also segfaults on network input).
+
+## Change alerts
+
+`src/alerts.ts` emails workspace members when something they track, watch, or
+follow changes: a new bill status, a new amendment, a bill hearing scheduled or
+rescheduled, or a followed interim committee scheduling or moving a meeting.
+
+It runs at the end of every scrape (`scrape`, `scrape:details`,
+`refresh-meetings`) and once a day from `send-alert-digest`:
+
+1. **Detect** — every alertable row is recorded as a `change_events` row keyed
+   by the Legislature's own id (`status:<id>`, `amendment:<id>`,
+   `hearing:<id>:<time>`, `meeting:<id>:<time>`). Keys are unique, so the same
+   change can never become two events however often scrapers rerun. The very
+   first run records everything as a `baseline` and emails no one.
+2. **Match** each new event to workspaces: tracked bills, subject watches (same
+   subject/tag rule as the Watches page), followed committees.
+3. **Queue** an `alert_deliveries` row per member (primary key = no duplicate
+   alerts), skipping members whose delivery is off or who muted every source
+   that matched (`alert_mutes`, set from Settings → Email alerts).
+4. **Send** each person's unsent alerts as one email — right away for
+   `immediate` (the default), or in the daily digest for `daily`.
+
+Emails go through `src/auth/email.ts` (Resend), so the scrape crons and the
+digest cron need `RESEND_API_KEY`, `APP_BASE_URL` (for links), and
+`EMAIL_FROM_ADDRESS`. While Resend is in test mode it only delivers to the
+account owner's own address; verify a sending domain before relying on alerts
+for anyone else.

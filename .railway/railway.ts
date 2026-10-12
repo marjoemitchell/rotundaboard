@@ -68,6 +68,10 @@ export default defineRailway(() => {
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
       NODE_ENV: "production",
+      // Change alerts go out at the end of each scrape (src/alerts.ts).
+      APP_BASE_URL: preserve(),
+      RESEND_API_KEY: preserve(),
+      EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
     },
   });
 
@@ -82,6 +86,10 @@ export default defineRailway(() => {
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
       NODE_ENV: "production",
+      // Change alerts go out at the end of each scrape (src/alerts.ts).
+      APP_BASE_URL: preserve(),
+      RESEND_API_KEY: preserve(),
+      EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
     },
   });
 
@@ -96,6 +104,10 @@ export default defineRailway(() => {
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
       NODE_ENV: "production",
+      // Change alerts go out at the end of each scrape (src/alerts.ts).
+      APP_BASE_URL: preserve(),
+      RESEND_API_KEY: preserve(),
+      EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
     },
   });
 
@@ -112,6 +124,26 @@ export default defineRailway(() => {
       NODE_ENV: "production",
       ANTHROPIC_API_KEY: preserve(),
       ANTHROPIC_WORKSPACE_ID: preserve(),
+    },
+  });
+
+  // Daily digest of change alerts for people on 'daily' delivery (immediate
+  // alerts go out from the scrape crons above). 14:00 UTC is 7–8am in
+  // Montana, after the overnight scrapes.
+  const cronSendAlertDigest = service("cron-send-alert-digest", {
+    source: empty(),
+    root: "server",
+    deploy: {
+      startCommand: "npm run send-alert-digest",
+      cronSchedule: "0 14 * * *",
+      restartPolicyType: "NEVER",
+    },
+    env: {
+      DATABASE_URL: db.env.DATABASE_URL,
+      NODE_ENV: "production",
+      APP_BASE_URL: preserve(),
+      RESEND_API_KEY: preserve(),
+      EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
     },
   });
 
@@ -154,6 +186,7 @@ export default defineRailway(() => {
       cronScrapeDetails,
       cronGenerateSummaries,
       cronTranscribeHearings,
+      cronSendAlertDigest,
     ],
   });
 });

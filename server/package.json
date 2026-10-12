@@ -11,6 +11,7 @@
     "seed": "tsx src/seedWorkspace.ts",
     "generate-summaries": "tsx src/generateSummaries.ts",
     "transcribe-hearings": "tsx src/transcribeHearings.ts",
+    "send-alert-digest": "tsx src/sendAlertDigest.ts",
     "api": "tsx src/api/server.ts",
     "api:dev": "tsx watch src/api/server.ts",
     "e2e:cleanup": "tsx src/e2eCleanup.ts",

@@ -1,5 +1,6 @@
 import sanitizeHtml from 'sanitize-html'
 import { pool } from './db.js'
+import { runAlertsAfterScrape } from './alerts.js'
 import * as api from './legmtClient.js'
 import { runWithConcurrency } from './concurrency.js'
 import type {
@@ -452,6 +453,7 @@ async function main() {
     if (count % 250 === 0) console.log(`  ...${count} bills/drafts processed`)
   }
   console.log(`done. ${count} bills/drafts processed for session ${TARGET_SESSION_ORDINALS}.`)
+  await runAlertsAfterScrape()
 }
 
 // Guarded so other scripts can import upsertNonStandingCommitteeMeetings

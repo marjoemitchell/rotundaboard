@@ -1723,3 +1723,38 @@ export async function getTestimonyAttachment(id: number, workspaceId: number) {
     data: row.attachment_data,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Change alerts (see server/src/alerts.ts): the current user's delivery mode
+// plus an on/off switch for each source of alerts in this workspace.
+
+export async function getNotificationPreferences(userId: number, workspaceId: number) {
+  const [{ rows: prefRows }, { rows: muteRows }, { rows: watchRows }, { rows: committeeRows }] = await Promise.all([
+    pool.query<{ delivery: string }>('SELECT delivery FROM notification_preferences WHERE user_id = $1', [userId]),
+    pool.query<{ watch_type: string; watch_id: number }>(
+      'SELECT watch_type, watch_id FROM alert_mutes WHERE user_id = $1 AND workspace_id = $2',
+      [userId, workspaceId],
+    ),
+    pool.query<{ id: number; name: string }>(
+      'SELECT id, name FROM subject_watches WHERE workspace_id = $1 ORDER BY name',
+      [workspaceId],
+    ),
+    pool.query<{ id: number; name: string }>(
+      `SELECT nsc.id, nsc.name FROM followed_committees fc
+       JOIN non_standing_committees nsc ON nsc.id = fc.committee_id
+       WHERE fc.workspace_id = $1 ORDER BY nsc.name`,
+      [workspaceId],
+    ),
+  ])
+  const muted = new Set(muteRows.map((m) => `${m.watch_type}:${m.watch_id}`))
+  return {
+    delivery: (prefRows[0]?.delivery ?? 'immediate') as 'immediate' | 'daily' | 'off',
+    trackedBills: !muted.has('tracked_bills:0'),
+    subjectWatches: watchRows.map((w) => ({ id: String(w.id), name: w.name, enabled: !muted.has(`subject_watch:${w.id}`) })),
+    followedCommittees: committeeRows.map((c) => ({
+      id: String(c.id),
+      name: c.name,
+      enabled: !muted.has(`followed_committee:${c.id}`),
+    })),
+  }
+}

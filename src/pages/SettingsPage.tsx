@@ -7,6 +7,7 @@ import type { LoadState, Role, WorkspaceInvite, WorkspaceMemberDetail } from '..
 import { InitialsSquare } from '../components/shared/InitialsSquare'
 import { EmptyState } from '../components/shared/EmptyState'
 import { useConfirm } from '../hooks/useConfirm'
+import { AlertSettings } from '../components/AlertSettings'
 import styles from './SettingsPage.module.css'
 
 function InviteForm({ onCreate }: { onCreate: (email: string, role: Role) => Promise<void> }) {
@@ -259,7 +260,8 @@ export function SettingsPage() {
       <div className={styles.header}>
         <h1 className={styles.title}>Settings</h1>
         <p className={styles.subhead}>
-          {session?.currentWorkspace?.name ?? 'Your workspace'} — manage who's on your team and who's been invited.
+          {session?.currentWorkspace?.name ?? 'Your workspace'} — manage who's on your team, who's been invited, and
+          which changes you get emailed about.
         </p>
       </div>
 
@@ -267,6 +269,13 @@ export function SettingsPage() {
 
       {session?.currentWorkspace && (
         <WorkspaceSection isAdmin={isAdmin} workspaceName={session.currentWorkspace.name} onRename={handleRename} />
+      )}
+
+      {session && (
+        <section className={styles.section} aria-label="Email alerts">
+          <h2 className={styles.sectionTitle}>Email alerts</h2>
+          <AlertSettings email={session.user.email} />
+        </section>
       )}
 
       <section className={styles.section}>
