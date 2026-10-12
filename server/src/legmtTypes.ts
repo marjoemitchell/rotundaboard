@@ -79,7 +79,7 @@ export interface RawProgressCategory {
   id: number
   code: number
   description: string
-  sortOrder: number
+  sortOrder: number | null
 }
 
 export interface RawBillStatusCode {
@@ -151,7 +151,8 @@ export interface RawBill {
   draft: RawDraft
   enrolled: boolean | null
   versionNumber: number | null
-  sessionLawChapter: string | null
+  // An object, not a string. The live API check (scrapeHealth.ts) found this.
+  sessionLawChapter: { number: number | null; assignedDate: string | null } | null
   sessionId: number
   sessionLawChapterNumber: number | null
 }

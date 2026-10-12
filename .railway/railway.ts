@@ -37,6 +37,9 @@ export default defineRailway(() => {
       APP_BASE_URL: preserve(),
       RESEND_API_KEY: preserve(),
       EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
+      // Gets the scrape health alerts. The API runs the hourly check for
+      // scrape jobs that stopped (src/scrapeHealth.ts).
+      MAINTAINER_EMAIL: preserve(),
     },
   });
 
@@ -72,6 +75,8 @@ export default defineRailway(() => {
       APP_BASE_URL: preserve(),
       RESEND_API_KEY: preserve(),
       EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
+      // Gets an email when a scrape health check fails (src/scrapeHealth.ts).
+      MAINTAINER_EMAIL: preserve(),
     },
   });
 
@@ -90,6 +95,8 @@ export default defineRailway(() => {
       APP_BASE_URL: preserve(),
       RESEND_API_KEY: preserve(),
       EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
+      // Gets an email when a scrape health check fails (src/scrapeHealth.ts).
+      MAINTAINER_EMAIL: preserve(),
     },
   });
 
@@ -108,6 +115,8 @@ export default defineRailway(() => {
       APP_BASE_URL: preserve(),
       RESEND_API_KEY: preserve(),
       EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
+      // Gets an email when a scrape health check fails (src/scrapeHealth.ts).
+      MAINTAINER_EMAIL: preserve(),
     },
   });
 

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import styles from './PageHeader.module.css'
 
 export function PageHeader({
@@ -7,6 +8,7 @@ export function PageHeader({
   secondaryLabel,
   onPrimaryAction,
   primaryLabel,
+  meta,
 }: {
   title: string
   subhead: string
@@ -14,12 +16,15 @@ export function PageHeader({
   secondaryLabel: string
   onPrimaryAction?: () => void
   primaryLabel?: string
+  /** A short line below the subhead, for example the data freshness. */
+  meta?: ReactNode
 }) {
   return (
     <div className={styles.header}>
       <div>
         <h1 className={styles.title}>{title}</h1>
         <p className={styles.subhead}>{subhead}</p>
+        {meta}
       </div>
       <div className={styles.actions}>
         <button className={styles.btnSecondary} onClick={onSecondaryAction}>

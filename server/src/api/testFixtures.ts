@@ -88,3 +88,14 @@ export async function createStatusChangeFixture(billId: number): Promise<{ statu
   if (!rowCount) throw new Error(`bill ${billId} not found`)
   return { statusId }
 }
+
+// A scrape run with a given age and status, for the data freshness display.
+// The counts mark the row as a fixture for e2eCleanup.ts.
+export async function createScrapeRunFixture(job: string, status: string, hoursAgo: number): Promise<void> {
+  await pool.query(
+    `INSERT INTO scrape_runs (job, started_at, finished_at, status, counts)
+     VALUES ($1, now() - make_interval(secs => $3::float8 * 3600 + 60), now() - make_interval(secs => $3::float8 * 3600), $2,
+             '{"e2eFixture": 1}')`,
+    [job, status, hoursAgo],
+  )
+}

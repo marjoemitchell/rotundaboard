@@ -1,6 +1,7 @@
 import sanitizeHtml from 'sanitize-html'
 import { pool } from './db.js'
 import { runAlertsAfterScrape } from './alerts.js'
+import { withScrapeMonitoring } from './scrapeHealth.js'
 import * as api from './legmtClient.js'
 import { runWithConcurrency } from './concurrency.js'
 import type {
@@ -446,7 +447,7 @@ async function main() {
       deadlineCodeId: bill.deadlineCodeId,
       enrolled: bill.enrolled,
       versionNumber: bill.versionNumber,
-      sessionLawChapter: bill.sessionLawChapter,
+      sessionLawChapter: bill.sessionLawChapter?.number != null ? String(bill.sessionLawChapter.number) : null,
       sessionLawChapterNumber: bill.sessionLawChapterNumber,
     })
     count += 1
@@ -460,7 +461,7 @@ async function main() {
 // (e.g. refreshCommitteeMeetings.ts) without triggering a full bill scrape
 // as an import side effect.
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main()
+  withScrapeMonitoring('scrape', main)
     .catch((err) => {
       console.error(err)
       process.exitCode = 1

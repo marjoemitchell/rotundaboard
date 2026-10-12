@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { DashboardData } from '../hooks/useDashboardData'
 import * as client from '../data/client'
 import { PageHeader } from '../components/PageHeader'
+import { DataFreshness } from '../components/DataFreshness'
 import { SessionClockStrip } from '../components/SessionClockStrip'
 import { MovingNow } from '../components/MovingNow'
 import { FilterBar } from '../components/FilterBar'
@@ -112,6 +113,7 @@ export function DashboardPage({
         subhead={pageSubhead}
         secondaryLabel="Export list"
         onSecondaryAction={() => setNotice('Export isn’t part of the dashboard home screen yet.')}
+        meta={<DataFreshness />}
       />
 
       <SessionClockStrip calendar={data.sessionCalendar} />

@@ -100,6 +100,12 @@ The API reads `server/.env`. See `server/.env.example` for the variables.
   The Railway transcription cron is a fallback. It runs only when the GPU host has not sent a heartbeat for 6 hours.
 - Resend is in test mode. It sends email only to the account owner until a sending domain is verified.
 
+## Scrape health
+
+- `server/src/scrapeHealth.ts` checks each scrape run and emails `MAINTAINER_EMAIL` when a check fails.
+- `server/src/legmtShapes.ts` lists the API fields that the scrapers read. When you change a scraper to read a new field, add the field there too.
+- When the API changes, update `legmtShapes.ts` and `legmtTypes.ts` together.
+
 ## Known problems
 
 - The `ffmpeg-static` binary crashes on some raw hearing recordings. The code uses a system `ffmpeg` when one is installed.
