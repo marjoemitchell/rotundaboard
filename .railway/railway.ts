@@ -17,6 +17,10 @@ export default defineRailway(() => {
   // every commit the way a live service does, so this is the right
   // architecture regardless of the exact platform mechanism at fault.
 
+  // EMAIL_FROM_ADDRESS is a Railway shared variable, for example
+  // "Rotunda Board <alerts@rotundaboard.com>". The address must be on a domain
+  // that is verified in Resend. Each service that sends email references it
+  // as ${{shared.EMAIL_FROM_ADDRESS}}.
   // Real secrets (Anthropic/Resend keys) and environment-specific URLs are
   // declared here as preserve() so `config apply` never overwrites or wipes
   // them — the actual values are set once via `railway variables set` after
@@ -36,7 +40,7 @@ export default defineRailway(() => {
       NODE_ENV: "production",
       APP_BASE_URL: preserve(),
       RESEND_API_KEY: preserve(),
-      EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
+      EMAIL_FROM_ADDRESS: preserve(),
       // Gets the scrape health alerts. The API runs the hourly check for
       // scrape jobs that stopped (src/scrapeHealth.ts).
       MAINTAINER_EMAIL: preserve(),
@@ -74,7 +78,7 @@ export default defineRailway(() => {
       // Change alerts go out at the end of each scrape (src/alerts.ts).
       APP_BASE_URL: preserve(),
       RESEND_API_KEY: preserve(),
-      EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
+      EMAIL_FROM_ADDRESS: preserve(),
       // Gets an email when a scrape health check fails (src/scrapeHealth.ts).
       MAINTAINER_EMAIL: preserve(),
     },
@@ -94,7 +98,7 @@ export default defineRailway(() => {
       // Change alerts go out at the end of each scrape (src/alerts.ts).
       APP_BASE_URL: preserve(),
       RESEND_API_KEY: preserve(),
-      EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
+      EMAIL_FROM_ADDRESS: preserve(),
       // Gets an email when a scrape health check fails (src/scrapeHealth.ts).
       MAINTAINER_EMAIL: preserve(),
     },
@@ -114,7 +118,7 @@ export default defineRailway(() => {
       // Change alerts go out at the end of each scrape (src/alerts.ts).
       APP_BASE_URL: preserve(),
       RESEND_API_KEY: preserve(),
-      EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
+      EMAIL_FROM_ADDRESS: preserve(),
       // Gets an email when a scrape health check fails (src/scrapeHealth.ts).
       MAINTAINER_EMAIL: preserve(),
     },
@@ -152,7 +156,7 @@ export default defineRailway(() => {
       NODE_ENV: "production",
       APP_BASE_URL: preserve(),
       RESEND_API_KEY: preserve(),
-      EMAIL_FROM_ADDRESS: "onboarding@resend.dev",
+      EMAIL_FROM_ADDRESS: preserve(),
     },
   });
 

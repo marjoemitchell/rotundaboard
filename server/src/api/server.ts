@@ -87,7 +87,9 @@ if (process.env.NODE_ENV !== 'production') {
 
   app.post('/api/__test__/alerts/run', async (req, res) => {
     try {
-      res.json(await processAlerts({ digest: Boolean((req.body as { digest?: boolean } | undefined)?.digest) }))
+      res.json(
+        await processAlerts({ digest: Boolean((req.body as { digest?: boolean } | undefined)?.digest), waitForLock: true }),
+      )
     } catch (err) {
       handleError(res, 'POST /api/__test__/alerts/run', err)
     }

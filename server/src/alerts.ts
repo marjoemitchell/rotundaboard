@@ -15,7 +15,8 @@
 //   4. Send — each person's unsent alerts as one email: right away for
 //      'immediate', or batched by the daily digest for 'daily'.
 import { pool } from './db.js'
-import { sendEmail } from './auth/email.js'
+import { sendLayoutEmail } from './auth/email.js'
+import { appBaseUrl, escapeHtml, type EmailContent } from './emailLayout.js'
 
 const ADVISORY_LOCK_KEY = 7_340_020
 // Hearings and meetings only matter while they're upcoming; a row first
@@ -144,10 +145,6 @@ interface PendingAlert {
   committee_name: string | null
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
 // occurred_at is a naive Mountain wall-clock string; format its digits
 // as-is rather than letting the server's timezone shift them.
 function formatWhen(naive: string | null, withTime: boolean): string | null {
@@ -159,8 +156,8 @@ function formatWhen(naive: string | null, withTime: boolean): string | null {
   return date.toLocaleString('en-US', opts)
 }
 
-function renderEmail(alerts: PendingAlert[], digest: boolean): { subject: string; html: string } {
-  const base = (process.env.APP_BASE_URL ?? 'http://localhost:5173').replace(/\/+$/, '')
+function renderEmail(alerts: PendingAlert[], digest: boolean): { subject: string; content: EmailContent } {
+  const base = appBaseUrl()
   const count = alerts.length
   const subject = digest
     ? `Your Rotunda Board digest: ${count} update${count === 1 ? '' : 's'}`
@@ -180,8 +177,8 @@ function renderEmail(alerts: PendingAlert[], digest: boolean): { subject: string
       const first = group[0]
       const heading =
         first.bill_id != null
-          ? `<a href="${base}/bills/${first.bill_id}"><b>${escapeHtml(first.bill_label ?? 'Bill')}</b></a>${first.bill_title ? ` — ${escapeHtml(first.bill_title)}` : ''}`
-          : `<a href="${base}/committees/${first.committee_id}"><b>${escapeHtml(first.committee_name ?? 'Committee')}</b></a>`
+          ? `<a href="${base}/bills/${first.bill_id}" style="color:#0f2547;"><b>${escapeHtml(first.bill_label ?? 'Bill')}</b></a>${first.bill_title ? `: ${escapeHtml(first.bill_title)}` : ''}`
+          : `<a href="${base}/committees/${first.committee_id}" style="color:#0f2547;"><b>${escapeHtml(first.committee_name ?? 'Committee')}</b></a>`
       const lines = group
         .map((a) => {
           const when = formatWhen(a.occurred_at, a.kind === 'bill_hearing' || a.kind === 'committee_meeting')
@@ -192,15 +189,19 @@ function renderEmail(alerts: PendingAlert[], digest: boolean): { subject: string
       const reasons = [...new Set(group.flatMap((a) => a.reasons))]
       return `<div style="margin:0 0 14px">${heading}<div style="color:#8697ab;font-size:12px">${escapeHtml(reasons.join(' · '))}</div><ul style="margin:4px 0 0;padding-left:18px">${lines}</ul></div>`
     })
-    return `<h3 style="font-size:14px;margin:18px 0 8px;color:#5c6b80">${escapeHtml(items[0].workspace_name)}</h3>${blocks.join('')}`
+    return `<p style="margin:18px 0 8px;font-size:13px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#5c6b80;">${escapeHtml(items[0].workspace_name)}</p>${blocks.join('')}`
   })
 
-  const html = `<div style="font-family:-apple-system,Segoe UI,sans-serif;color:#0f2547;font-size:14px;line-height:1.5">
-<p>Hi ${escapeHtml(alerts[0].user_name)}, here's what changed${digest ? ' since your last digest' : ''}:</p>
-${sections.join('')}
-<p style="color:#8697ab;font-size:12px;margin-top:24px">You get these because of your tracked bills, subject watches, and followed committees.
-<a href="${base}/settings">Change alert settings</a></p></div>`
-  return { subject, html }
+  const content: EmailContent = {
+    heading: digest ? 'Your daily digest' : `${count} update${count === 1 ? '' : 's'} for you`,
+    preheader: `${count} change${count === 1 ? '' : 's'} on bills and committees that you follow.`,
+    bodyHtml: `<p style="margin:0;">Hi ${escapeHtml(alerts[0].user_name)}, these changed${digest ? ' since your last digest' : ''}:</p>
+${sections.join('')}`,
+    button: { label: 'Open Rotunda Board', url: base },
+    footerHtml: `You get these emails because of your tracked bills, subject watches, and followed committees.
+<a href="${base}/settings" style="color:#2b7f8c;">Change alert settings</a>`,
+  }
+  return { subject, content }
 }
 
 async function sendPending(mode: 'immediate' | 'daily'): Promise<{ emails: number; alerts: number }> {
@@ -234,8 +235,8 @@ async function sendPending(mode: 'immediate' | 'daily'): Promise<{ emails: numbe
   const byUser = new Map<number, PendingAlert[]>()
   for (const r of rows) byUser.set(r.user_id, [...(byUser.get(r.user_id) ?? []), r])
   for (const alerts of byUser.values()) {
-    const { subject, html } = renderEmail(alerts, mode === 'daily')
-    await sendEmail(alerts[0].email, subject, html)
+    const { subject, content } = renderEmail(alerts, mode === 'daily')
+    await sendLayoutEmail(alerts[0].email, subject, content)
   }
   return { emails: byUser.size, alerts: rows.length }
 }
@@ -255,11 +256,17 @@ export interface AlertRunResult {
  * delivery (the daily cron); otherwise only 'immediate' people get mail.
  * Serialized with a Postgres advisory lock, since three scrape crons call it.
  */
-export async function processAlerts(opts: { digest?: boolean } = {}): Promise<AlertRunResult | null> {
+export async function processAlerts(opts: { digest?: boolean; waitForLock?: boolean } = {}): Promise<AlertRunResult | null> {
   const client = await pool.connect()
   try {
-    const { rows } = await client.query<{ ok: boolean }>('SELECT pg_try_advisory_lock($1) AS ok', [ADVISORY_LOCK_KEY])
-    if (!rows[0].ok) return null
+    // waitForLock: wait for a run that is in progress, then run. The e2e
+    // test route uses it, so that a test's change is always processed.
+    if (opts.waitForLock) {
+      await client.query('SELECT pg_advisory_lock($1)', [ADVISORY_LOCK_KEY])
+    } else {
+      const { rows } = await client.query<{ ok: boolean }>('SELECT pg_try_advisory_lock($1) AS ok', [ADVISORY_LOCK_KEY])
+      if (!rows[0].ok) return null
+    }
     try {
       const { newEventIds, baseline } = await detectChanges()
       const queued = await queueDeliveries(newEventIds)

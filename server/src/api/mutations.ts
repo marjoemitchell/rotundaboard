@@ -9,7 +9,8 @@
 // information on their own.
 import { pool } from '../db.js'
 import { getBrief } from './queries.js'
-import { sendEmail } from '../auth/email.js'
+import { sendLayoutEmail } from '../auth/email.js'
+import { appBaseUrl, escapeHtml } from '../emailLayout.js'
 
 export class MutationError extends Error {
   status: number
@@ -345,7 +346,7 @@ export async function clearTestimonyAttachment(workspaceId: number, id: number) 
 // summary uses **bold** as a lightweight emphasis marker rather than real
 // markdown, so email needs the same conversion the dashboard card does.
 function renderBriefSummaryHtml(summary: string): string {
-  return summary.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+  return escapeHtml(summary).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
 }
 
 // Emails the exact brief the dashboard shows right now (getBrief) to the
@@ -363,20 +364,19 @@ export async function sendBrief(workspaceId: number, userId: number) {
   const workspaceName = workspaceRows[0]?.name ?? 'your workspace'
 
   const itemsHtml = brief.taggedItems
-    .map((item) => `<li><strong>${item.tag}</strong> — ${item.text}</li>`)
+    .map((item) => `<li style="margin:0 0 6px;"><strong>${escapeHtml(item.tag)}</strong>: ${escapeHtml(item.text)}</li>`)
     .join('')
-  const dashboardUrl = process.env.APP_BASE_URL ?? 'http://localhost:5173'
 
-  const html = `
-    <p>${renderBriefSummaryHtml(brief.summary)}</p>
-    ${itemsHtml ? `<ul>${itemsHtml}</ul>` : ''}
-    <p style="color:#5c6b80;font-size:13px;">
-      Sourced from ${brief.sourceCounts.actions} actions, ${brief.sourceCounts.hearings} hearings, and
-      ${brief.sourceCounts.fiscalNotes} fiscal notes.
-    </p>
-    <p><a href="${dashboardUrl}">Open the ${workspaceName} dashboard →</a></p>
-  `
-  await sendEmail(email, `Morning brief — ${workspaceName}`, html)
+  await sendLayoutEmail(email, `Morning brief: ${workspaceName}`, {
+    heading: `Morning brief: ${workspaceName}`,
+    preheader: brief.summary.replace(/\*\*/g, '').slice(0, 120),
+    bodyHtml: `<p style="margin:0 0 14px;">${renderBriefSummaryHtml(brief.summary)}</p>
+      ${itemsHtml ? `<ul style="margin:0 0 14px;padding-left:20px;">${itemsHtml}</ul>` : ''}
+      <p style="margin:0;color:#5c6b80;font-size:13px;">Sources: ${brief.sourceCounts.actions} actions,
+        ${brief.sourceCounts.hearings} hearings, and ${brief.sourceCounts.fiscalNotes} fiscal notes.</p>`,
+    button: { label: 'Open the dashboard', url: appBaseUrl() },
+    footerHtml: 'You get this email because you selected "Send this brief" on the dashboard.',
+  })
 }
 
 // ---------------------------------------------------------------------------
