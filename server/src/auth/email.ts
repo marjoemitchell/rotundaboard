@@ -14,14 +14,19 @@ type SentEmail = { to: string; subject: string; html: string; sentAt: number }
 const sentEmails: SentEmail[] = []
 const MAX_CAPTURED_EMAILS = 50
 
-// Returns false if Resend did not accept the email. In local development
-// (no RESEND_API_KEY) the email is only written to the log, which counts as
-// sent.
+// Returns false if the email was not sent. Without RESEND_API_KEY the email
+// is only written to the log. That counts as sent in local development, but
+// not in production: there it is a configuration error, and callers that
+// retry (scrapeHealth.ts) must try again.
 export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   sentEmails.push({ to, subject, html, sentAt: Date.now() })
   if (sentEmails.length > MAX_CAPTURED_EMAILS) sentEmails.shift()
 
   if (!resend) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error(`[email] RESEND_API_KEY is not set. Email not sent: to=${to} subject="${subject}"`)
+      return false
+    }
     console.log(`[email:dev] to=${to} subject="${subject}"\n${html}`)
     return true
   }
