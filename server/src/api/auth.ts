@@ -3,7 +3,8 @@ import type { Request, Response } from 'express'
 import { pool } from '../db.js'
 import { hashPassword, verifyPassword } from '../auth/passwords.js'
 import { generateToken, hashToken } from '../auth/tokens.js'
-import { sendEmail } from '../auth/email.js'
+import { sendLayoutEmail } from '../auth/email.js'
+import { escapeHtml } from '../emailLayout.js'
 import { deriveInitials, pickColor } from '../auth/userDisplay.js'
 import { clearSessionCookie, destroyAllSessionsForUser, destroySession, issueSession, SESSION_COOKIE_NAME } from './authMiddleware.js'
 import { MutationError } from './mutations.js'
@@ -156,11 +157,15 @@ authRouter.post('/forgot-password', async (req: Request, res: Response) => {
           expiresAt,
         ])
         const link = `${process.env.APP_BASE_URL ?? 'http://localhost:5173'}/reset-password?token=${rawToken}`
-        await sendEmail(
-          email.trim(),
-          'Reset your Rotunda Board password',
-          `<p>Click the link below to set a new password. This link expires in 1 hour.</p><p><a href="${link}">${link}</a></p>`,
-        )
+        await sendLayoutEmail(email.trim(), 'Reset your Rotunda Board password', {
+          heading: 'Reset your password',
+          preheader: 'Set a new password for your Rotunda Board account.',
+          bodyHtml: `<p style="margin:0 0 12px;">We received a request to reset the password for your Rotunda Board account.
+            Use the button below to set a new password. The link expires in 1 hour.</p>`,
+          button: { label: 'Set a new password', url: link },
+          footerHtml: `If you did not ask to reset your password, you can ignore this email. Your password does not change.<br>
+            If the button does not work, copy this link into your browser: <a href="${escapeHtml(link)}" style="color:#2b7f8c;word-break:break-all;">${escapeHtml(link)}</a>`,
+        })
       }
     }
     // Always 200, regardless of whether the email exists — no account enumeration.

@@ -101,6 +101,12 @@ The API reads `server/.env`. See `server/.env.example` for the variables.
   The Railway transcription cron is a fallback. It runs only when the GPU host has not sent a heartbeat for 6 hours.
 - Resend is in test mode. It sends email only to the account owner until a sending domain is verified.
 
+## Email
+
+- Send email with `sendLayoutEmail` in `server/src/auth/email.ts`. It uses the shared layout in `server/src/emailLayout.ts` and adds a plain-text version.
+- Escape all user text in email HTML with `escapeHtml` (workspace names, bill titles, and other data).
+- The sender is the Railway shared variable `EMAIL_FROM_ADDRESS`. The address must be on a domain that is verified in Resend.
+
 ## Scrape health
 
 - `server/src/scrapeHealth.ts` checks each scrape run and emails `MAINTAINER_EMAIL` when a check fails.

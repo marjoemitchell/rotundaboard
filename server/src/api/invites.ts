@@ -5,7 +5,8 @@
 // public/lightly-protected routes in server.ts.
 import { pool } from '../db.js'
 import { generateToken, hashToken } from '../auth/tokens.js'
-import { sendEmail } from '../auth/email.js'
+import { sendLayoutEmail } from '../auth/email.js'
+import { escapeHtml } from '../emailLayout.js'
 import { MutationError } from './mutations.js'
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -37,13 +38,16 @@ export async function getWorkspaceInvites(workspaceId: number) {
 
 async function sendInviteEmail(email: string, workspaceName: string, rawToken: string) {
   const link = `${process.env.APP_BASE_URL ?? 'http://localhost:5173'}/accept-invite?token=${rawToken}`
-  await sendEmail(
-    email,
-    `You're invited to join ${workspaceName} on Rotunda Board`,
-    `<p>You've been invited to join <strong>${workspaceName}</strong> on Rotunda Board.</p>
-     <p><a href="${link}">${link}</a></p>
-     <p>This link expires in 7 days.</p>`,
-  )
+  await sendLayoutEmail(email, `You're invited to join ${workspaceName} on Rotunda Board`, {
+    heading: `Join ${workspaceName} on Rotunda Board`,
+    preheader: `You have an invitation to join ${workspaceName}.`,
+    bodyHtml: `<p style="margin:0 0 12px;">You have an invitation to join <strong>${escapeHtml(workspaceName)}</strong> on Rotunda Board.</p>
+      <p style="margin:0 0 12px;">Rotunda Board helps your team follow bills, hearings, and legislators in the Montana Legislature.</p>
+      <p style="margin:0;">The invitation expires in 7 days.</p>`,
+    button: { label: 'Accept the invitation', url: link },
+    footerHtml: `If you did not expect this invitation, you can ignore this email.<br>
+      If the button does not work, copy this link into your browser: <a href="${escapeHtml(link)}" style="color:#2b7f8c;word-break:break-all;">${escapeHtml(link)}</a>`,
+  })
 }
 
 export async function createInvite(workspaceId: number, invitedBy: number, email: string, role: string) {

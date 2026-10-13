@@ -382,7 +382,7 @@ export async function getBrief(workspaceId: number) {
   }
   if (summaryParts.length === 0) {
     summaryParts.push(
-      'No tracked bills moved meaningfully in the last 7 days. The 2025 session concluded over a year ago, so most status history is long settled — momentum here mostly reflects how far each bill got, not recent activity.',
+      'No tracked bills moved meaningfully in the last 7 days. The 2025 session concluded over a year ago, so most status history is long settled. Momentum here mostly shows how far each bill got, not recent activity.',
     )
   }
   if (hearings.length > 0) {
@@ -402,7 +402,7 @@ export async function getBrief(workspaceId: number) {
     const when = new Date(hearings[0].datetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     taggedItems.push({
       tag: 'CAL',
-      text: `${hearings[0].committee} meets ${when} — next interim hearing on the calendar.`,
+      text: `${hearings[0].committee} meets ${when}. This is the next interim hearing on the calendar.`,
       sourceIds: [],
     })
   }

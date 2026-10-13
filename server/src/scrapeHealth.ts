@@ -16,7 +16,8 @@
 //      has no successful run in its expected time (for example, if a cron
 //      stops).
 import { pool } from './db.js'
-import { sendEmail } from './auth/email.js'
+import { sendLayoutEmail } from './auth/email.js'
+import { appBaseUrl, escapeHtml, type EmailContent } from './emailLayout.js'
 import { ENDPOINTS, type Shape } from './legmtShapes.js'
 
 // A count that falls below this part of the previous run is an error.
@@ -238,10 +239,6 @@ export function evaluateRun(monitor: RunMonitor, previous: PreviousRun | null, r
 
 // ---------------------------------------------------------------- alerts
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
 /**
  * Sends the maintainer one email when the problems for `key` change, and one
  * email when the errors stop. Returns true if an email was sent.
@@ -265,7 +262,11 @@ export async function alertIfChanged(
   if (problems.length === 0) {
     if (!previous) return false
     if (previous.has_errors) {
-      const sent = await send(to, `Rotunda Board: ${title} is working again`, `<p>The problems with ${escapeHtml(title)} have stopped.</p>`)
+      const sent = await send(to, `Rotunda Board: ${title} is working again`, {
+        heading: `${title[0].toUpperCase()}${title.slice(1)} is working again`,
+        bodyHtml: `<p style="margin:0;">The problems with ${escapeHtml(title)} have stopped. The last check found no problems.</p>`,
+        footerHtml: MAINTAINER_FOOTER,
+      })
       if (!sent) return false
     }
     await pool.query('DELETE FROM scrape_health_alerts WHERE key = $1', [key])
@@ -276,19 +277,19 @@ export async function alertIfChanged(
   const list = problems
     .map(
       (p) =>
-        `<li><b>${p.severity === 'error' ? 'Error' : 'Warning'}</b>${p.endpoint ? ` (${escapeHtml(p.endpoint)})` : ''}: ${escapeHtml(p.message)}</li>`,
+        `<li style="margin:0 0 6px;"><b>${p.severity === 'error' ? 'Error' : 'Warning'}</b>${p.endpoint ? ` (${escapeHtml(p.endpoint)})` : ''}: ${escapeHtml(p.message)}</li>`,
     )
     .join('')
   const subject = `Rotunda Board: ${hasErrors ? 'problem' : 'warning'} with ${title}`
-  const sent = await send(
-    to,
-    subject,
-    `<div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:14px;line-height:1.5;color:#0f2547">
-<p>A check found ${hasErrors ? 'a problem' : 'a change to look at'} with ${escapeHtml(title)}.</p>
-<ul>${list}</ul>
-<p style="color:#5c6b80">The data comes from bearbeta.legmt.gov, an unpublished API. A change in that API can stop the scrapers.
-You get one email when the problems change, and one email when the errors stop.</p></div>`,
-  )
+  const sent = await send(to, subject, {
+    heading: `${hasErrors ? 'Problem' : 'Warning'}: ${title}`,
+    preheader: problems[0].message.slice(0, 120),
+    bodyHtml: `<p style="margin:0 0 12px;">A check found ${hasErrors ? 'a problem' : 'a change to look at'} with ${escapeHtml(title)}.</p>
+<ul style="margin:0 0 12px;padding-left:20px;">${list}</ul>
+<p style="margin:0;color:#5c6b80;">The data comes from bearbeta.legmt.gov, an unpublished API. A change in that API can stop the scrapers.</p>`,
+    button: { label: 'Open Rotunda Board', url: appBaseUrl() },
+    footerHtml: MAINTAINER_FOOTER,
+  })
   if (sent) {
     await pool.query(
       `INSERT INTO scrape_health_alerts (key, signature, has_errors) VALUES ($1, $2, $3)
@@ -299,12 +300,15 @@ You get one email when the problems change, and one email when the errors stop.<
   return sent
 }
 
-async function send(to: string | undefined, subject: string, html: string): Promise<boolean> {
+const MAINTAINER_FOOTER =
+  'You get this email because your address is MAINTAINER_EMAIL for Rotunda Board. You get one email when the problems change, and one email when the errors stop.'
+
+async function send(to: string | undefined, subject: string, content: EmailContent): Promise<boolean> {
   if (!to) {
     console.warn(`[scrape-health] MAINTAINER_EMAIL is not set. Alert not sent: ${subject}`)
     return false
   }
-  return sendEmail(to, subject, html)
+  return sendLayoutEmail(to, subject, content)
 }
 
 // ---------------------------------------------------------------- run lifecycle

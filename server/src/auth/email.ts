@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { renderEmail, type EmailContent } from '../emailLayout.js'
 
 // No RESEND_API_KEY is required to run this app locally — password reset
 // and invite emails just get logged to the console instead of sent, so the
@@ -10,7 +11,7 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 // configured, so the e2e suite can read back an invite/reset link without
 // a real inbox or scraping console output (which stops working the moment
 // a real RESEND_API_KEY is set). Exposed via a dev-only route in server.ts.
-type SentEmail = { to: string; subject: string; html: string; sentAt: number }
+type SentEmail = { to: string; subject: string; html: string; text: string | null; sentAt: number }
 const sentEmails: SentEmail[] = []
 const MAX_CAPTURED_EMAILS = 50
 
@@ -18,8 +19,8 @@ const MAX_CAPTURED_EMAILS = 50
 // is only written to the log. That counts as sent in local development, but
 // not in production: there it is a configuration error, and callers that
 // retry (scrapeHealth.ts) must try again.
-export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
-  sentEmails.push({ to, subject, html, sentAt: Date.now() })
+export async function sendEmail(to: string, subject: string, html: string, text?: string): Promise<boolean> {
+  sentEmails.push({ to, subject, html, text: text ?? null, sentAt: Date.now() })
   if (sentEmails.length > MAX_CAPTURED_EMAILS) sentEmails.shift()
 
   if (!resend) {
@@ -35,12 +36,18 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   // sender domain, restricted recipient in test mode, etc.) — it resolves
   // with { error } instead, so that has to be checked explicitly or a
   // rejected send fails completely silently.
-  const { error } = await resend.emails.send({ from, to, subject, html })
+  const { error } = await resend.emails.send({ from, to, subject, html, ...(text ? { text } : {}) })
   if (error) {
     console.error(`[email:resend] failed to send "${subject}" to ${to}: ${error.name} - ${error.message}`)
     return false
   }
   return true
+}
+
+/** Sends an email in the Rotunda Board layout (see emailLayout.ts), with a plain-text version. */
+export function sendLayoutEmail(to: string, subject: string, content: EmailContent): Promise<boolean> {
+  const { html, text } = renderEmail(content, subject)
+  return sendEmail(to, subject, html, text)
 }
 
 export function getLastEmailTo(to: string): SentEmail | undefined {
