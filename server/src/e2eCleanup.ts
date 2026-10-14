@@ -66,6 +66,12 @@ async function main() {
   await pool.query('DELETE FROM committee_bill_hearings WHERE id < 0')
   await pool.query('DELETE FROM committee_meetings WHERE id < 0')
 
+  // Bill text fixtures (negative ids) and the alert events of fixture amendments.
+  await pool.query(`DELETE FROM change_events WHERE key LIKE 'amendment:-%'`)
+  await pool.query('DELETE FROM amendment_documents WHERE id < 0')
+  await pool.query('DELETE FROM bill_text_versions WHERE id < 0')
+  await pool.query('DELETE FROM amendments WHERE id < 0')
+
   // Scrape health fixtures: simulated jobs ("e2e-...") and fixture runs.
   await pool.query(`DELETE FROM scrape_runs WHERE job LIKE 'e2e-%' OR counts ? 'e2eFixture'`)
   // The staleness alerts follow the fixture runs, so clear them too (dev and test only).

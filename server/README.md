@@ -13,6 +13,7 @@ schema for it — request shapes were reverse-engineered from live responses.
 | `npm run scrape:details` | Per-bill detail pass (status history, votes, cosponsors, amendments) | Slow, concurrency-limited |
 | `npm run refresh-meetings` | Interim-committee meeting times/locations/agendas only, for committees already in the DB | Fast — no bill data touched |
 | `npm run refresh-hearings` | The bill hearing schedule of all standing committees in one paged search, then hearing alerts and reminders | Fast: about 8 requests for a full session |
+| `npm run refresh-bill-texts` | The text of bill versions and amendments (PDF files from the document store), and an AI summary of each amendment | About 3 seconds for each bill. A run checks at most 300 bills (`--limit=N`). One Claude Haiku call for each new amendment |
 | `npm run generate-summaries` | AI-generated bill summaries | Only needs to run after new bills appear |
 | `npm run send-alert-digest` | Daily email digest of change alerts (immediate alerts are sent by the scrape scripts themselves) | Cheap — database only, plus one email per person |
 | `npm run transcribe-hearings` | Finds newly posted committee hearing videos, ingests their captions, and produces speaker-attributed transcripts | Discovery + captions are free; diarization is free on the self-hosted GPU (WhisperX) or ~$0.006/audio-minute on the OpenAI fallback, plus one Claude call per hearing for speaker names |
@@ -28,7 +29,7 @@ often after the meeting row itself already exists in our DB with an empty
 
 **Production (Railway)** runs this on Railway's own cron scheduler — see
 `.railway/railway.ts` at the repo root for the `cron-refresh-meetings`
-(every 6h), `cron-refresh-hearings` (every hour), `cron-scrape` (daily), `cron-scrape-details` (daily), and
+(every 6h), `cron-refresh-hearings` (every hour), `cron-refresh-bill-texts` (every 2h), `cron-scrape` (daily), `cron-scrape-details` (daily), and
 `cron-generate-summaries` (daily), and `cron-transcribe-hearings` (every 2h)
 service definitions. That's the source of
 truth for cadence; nothing local needs to run for the deployed app to stay
@@ -159,10 +160,33 @@ digest cron need `RESEND_API_KEY`, `APP_BASE_URL` (for links), and
 account owner's own address; verify a sending domain before relying on alerts
 for anyone else.
 
+## Bill text
+
+`src/refreshBillTexts.ts` gets the bill text from the Legislature's document
+store (`bearbeta.legmt.gov/docs/v1`). The store finds the files of a bill by
+the legislature ordinal (69), the session ordinals (20251), the bill type, and
+the bill number.
+
+- Version files are `SB0001_1.pdf` (introduced), `SB0001_2.pdf`, and so on, and
+  `SB0001_X.pdf` (enrolled). The store has copies such as `SB0001_2(3).pdf`.
+  The job keeps the newest copy of each version in `bill_text_versions`.
+- Amendment files are the bill text with the amendment in it
+  (`SB0001.001.005_Amendments-in-Context_final-full.pdf`: version 1,
+  amendment 5). The job compares each one with the version that it changes,
+  and keeps only the changed paragraphs in `amendment_documents`.
+- `src/billText.ts` extracts the text. The PDF draws strikethrough and
+  underline as lines, so the extraction finds them by their position on the
+  text. Struck text is removed from current law, and underlined text is new.
+- The comparison ignores the case of letters. Text that a chamber adds by
+  amendment is in capital letters in the next version only.
+- Claude Haiku writes a summary of each amendment from the changed
+  paragraphs. The alert for a new amendment waits for this summary, for a
+  maximum of 12 hours.
+
 ## Scrape health checks
 
 `src/scrapeHealth.ts` checks each run of `scrape`, `scrape:details`,
-`refresh-meetings`, and `refresh-hearings`, because the data comes from an unpublished API that can
+`refresh-meetings`, `refresh-hearings`, and `refresh-bill-texts`, because the data comes from an unpublished API that can
 change with no notice.
 
 - Each response from `bearbeta.legmt.gov` (and the committee pages from
@@ -178,7 +202,7 @@ change with no notice.
   stop.
 - The API server runs a check every hour. It sends an alert if a job has no
   successful run in its expected time (30 hours for the daily scrapes, 8
-  hours for `refresh-meetings`, 4 hours for `refresh-hearings`). This finds a cron that stopped.
+  hours for `refresh-meetings`, 4 hours for `refresh-hearings`, 8 hours for `refresh-bill-texts`). This finds a cron that stopped.
 - The dashboard shows when the data was last updated (`/api/data-freshness`).
 
 When the API changes on purpose, update `src/legmtShapes.ts` and

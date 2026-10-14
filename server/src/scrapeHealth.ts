@@ -395,6 +395,7 @@ export const SCRAPE_JOBS: { job: string; label: string; maxAgeHours: number }[] 
   { job: 'scrape:details', label: 'Votes and hearings', maxAgeHours: 30 },
   { job: 'refresh-meetings', label: 'Committee meetings', maxAgeHours: 8 },
   { job: 'refresh-hearings', label: 'Bill hearings', maxAgeHours: 4 },
+  { job: 'refresh-bill-texts', label: 'Bill text', maxAgeHours: 8 },
 ]
 
 export async function getDataFreshness() {

@@ -1,0 +1,41 @@
+.paragraph {
+  margin: 0 0 12px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.removed {
+  text-decoration: none;
+  background: var(--oppose-bg);
+  color: var(--oppose-fg);
+  border-radius: 2px;
+}
+
+.added {
+  text-decoration: none;
+  background: var(--support-bg);
+  color: var(--support-fg);
+  border-radius: 2px;
+}
+
+/* The marks of the printed bill. */
+.struck {
+  text-decoration: line-through;
+}
+
+.underlined {
+  text-decoration: underline;
+}
+
+.struck.underlined {
+  text-decoration: underline line-through;
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--muted);
+}

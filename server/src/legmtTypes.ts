@@ -307,3 +307,14 @@ export interface RawCommitteeTabsResponse {
   title: string
   tabs: RawCommitteeTab[]
 }
+
+// A document in the Legislature's document store (docs/v1). Bill versions
+// and amendments are PDF files. The "DocumentLink" attribute has a download
+// link, but getDocumentContent downloads the file by its id.
+export interface RawDocument {
+  id: number
+  fileName: string
+  date: string | null
+  creation: string | null
+  folderId: number | null
+}

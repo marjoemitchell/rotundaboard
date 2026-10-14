@@ -161,6 +161,29 @@ export default defineRailway(() => {
     },
   });
 
+  // Bill version and amendment text, and the amendment summaries
+  // (src/refreshBillTexts.ts). Each run checks at most 300 bills, so the first
+  // runs for a session fill in the text over several hours. Offset to :45.
+  const cronRefreshBillTexts = service("cron-refresh-bill-texts", {
+    source: empty(),
+    root: "server",
+    deploy: {
+      startCommand: "npm run refresh-bill-texts",
+      cronSchedule: "45 */2 * * *",
+      restartPolicyType: "NEVER",
+    },
+    env: {
+      DATABASE_URL: db.env.DATABASE_URL,
+      NODE_ENV: "production",
+      ANTHROPIC_API_KEY: preserve(),
+      ANTHROPIC_WORKSPACE_ID: preserve(),
+      APP_BASE_URL: preserve(),
+      RESEND_API_KEY: preserve(),
+      EMAIL_FROM_ADDRESS: preserve(),
+      MAINTAINER_EMAIL: preserve(),
+    },
+  });
+
   // Daily digest of change alerts for people on 'daily' delivery (immediate
   // alerts go out from the scrape crons above). 14:00 UTC is 7–8am in
   // Montana, after the overnight scrapes.
@@ -217,6 +240,7 @@ export default defineRailway(() => {
       web,
       cronRefreshMeetings,
       cronRefreshHearings,
+      cronRefreshBillTexts,
       cronScrape,
       cronScrapeDetails,
       cronGenerateSummaries,

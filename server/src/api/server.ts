@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
+import * as billTexts from './billTexts.js'
 import * as queries from './queries.js'
 import * as mutations from './mutations.js'
 import { MutationError } from './mutations.js'
@@ -15,6 +16,7 @@ import { hashToken } from '../auth/tokens.js'
 import { getLastEmailTo } from '../auth/email.js'
 import {
   ageHearingAlertFixture,
+  billTextFixture,
   createHearingFixture,
   createScrapeRunFixture,
   createStatusChangeFixture,
@@ -140,6 +142,14 @@ if (process.env.NODE_ENV !== 'production') {
       res.json(await upsertBillHearingFixture(req.body as Parameters<typeof upsertBillHearingFixture>[0]))
     } catch (err) {
       handleError(res, 'POST /api/__test__/bill-hearing', err)
+    }
+  })
+
+  app.post('/api/__test__/bill-text', async (req, res) => {
+    try {
+      res.json(await billTextFixture(req.body as Parameters<typeof billTextFixture>[0]))
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/bill-text', err)
     }
   })
 
@@ -468,6 +478,49 @@ function parseBillId(req: Request, res: Response): number | null {
   }
   return id
 }
+
+// A redline between two versions of the bill text (?from=1&to=2).
+app.get('/api/bills/:id/compare', async (req, res) => {
+  const billId = parseBillId(req, res)
+  if (billId === null) return
+  const from = String(req.query.from ?? '')
+  const to = String(req.query.to ?? '')
+  if (!/^(\d+|X)$/.test(from) || !/^(\d+|X)$/.test(to)) {
+    res.status(400).json({ error: 'from and to must be version keys' })
+    return
+  }
+  try {
+    const result = await billTexts.compareVersions(billId, from, to)
+    if (!result) {
+      res.status(404).json({ error: 'version text not found' })
+      return
+    }
+    res.json(result)
+  } catch (err) {
+    handleError(res, `GET /api/bills/${req.params.id}/compare`, err)
+  }
+})
+
+// The changes that one amendment makes to the bill text.
+app.get('/api/bills/:id/amendment-documents/:documentId', async (req, res) => {
+  const billId = parseBillId(req, res)
+  if (billId === null) return
+  const documentId = Number(req.params.documentId)
+  if (!Number.isInteger(documentId)) {
+    res.status(400).json({ error: 'invalid document id' })
+    return
+  }
+  try {
+    const result = await billTexts.getAmendmentChanges(billId, documentId)
+    if (!result) {
+      res.status(404).json({ error: 'amendment text not found' })
+      return
+    }
+    res.json(result)
+  } catch (err) {
+    handleError(res, `GET /api/bills/${req.params.id}/amendment-documents`, err)
+  }
+})
 
 app.get('/api/bills/:id', async (req, res) => {
   const billId = parseBillId(req, res)
