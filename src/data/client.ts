@@ -396,6 +396,10 @@ export function setAlertDelivery(delivery: AlertDelivery): Promise<NotificationP
   return sendJson('/api/notification-preferences', 'PATCH', { delivery })
 }
 
+export function setHearingReminders(enabled: boolean): Promise<NotificationPreferences> {
+  return sendJson('/api/notification-preferences', 'PATCH', { hearingReminders: enabled })
+}
+
 export function setAlertSourceEnabled(type: AlertSourceType, id: string | null, enabled: boolean): Promise<NotificationPreferences> {
   return sendJson('/api/notification-preferences/watches', 'PUT', { type, id, enabled })
 }

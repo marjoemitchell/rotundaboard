@@ -61,6 +61,10 @@ async function main() {
   // alert events recorded for them; deliveries cascade off the events.
   await pool.query("DELETE FROM change_events WHERE key LIKE 'status:-%'")
   await pool.query('DELETE FROM bill_statuses WHERE id < 0')
+  // Bill hearing fixtures (negative ids) and their alert events.
+  await pool.query(`DELETE FROM change_events WHERE key ~ '^hearing(-canceled|-reminder)?:-'`)
+  await pool.query('DELETE FROM committee_bill_hearings WHERE id < 0')
+  await pool.query('DELETE FROM committee_meetings WHERE id < 0')
 
   // Scrape health fixtures: simulated jobs ("e2e-...") and fixture runs.
   await pool.query(`DELETE FROM scrape_runs WHERE job LIKE 'e2e-%' OR counts ? 'e2eFixture'`)

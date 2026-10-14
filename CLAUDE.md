@@ -52,6 +52,7 @@ npm run seed                 # demo workspace (dev only, password "password123")
 npm run scrape               # full scrape of the target session
 npm run scrape:details       # votes, amendments, and hearings for each bill
 npm run refresh-meetings     # interim committee meetings and materials
+npm run refresh-hearings     # bill hearing schedule, hearing alerts
 npm run transcribe-hearings  # find hearing videos and make transcripts
 npm run send-alert-digest    # daily digest of change alerts
 ```

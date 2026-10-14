@@ -13,7 +13,14 @@ import * as workspaces from './workspaces.js'
 import { pool } from '../db.js'
 import { hashToken } from '../auth/tokens.js'
 import { getLastEmailTo } from '../auth/email.js'
-import { createHearingFixture, createScrapeRunFixture, createStatusChangeFixture, type HearingFixtureInput } from './testFixtures.js'
+import {
+  ageHearingAlertFixture,
+  createHearingFixture,
+  createScrapeRunFixture,
+  createStatusChangeFixture,
+  upsertBillHearingFixture,
+  type HearingFixtureInput,
+} from './testFixtures.js'
 import { checkStaleness, getDataFreshness, simulateRun, startScrapeWatchdog } from '../scrapeHealth.js'
 import { processAlerts } from '../alerts.js'
 
@@ -85,11 +92,16 @@ if (process.env.NODE_ENV !== 'production') {
     }
   })
 
+  // Parallel tests call this route at the same time. Each waiting run holds a
+  // pool client, and the run with the lock needs more clients. So queue the
+  // runs here, before they take a client, or they can use all the clients.
+  let alertRunQueue: Promise<unknown> = Promise.resolve()
   app.post('/api/__test__/alerts/run', async (req, res) => {
     try {
-      res.json(
-        await processAlerts({ digest: Boolean((req.body as { digest?: boolean } | undefined)?.digest), waitForLock: true }),
-      )
+      const digest = Boolean((req.body as { digest?: boolean } | undefined)?.digest)
+      const run = alertRunQueue.then(() => processAlerts({ digest, waitForLock: true }))
+      alertRunQueue = run.catch(() => undefined)
+      res.json(await run)
     } catch (err) {
       handleError(res, 'POST /api/__test__/alerts/run', err)
     }
@@ -120,6 +132,24 @@ if (process.env.NODE_ENV !== 'production') {
       res.json({ ok: true })
     } catch (err) {
       handleError(res, 'POST /api/__test__/scrape-health/check-staleness', err)
+    }
+  })
+
+  app.post('/api/__test__/bill-hearing', async (req, res) => {
+    try {
+      res.json(await upsertBillHearingFixture(req.body as Parameters<typeof upsertBillHearingFixture>[0]))
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/bill-hearing', err)
+    }
+  })
+
+  app.post('/api/__test__/age-hearing-alert', async (req, res) => {
+    try {
+      const { hearingId, hours } = req.body as { hearingId: number; hours: number }
+      await ageHearingAlertFixture(Number(hearingId), Number(hours))
+      res.json({ ok: true })
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/age-hearing-alert', err)
     }
   })
 
@@ -346,7 +376,13 @@ route('/api/notification-preferences', (req) =>
 
 app.patch('/api/notification-preferences', async (req, res) => {
   try {
-    await mutations.setAlertDelivery(req.auth!.userId, String((req.body as { delivery?: string }).delivery ?? ''))
+    const body = req.body as { delivery?: string; hearingReminders?: boolean }
+    if (body.delivery !== undefined) await mutations.setAlertDelivery(req.auth!.userId, String(body.delivery))
+    if (body.hearingReminders !== undefined) await mutations.setHearingReminders(req.auth!.userId, Boolean(body.hearingReminders))
+    if (body.delivery === undefined && body.hearingReminders === undefined) {
+      res.status(400).json({ error: 'nothing to update' })
+      return
+    }
     res.json(await queries.getNotificationPreferences(req.auth!.userId, req.auth!.workspaceId))
   } catch (err) {
     handleError(res, 'PATCH /api/notification-preferences', err)

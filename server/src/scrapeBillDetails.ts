@@ -21,7 +21,7 @@ async function withRetries<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
   throw lastErr
 }
 
-async function upsertCommitteeMeeting(m: RawCommitteeMeeting) {
+export async function upsertCommitteeMeeting(m: RawCommitteeMeeting) {
   await pool.query(
     `INSERT INTO committee_meetings (id, standing_committee_id, meeting_time, location, comments, public_participation, bill_testimony, status)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
@@ -103,9 +103,9 @@ async function scrapeOneBill(billId: number) {
   for (const h of hearings) {
     await upsertCommitteeMeeting(h.committeeMeeting)
     await pool.query(
-      `INSERT INTO committee_bill_hearings (id, bill_id, committee_meeting_id) VALUES ($1,$2,$3)
-       ON CONFLICT (id) DO UPDATE SET bill_id = $2, committee_meeting_id = $3`,
-      [h.id, billId, h.committeeMeeting.id],
+      `INSERT INTO committee_bill_hearings (id, bill_id, committee_meeting_id, status) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (id) DO UPDATE SET bill_id = $2, committee_meeting_id = $3, status = $4, removed_at = NULL`,
+      [h.id, billId, h.committeeMeeting.id, h.status ?? null],
     )
   }
 
@@ -164,9 +164,13 @@ async function main() {
   await runAlertsAfterScrape()
 }
 
-withScrapeMonitoring('scrape:details', main)
-  .catch((err) => {
-    console.error(err)
-    process.exitCode = 1
-  })
-  .finally(() => pool.end())
+// Guarded so refreshHearings.ts can import upsertCommitteeMeeting without
+// starting a full detail scrape.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  withScrapeMonitoring('scrape:details', main)
+    .catch((err) => {
+      console.error(err)
+      process.exitCode = 1
+    })
+    .finally(() => pool.end())
+}

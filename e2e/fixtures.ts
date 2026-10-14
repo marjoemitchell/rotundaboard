@@ -70,7 +70,12 @@ export async function findSessionIdWithBills(page: Page): Promise<string> {
 // to be listed first) avoids landing on a session with zero bills — the
 // actual Sessions -> session bills -> bill detail browse path gets its own
 // dedicated coverage elsewhere, so this helper optimizes for reliable setup.
-export async function trackFirstAvailableBill(page: Page): Promise<{ billId: string; identifier: string }> {
+// `index` selects a different bill. Use it when a spec must not share its
+// bill with other specs that run at the same time (alert specs).
+export async function trackFirstAvailableBill(
+  page: Page,
+  { index = 0 }: { index?: number } = {},
+): Promise<{ billId: string; identifier: string }> {
   const sessionId = await findSessionIdWithBills(page)
   const bills = await page.evaluate(
     async ({ apiBase, sessionId }) => {
@@ -79,7 +84,7 @@ export async function trackFirstAvailableBill(page: Page): Promise<{ billId: str
     },
     { apiBase: API_BASE, sessionId },
   )
-  const bill = bills[0]
+  const bill = bills[index]
 
   await page.goto(`/bills/${bill.id}`)
   await page.click('button:has-text("+ Track this bill")')

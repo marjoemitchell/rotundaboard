@@ -54,7 +54,7 @@ export function AlertSettings({ email }: { email: string }) {
 
   if (prefs.status === 'loading') return <div className="skeleton" style={{ height: 160, marginTop: 12 }} />
   if (prefs.status === 'empty') return <p className={styles.hint}>Alert settings couldn’t be loaded.</p>
-  const { delivery, trackedBills, subjectWatches, followedCommittees } = prefs.data
+  const { delivery, hearingReminders, trackedBills, subjectWatches, followedCommittees } = prefs.data
   const off = delivery === 'off'
 
   const toggle = (type: AlertSourceType, id: string | null, enabled: boolean) =>
@@ -114,6 +114,29 @@ export function AlertSettings({ email }: { email: string }) {
             </span>
           </label>
         ))}
+      </fieldset>
+
+      <fieldset className={`${styles.fieldset} ${off ? styles.dimmed : ''}`}>
+        <legend className={styles.legend}>Hearings</legend>
+        <p className={styles.hint}>
+          Hearing alerts go out right away, also when you choose the daily digest. They include a link to draft
+          testimony.
+        </p>
+        <label className={styles.checkRow}>
+          <input
+            type="checkbox"
+            checked={hearingReminders}
+            disabled={off || saving}
+            onChange={(e) => {
+              const enabled = e.target.checked
+              save(
+                (p) => ({ ...p, hearingReminders: enabled }),
+                () => client.setHearingReminders(enabled),
+              )
+            }}
+          />
+          Remind me about 24 hours before a hearing
+        </label>
       </fieldset>
 
       <fieldset className={`${styles.fieldset} ${off ? styles.dimmed : ''}`} aria-label="Alert sources">

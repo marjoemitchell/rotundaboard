@@ -22,6 +22,15 @@ const ADVISORY_LOCK_KEY = 7_340_020
 // Hearings and meetings only matter while they're upcoming; a row first
 // seen (or moved) well after the fact isn't worth an email.
 const SCHEDULE_LOOKBACK = "interval '1 day'"
+// Scraped meeting times are naive Montana wall-clock times (see db.ts), so
+// compare them with the current Montana time, not with now().
+const NOW_MT = "(now() AT TIME ZONE 'America/Denver')"
+// A hearing is active when neither the meeting nor the bill's place on its
+// agenda is canceled, and the hearing is still in the schedule.
+const HEARING_ACTIVE =
+  "(coalesce(cm.status, '') <> 'CANCELED' AND coalesce(cbh.status, '') <> 'CANCELED' AND cbh.removed_at IS NULL)"
+const REMINDER_HOURS = 25
+const REMINDER_MIN_NOTICE_HOURS = 6
 
 export type DeliveryMode = 'immediate' | 'daily' | 'off'
 export const DEFAULT_DELIVERY: DeliveryMode = 'immediate'
@@ -39,6 +48,9 @@ async function detectChanges(): Promise<{ newEventIds: number[]; baseline: boole
      FROM bill_statuses bs
      JOIN bills b ON b.draft_id = bs.draft_id
      LEFT JOIN bill_status_codes bsc ON bsc.id = bs.bill_status_code_id
+     -- Only rows without an event. An index lookup for each row is much
+     -- faster than an insert attempt for each of the ~66,000 statuses.
+     WHERE NOT EXISTS (SELECT 1 FROM change_events e WHERE e.key = 'status:' || bs.id)
      ON CONFLICT (key) DO NOTHING
      RETURNING id`,
     `INSERT INTO change_events (key, kind, bill_id, summary, detail, baseline)
@@ -48,29 +60,94 @@ async function detectChanges(): Promise<{ newEventIds: number[]; baseline: boole
             $1
      FROM amendments a
      WHERE a.bill_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM change_events e WHERE e.key = 'amendment:' || a.id)
      ON CONFLICT (key) DO NOTHING
      RETURNING id`,
     // Keyed by meeting time too, so a hearing that moves is a new event
-    // ("rescheduled") rather than silently updating.
-    `INSERT INTO change_events (key, kind, bill_id, summary, detail, occurred_at, baseline)
-     SELECT 'hearing:' || cbh.id || ':' || cm.meeting_time, 'bill_hearing', cbh.bill_id,
-            CASE WHEN EXISTS (SELECT 1 FROM change_events e WHERE e.key LIKE 'hearing:' || cbh.id || ':%')
-                 THEN 'Hearing rescheduled' ELSE 'Hearing scheduled' END
-              || coalesce(' — ' || sc.name, ''),
+    // ("rescheduled") rather than silently updating. Canceled hearings and
+    // meetings are not "scheduled".
+    `INSERT INTO change_events (key, kind, variant, bill_id, summary, detail, occurred_at, baseline)
+     SELECT 'hearing:' || cbh.id || ':' || cm.meeting_time, 'bill_hearing',
+            CASE WHEN EXISTS (SELECT 1 FROM change_events e WHERE e.ref = 'hearing:' || cbh.id)
+                 THEN 'rescheduled' ELSE 'scheduled' END,
+            cbh.bill_id,
+            CASE WHEN EXISTS (SELECT 1 FROM change_events e WHERE e.ref = 'hearing:' || cbh.id)
+                 THEN 'Hearing moved' ELSE 'Hearing scheduled' END
+              || coalesce(': ' || sc.name, ''),
             cm.location, cm.meeting_time, $1
      FROM committee_bill_hearings cbh
      JOIN committee_meetings cm ON cm.id = cbh.committee_meeting_id
      LEFT JOIN standing_committees sc ON sc.id = cm.standing_committee_id
-     WHERE cm.meeting_time >= now() - ${SCHEDULE_LOOKBACK}
+     WHERE cm.meeting_time >= ${NOW_MT} - ${SCHEDULE_LOOKBACK}
+       AND ${HEARING_ACTIVE}
      ON CONFLICT (key) DO NOTHING
      RETURNING id`,
-    `INSERT INTO change_events (key, kind, committee_id, summary, detail, occurred_at, baseline)
-     SELECT 'meeting:' || m.id || ':' || m.meeting_time, 'committee_meeting', m.non_standing_committee_id,
-            CASE WHEN EXISTS (SELECT 1 FROM change_events e WHERE e.key LIKE 'meeting:' || m.id || ':%')
-                 THEN 'Meeting rescheduled' ELSE 'Meeting scheduled' END,
+    // A cancellation, only for a hearing that people were told about, and
+    // only one time for each announcement. The time can change together with
+    // the cancellation, so look for an announcement at any time.
+    `INSERT INTO change_events (key, kind, variant, bill_id, summary, detail, occurred_at, baseline)
+     SELECT 'hearing-canceled:' || cbh.id || ':' || cm.meeting_time, 'bill_hearing', 'canceled', cbh.bill_id,
+            'Hearing canceled' || coalesce(': ' || sc.name, ''), cm.location, cm.meeting_time, $1
+     FROM committee_bill_hearings cbh
+     JOIN committee_meetings cm ON cm.id = cbh.committee_meeting_id
+     LEFT JOIN standing_committees sc ON sc.id = cm.standing_committee_id
+     WHERE cm.meeting_time >= ${NOW_MT} - ${SCHEDULE_LOOKBACK}
+       AND NOT ${HEARING_ACTIVE}
+       AND EXISTS (
+         SELECT 1 FROM change_events e
+         WHERE e.ref = 'hearing:' || cbh.id
+           AND NOT EXISTS (
+             SELECT 1 FROM change_events c
+             WHERE c.ref = 'hearing-canceled:' || cbh.id AND c.detected_at >= e.detected_at
+           )
+       )
+     ON CONFLICT (key) DO NOTHING
+     RETURNING id`,
+    // A reminder in the last ${REMINDER_HOURS} hours before a hearing. Not for
+    // a hearing that was announced less than ${REMINDER_MIN_NOTICE_HOURS} hours
+    // ago: that announcement is recent enough.
+    `INSERT INTO change_events (key, kind, variant, bill_id, summary, detail, occurred_at, baseline)
+     SELECT 'hearing-reminder:' || cbh.id || ':' || cm.meeting_time, 'bill_hearing', 'reminder', cbh.bill_id,
+            'Hearing reminder' || coalesce(': ' || sc.name, ''), cm.location, cm.meeting_time, $1
+     FROM committee_bill_hearings cbh
+     JOIN committee_meetings cm ON cm.id = cbh.committee_meeting_id
+     LEFT JOIN standing_committees sc ON sc.id = cm.standing_committee_id
+     WHERE cm.meeting_time BETWEEN ${NOW_MT} AND ${NOW_MT} + interval '${REMINDER_HOURS} hours'
+       AND ${HEARING_ACTIVE}
+       AND EXISTS (
+         SELECT 1 FROM change_events e
+         WHERE e.key = 'hearing:' || cbh.id || ':' || cm.meeting_time
+           AND e.detected_at < now() - interval '${REMINDER_MIN_NOTICE_HOURS} hours'
+       )
+     ON CONFLICT (key) DO NOTHING
+     RETURNING id`,
+    `INSERT INTO change_events (key, kind, variant, committee_id, summary, detail, occurred_at, baseline)
+     SELECT 'meeting:' || m.id || ':' || m.meeting_time, 'committee_meeting',
+            CASE WHEN EXISTS (SELECT 1 FROM change_events e WHERE e.ref = 'meeting:' || m.id)
+                 THEN 'rescheduled' ELSE 'scheduled' END,
+            m.non_standing_committee_id,
+            CASE WHEN EXISTS (SELECT 1 FROM change_events e WHERE e.ref = 'meeting:' || m.id)
+                 THEN 'Meeting moved' ELSE 'Meeting scheduled' END,
             m.location, m.meeting_time, $1
      FROM non_standing_committee_meetings m
-     WHERE m.meeting_time >= now() - ${SCHEDULE_LOOKBACK} AND m.non_standing_committee_id IS NOT NULL
+     WHERE m.meeting_time >= ${NOW_MT} - ${SCHEDULE_LOOKBACK} AND m.non_standing_committee_id IS NOT NULL
+       AND coalesce(m.status, '') <> 'CANCELED'
+     ON CONFLICT (key) DO NOTHING
+     RETURNING id`,
+    `INSERT INTO change_events (key, kind, variant, committee_id, summary, detail, occurred_at, baseline)
+     SELECT 'meeting-canceled:' || m.id || ':' || m.meeting_time, 'committee_meeting', 'canceled',
+            m.non_standing_committee_id, 'Meeting canceled', m.location, m.meeting_time, $1
+     FROM non_standing_committee_meetings m
+     WHERE m.meeting_time >= ${NOW_MT} - ${SCHEDULE_LOOKBACK}
+       AND m.status = 'CANCELED'
+       AND EXISTS (
+         SELECT 1 FROM change_events e
+         WHERE e.ref = 'meeting:' || m.id
+           AND NOT EXISTS (
+             SELECT 1 FROM change_events c
+             WHERE c.ref = 'meeting-canceled:' || m.id AND c.detected_at >= e.detected_at
+           )
+       )
      ON CONFLICT (key) DO NOTHING
      RETURNING id`,
   ]
@@ -109,9 +186,11 @@ async function queueDeliveries(eventIds: number[]): Promise<number> {
      INSERT INTO alert_deliveries (user_id, workspace_id, event_id, reasons)
      SELECT wm.user_id, m.workspace_id, m.event_id, array_agg(DISTINCT m.reason ORDER BY m.reason)
      FROM matches m
+     JOIN change_events ce ON ce.id = m.event_id
      JOIN workspace_members wm ON wm.workspace_id = m.workspace_id
      LEFT JOIN notification_preferences np ON np.user_id = wm.user_id
      WHERE coalesce(np.delivery, $2) <> 'off'
+       AND NOT (ce.variant = 'reminder' AND coalesce(np.hearing_reminders, true) = false)
        AND NOT EXISTS (
          SELECT 1 FROM alert_mutes am
          WHERE am.user_id = wm.user_id AND am.workspace_id = m.workspace_id
@@ -135,6 +214,7 @@ interface PendingAlert {
   event_id: number
   reasons: string[]
   kind: string
+  variant: string | null
   bill_id: number | null
   committee_id: number | null
   summary: string
@@ -152,16 +232,27 @@ function formatWhen(naive: string | null, withTime: boolean): string | null {
   const date = new Date(`${naive.replace(' ', 'T').slice(0, 19)}Z`)
   if (Number.isNaN(date.getTime())) return null
   const opts: Intl.DateTimeFormatOptions = { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' }
-  if (withTime) Object.assign(opts, { hour: 'numeric', minute: '2-digit' })
+  if (withTime) Object.assign(opts, { weekday: 'short', hour: 'numeric', minute: '2-digit' })
   return date.toLocaleString('en-US', opts)
+}
+
+const HEARING_SUBJECTS: Record<string, string> = {
+  scheduled: 'Hearing scheduled',
+  rescheduled: 'Hearing moved',
+  canceled: 'Hearing canceled',
+  reminder: 'Hearing reminder',
 }
 
 function renderEmail(alerts: PendingAlert[], digest: boolean): { subject: string; content: EmailContent } {
   const base = appBaseUrl()
   const count = alerts.length
-  const subject = digest
+  const onlyHearing = count === 1 && alerts[0].kind === 'bill_hearing' && alerts[0].variant ? alerts[0] : null
+  const hearingSubject = onlyHearing
+    ? `${HEARING_SUBJECTS[onlyHearing.variant!] ?? 'Hearing update'}: ${onlyHearing.bill_label ?? 'a bill you follow'}, ${formatWhen(onlyHearing.occurred_at, true) ?? ''}`
+    : null
+  const subject = hearingSubject ?? (digest
     ? `Your Rotunda Board digest: ${count} update${count === 1 ? '' : 's'}`
-    : `Rotunda Board: ${count} update${count === 1 ? '' : 's'} on bills and committees you follow`
+    : `Rotunda Board: ${count} update${count === 1 ? '' : 's'} on bills and committees you follow`)
 
   const byWorkspace = new Map<number, PendingAlert[]>()
   for (const a of alerts) byWorkspace.set(a.workspace_id, [...(byWorkspace.get(a.workspace_id) ?? []), a])
@@ -182,8 +273,15 @@ function renderEmail(alerts: PendingAlert[], digest: boolean): { subject: string
       const lines = group
         .map((a) => {
           const when = formatWhen(a.occurred_at, a.kind === 'bill_hearing' || a.kind === 'committee_meeting')
-          const parts = [escapeHtml(a.summary), when ? escapeHtml(when) : null, a.detail ? escapeHtml(a.detail) : null].filter(Boolean)
-          return `<li>${parts.join(' · ')}</li>`
+          const hearing = a.kind === 'bill_hearing'
+          const summary = hearing ? `<b>${escapeHtml(a.summary)}</b>` : escapeHtml(a.summary)
+          const parts = [summary, when ? escapeHtml(when) : null, a.detail ? escapeHtml(a.detail) : null].filter(Boolean)
+          // A link to the bill's testimony form, while there is still time to use it.
+          const testimony =
+            hearing && a.variant !== 'canceled' && a.bill_id != null
+              ? ` · <a href="${base}/bills/${a.bill_id}#testimony" style="color:#2b7f8c;">Prepare testimony</a>`
+              : ''
+          return `<li style="margin:0 0 4px;">${parts.join(' · ')}${testimony}</li>`
         })
         .join('')
       const reasons = [...new Set(group.flatMap((a) => a.reasons))]
@@ -193,7 +291,11 @@ function renderEmail(alerts: PendingAlert[], digest: boolean): { subject: string
   })
 
   const content: EmailContent = {
-    heading: digest ? 'Your daily digest' : `${count} update${count === 1 ? '' : 's'} for you`,
+    heading: onlyHearing
+      ? `${HEARING_SUBJECTS[onlyHearing.variant!] ?? 'Hearing update'}: ${onlyHearing.bill_label ?? 'a bill you follow'}`
+      : digest
+        ? 'Your daily digest'
+        : `${count} update${count === 1 ? '' : 's'} for you`,
     preheader: `${count} change${count === 1 ? '' : 's'} on bills and committees that you follow.`,
     bodyHtml: `<p style="margin:0;">Hi ${escapeHtml(alerts[0].user_name)}, these changed${digest ? ' since your last digest' : ''}:</p>
 ${sections.join('')}`,
@@ -204,6 +306,10 @@ ${sections.join('')}`,
   return { subject, content }
 }
 
+// Hearing alerts are time-sensitive (people must arrange testimony), so they
+// go out right away, also for people who chose the daily digest.
+const URGENT_KINDS = ['bill_hearing']
+
 async function sendPending(mode: 'immediate' | 'daily'): Promise<{ emails: number; alerts: number }> {
   // Claim first (sent_at set in the same statement that selects), so a
   // concurrent or repeated run can't send the same alert twice.
@@ -211,12 +317,16 @@ async function sendPending(mode: 'immediate' | 'daily'): Promise<{ emails: numbe
     `WITH claimed AS (
        UPDATE alert_deliveries d SET sent_at = now()
        FROM users u
-       LEFT JOIN notification_preferences np ON np.user_id = u.id
-       WHERE d.user_id = u.id AND d.sent_at IS NULL AND coalesce(np.delivery, $2) = $1
+       LEFT JOIN notification_preferences np ON np.user_id = u.id, change_events ev
+       WHERE d.user_id = u.id AND ev.id = d.event_id AND d.sent_at IS NULL
+         AND (
+           coalesce(np.delivery, $2) = $1
+           OR ($1 = 'immediate' AND coalesce(np.delivery, $2) = 'daily' AND ev.kind = ANY($3))
+         )
        RETURNING d.user_id, d.workspace_id, d.event_id, d.reasons
      )
      SELECT c.user_id, u.email, u.name AS user_name, c.workspace_id, w.name AS workspace_name,
-            c.event_id, c.reasons, e.kind, e.bill_id, e.committee_id, e.summary, e.detail, e.occurred_at,
+            c.event_id, c.reasons, e.kind, e.variant, e.bill_id, e.committee_id, e.summary, e.detail, e.occurred_at,
             CASE WHEN bt.code IS NOT NULL AND b.bill_number IS NOT NULL THEN bt.code || ' ' || b.bill_number
                  ELSE regexp_replace(dr.draft_number, '^([A-Za-z]+)(\\d+)$', '\\1 \\2') END AS bill_label,
             dr.short_title AS bill_title, nsc.name AS committee_name
@@ -229,7 +339,7 @@ async function sendPending(mode: 'immediate' | 'daily'): Promise<{ emails: numbe
      LEFT JOIN bill_types bt ON bt.id = b.bill_type_id
      LEFT JOIN non_standing_committees nsc ON nsc.id = e.committee_id
      ORDER BY c.user_id, w.name, e.bill_id NULLS LAST, e.committee_id, e.occurred_at NULLS LAST, e.id`,
-    [mode, DEFAULT_DELIVERY],
+    [mode, DEFAULT_DELIVERY, URGENT_KINDS],
   )
 
   const byUser = new Map<number, PendingAlert[]>()
