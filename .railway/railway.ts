@@ -84,6 +84,27 @@ export default defineRailway(() => {
     },
   });
 
+  // The hearing schedule for all standing committees (src/refreshHearings.ts).
+  // Each run sends hearing alerts and reminders, so it runs every hour.
+  // Offset to :15 so it does not start together with the other crons.
+  const cronRefreshHearings = service("cron-refresh-hearings", {
+    source: empty(),
+    root: "server",
+    deploy: {
+      startCommand: "npm run refresh-hearings",
+      cronSchedule: "15 * * * *",
+      restartPolicyType: "NEVER",
+    },
+    env: {
+      DATABASE_URL: db.env.DATABASE_URL,
+      NODE_ENV: "production",
+      APP_BASE_URL: preserve(),
+      RESEND_API_KEY: preserve(),
+      EMAIL_FROM_ADDRESS: preserve(),
+      MAINTAINER_EMAIL: preserve(),
+    },
+  });
+
   const cronScrape = service("cron-scrape", {
     source: empty(),
     root: "server",
@@ -195,6 +216,7 @@ export default defineRailway(() => {
       api,
       web,
       cronRefreshMeetings,
+      cronRefreshHearings,
       cronScrape,
       cronScrapeDetails,
       cronGenerateSummaries,

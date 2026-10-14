@@ -8,6 +8,7 @@
     "scrape": "tsx src/scrape.ts",
     "scrape:details": "tsx src/scrapeBillDetails.ts",
     "refresh-meetings": "tsx src/refreshCommitteeMeetings.ts",
+    "refresh-hearings": "tsx src/refreshHearings.ts",
     "seed": "tsx src/seedWorkspace.ts",
     "generate-summaries": "tsx src/generateSummaries.ts",
     "transcribe-hearings": "tsx src/transcribeHearings.ts",

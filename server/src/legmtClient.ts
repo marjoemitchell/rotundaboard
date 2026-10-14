@@ -5,6 +5,7 @@ import type {
   RawBillCosponsor,
   RawBillFilterPage,
   RawBillVote,
+  RawBillHearingSearchPage,
   RawCommitteeMeetingBillHearing,
   RawCommitteeTabsResponse,
   RawExecutiveAction,
@@ -144,5 +145,23 @@ export async function* iterateNonStandingCommitteeMeetings(committeeIds: number[
     for (const meeting of result.content) yield meeting
     if (result.content.length < PAGE_SIZE) break
     page += 1
+  }
+}
+
+// Every bill hearing for the given standing committees, in one paged search.
+// The per-bill endpoint (getHearingsForBill) needs one request for each bill.
+// This one needs about 8 requests for a full session, so refreshHearings.ts
+// can run each hour. Found in committees.legmt.gov's own bundle.
+export async function* iterateBillHearings(standingCommitteeIds: number[]) {
+  if (standingCommitteeIds.length === 0) return
+  for (let page = 0; ; page += 1) {
+    const url = `${BASE}/committees/v1/standingCommitteeMeetingBillHearings/search?limit=${PAGE_SIZE}&offset=${page}`
+    const result = await monitored(
+      'billHearingSearch',
+      () => postJson<RawBillHearingSearchPage>(url, { standingCommitteeIds }),
+      (p) => p.content,
+    )
+    for (const hearing of result.content) yield hearing
+    if (result.content.length < PAGE_SIZE || page + 1 >= result.totalPages) break
   }
 }

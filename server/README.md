@@ -12,6 +12,7 @@ schema for it — request shapes were reverse-engineered from live responses.
 | `npm run scrape` | Full pull: sessions, legislators, committees, bills for the target session | Slow — re-pulls every bill |
 | `npm run scrape:details` | Per-bill detail pass (status history, votes, cosponsors, amendments) | Slow, concurrency-limited |
 | `npm run refresh-meetings` | Interim-committee meeting times/locations/agendas only, for committees already in the DB | Fast — no bill data touched |
+| `npm run refresh-hearings` | The bill hearing schedule of all standing committees in one paged search, then hearing alerts and reminders | Fast: about 8 requests for a full session |
 | `npm run generate-summaries` | AI-generated bill summaries | Only needs to run after new bills appear |
 | `npm run send-alert-digest` | Daily email digest of change alerts (immediate alerts are sent by the scrape scripts themselves) | Cheap — database only, plus one email per person |
 | `npm run transcribe-hearings` | Finds newly posted committee hearing videos, ingests their captions, and produces speaker-attributed transcripts | Discovery + captions are free; diarization is free on the self-hosted GPU (WhisperX) or ~$0.006/audio-minute on the OpenAI fallback, plus one Claude call per hearing for speaker names |
@@ -27,7 +28,7 @@ often after the meeting row itself already exists in our DB with an empty
 
 **Production (Railway)** runs this on Railway's own cron scheduler — see
 `.railway/railway.ts` at the repo root for the `cron-refresh-meetings`
-(every 6h), `cron-scrape` (daily), `cron-scrape-details` (daily), and
+(every 6h), `cron-refresh-hearings` (every hour), `cron-scrape` (daily), `cron-scrape-details` (daily), and
 `cron-generate-summaries` (daily), and `cron-transcribe-hearings` (every 2h)
 service definitions. That's the source of
 truth for cadence; nothing local needs to run for the deployed app to stay
@@ -123,7 +124,8 @@ follow changes: a new bill status, a new amendment, a bill hearing scheduled or
 rescheduled, or a followed interim committee scheduling or moving a meeting.
 
 It runs at the end of every scrape (`scrape`, `scrape:details`,
-`refresh-meetings`) and once a day from `send-alert-digest`:
+`refresh-meetings`, `refresh-hearings`) and once a day from
+`send-alert-digest`:
 
 1. **Detect** — every alertable row is recorded as a `change_events` row keyed
    by the Legislature's own id (`status:<id>`, `amendment:<id>`,
@@ -138,6 +140,19 @@ It runs at the end of every scrape (`scrape`, `scrape:details`,
 4. **Send** each person's unsent alerts as one email — right away for
    `immediate` (the default), or in the daily digest for `daily`.
 
+Bill hearings have more rules:
+
+- A hearing alert goes out right away, also for people who chose the daily
+  digest, because a hearing can be only a few days away.
+- A canceled meeting, a canceled hearing, or a bill that is no longer on the
+  agenda (`committee_bill_hearings.removed_at`) gives a "Hearing canceled"
+  alert. This occurs only if people got an alert for that hearing.
+- A reminder goes out in the last 25 hours before a hearing, if the hearing
+  was announced more than 6 hours before. People can turn reminders off in
+  Settings → Email alerts (`notification_preferences.hearing_reminders`).
+- Scraped meeting times are Montana time with no time zone, so the queries
+  compare them with `now() AT TIME ZONE 'America/Denver'`.
+
 Emails go through `src/auth/email.ts` (Resend), so the scrape crons and the
 digest cron need `RESEND_API_KEY`, `APP_BASE_URL` (for links), and
 `EMAIL_FROM_ADDRESS`. While Resend is in test mode it only delivers to the
@@ -146,8 +161,8 @@ for anyone else.
 
 ## Scrape health checks
 
-`src/scrapeHealth.ts` checks each run of `scrape`, `scrape:details`, and
-`refresh-meetings`, because the data comes from an unpublished API that can
+`src/scrapeHealth.ts` checks each run of `scrape`, `scrape:details`,
+`refresh-meetings`, and `refresh-hearings`, because the data comes from an unpublished API that can
 change with no notice.
 
 - Each response from `bearbeta.legmt.gov` (and the committee pages from
@@ -163,7 +178,7 @@ change with no notice.
   stop.
 - The API server runs a check every hour. It sends an alert if a job has no
   successful run in its expected time (30 hours for the daily scrapes, 8
-  hours for `refresh-meetings`). This finds a cron that stopped.
+  hours for `refresh-meetings`, 4 hours for `refresh-hearings`). This finds a cron that stopped.
 - The dashboard shows when the data was last updated (`/api/data-freshness`).
 
 When the API changes on purpose, update `src/legmtShapes.ts` and

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import * as client from '../data/client'
 import type {
   BillDetail,
@@ -223,8 +223,21 @@ const TESTIMONY_STATUS_OPTIONS: { value: TestimonyStatus; label: string }[] = [
 ]
 
 function TestimonySection({ bill }: { bill: BillDetail }) {
+  const { hash } = useLocation()
+  // A hearing alert email links to /bills/:id#testimony: go to this section
+  // and open the draft form.
+  const linkedHere = hash === '#testimony'
+  const sectionRef = useRef<HTMLElement>(null)
   const [items, setItems] = useState<LoadState<Testimony[]>>({ status: 'loading' })
-  const [composing, setComposing] = useState(false)
+  const [composing, setComposing] = useState(linkedHere)
+
+  // Also when the bill page is already open: then the hash changes, but this
+  // component stays mounted.
+  useEffect(() => {
+    if (!linkedHere) return
+    setComposing(true)
+    sectionRef.current?.scrollIntoView({ block: 'start' })
+  }, [linkedHere])
   const [hearingId, setHearingId] = useState('')
   const [position, setPosition] = useState<NonNullable<Position> | ''>((bill.position ?? '') as NonNullable<Position> | '')
   const [draft, setDraft] = useState('')
@@ -282,7 +295,7 @@ function TestimonySection({ bill }: { bill: BillDetail }) {
   }
 
   return (
-    <section className={styles.section}>
+    <section className={styles.section} id="testimony" ref={sectionRef} aria-label="Testimony">
       <div className={styles.testimonyHead}>
         <div className="eyebrow">Testimony</div>
         {!composing && (

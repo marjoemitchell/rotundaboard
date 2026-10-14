@@ -195,7 +195,20 @@ export interface RawCommitteeMeeting {
 
 export interface RawCommitteeMeetingBillHearing {
   id: number
+  // 'CANCELED' when the bill is removed from the meeting agenda.
+  status?: string | null
   committeeMeeting: RawCommitteeMeeting
+}
+
+// One item from standingCommitteeMeetingBillHearings/search: the same as
+// above, with the bill id.
+export interface RawBillHearingSearchItem extends RawCommitteeMeetingBillHearing {
+  billId: number
+}
+
+export interface RawBillHearingSearchPage {
+  content: RawBillHearingSearchItem[]
+  totalPages: number
 }
 
 export interface RawExecutiveActionLegislatorVote {

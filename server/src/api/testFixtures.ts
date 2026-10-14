@@ -99,3 +99,46 @@ export async function createScrapeRunFixture(job: string, status: string, hoursA
     [job, status, hoursAgo],
   )
 }
+
+// A bill hearing on a standing committee meeting, as refreshHearings.ts
+// would store it. Negative ids mark fixtures for e2eCleanup.ts. Call it again
+// with the same ids to move, cancel, or remove the hearing.
+export async function upsertBillHearingFixture(input: {
+  billId: number
+  hearingId: number
+  meetingId: number
+  hoursFromNow: number
+  location: string
+  meetingStatus?: string | null
+  hearingStatus?: string | null
+  removed?: boolean
+}): Promise<{ committee: string }> {
+  if (input.hearingId >= 0 || input.meetingId >= 0) throw new Error('fixture ids must be negative')
+  const { rows } = await pool.query<{ id: number; name: string }>(
+    'SELECT id, name FROM standing_committees WHERE name IS NOT NULL ORDER BY id LIMIT 1',
+  )
+  if (!rows[0]) throw new Error('no standing committees to attach a hearing fixture to')
+  await pool.query(
+    `INSERT INTO committee_meetings (id, standing_committee_id, meeting_time, location, status)
+     VALUES ($1, $2, date_trunc('minute', (now() AT TIME ZONE 'America/Denver') + make_interval(secs => $3::float8 * 3600)), $4, $5)
+     ON CONFLICT (id) DO UPDATE SET meeting_time = EXCLUDED.meeting_time, location = $4, status = $5`,
+    [input.meetingId, rows[0].id, input.hoursFromNow, input.location, input.meetingStatus ?? 'SCHEDULED'],
+  )
+  await pool.query(
+    `INSERT INTO committee_bill_hearings (id, bill_id, committee_meeting_id, status, removed_at)
+     VALUES ($1, $2, $3, $4, CASE WHEN $5 THEN now() END)
+     ON CONFLICT (id) DO UPDATE SET status = $4, removed_at = CASE WHEN $5 THEN now() END`,
+    [input.hearingId, input.billId, input.meetingId, input.hearingStatus ?? null, Boolean(input.removed)],
+  )
+  return { committee: rows[0].name }
+}
+
+// Makes the "hearing scheduled" alert for a fixture hearing look older, so
+// that the reminder (which waits some hours after an announcement) can run.
+export async function ageHearingAlertFixture(hearingId: number, hours: number): Promise<void> {
+  await pool.query(
+    `UPDATE change_events SET detected_at = now() - make_interval(secs => $2::float8 * 3600)
+     WHERE key LIKE 'hearing:' || $1 || ':%'`,
+    [hearingId, hours],
+  )
+}

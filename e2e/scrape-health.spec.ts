@@ -106,6 +106,7 @@ test.describe('data freshness on the dashboard', () => {
     await addRun(page.request, 'scrape', 'ok', 40)
     await addRun(page.request, 'scrape:details', 'ok', 1)
     await addRun(page.request, 'refresh-meetings', 'ok', 1)
+    await addRun(page.request, 'refresh-hearings', 'ok', 1)
 
     await signUpFreshWorkspace(page)
     const freshness = page.getByLabel('Data freshness')
@@ -122,6 +123,7 @@ test.describe('data freshness on the dashboard', () => {
     await addRun(page.request, 'scrape', 'ok', 1)
     await addRun(page.request, 'scrape:details', 'ok', 1)
     await addRun(page.request, 'refresh-meetings', 'ok', 1)
+    await addRun(page.request, 'refresh-hearings', 'ok', 1)
 
     await signUpFreshWorkspace(page)
     await expect(page.getByLabel('Data freshness')).toHaveText('Legislature data updated 1h ago.')

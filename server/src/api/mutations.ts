@@ -395,6 +395,15 @@ export async function setAlertDelivery(userId: number, delivery: string) {
   )
 }
 
+/** Turns the reminder about 24 hours before a hearing on or off for this user. */
+export async function setHearingReminders(userId: number, enabled: boolean) {
+  await pool.query(
+    `INSERT INTO notification_preferences (user_id, delivery, hearing_reminders) VALUES ($1, 'immediate', $2)
+     ON CONFLICT (user_id) DO UPDATE SET hearing_reminders = $2, updated_at = now()`,
+    [userId, enabled],
+  )
+}
+
 const WATCH_TYPES = ['tracked_bills', 'subject_watch', 'followed_committee'] as const
 
 /** Turns one source of alerts on or off for this user in this workspace. */
