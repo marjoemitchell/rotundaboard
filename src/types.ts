@@ -103,6 +103,43 @@ export interface Amendment {
   number: number | null
   type: string | null
   billVersion: number | null
+  /** The section letter of a large bill (HB 2 uses A to E). */
+  section: string | null
+  /** The amendment file with the text changes, when the text job has it. */
+  documentId: string | null
+  /** A plain-language summary of the amendment (AI-generated). */
+  summary: string | null
+  postedAt: string | null
+}
+
+/** One version of the bill text: '1' (introduced), '2', ..., 'X' (enrolled). */
+export interface BillTextVersion {
+  key: string
+  label: string
+  postedAt: string | null
+}
+
+/** A mark in bill text: 0 none, 1 struck (removed from the law), 2 underlined (new law). */
+export type TextMark = 0 | 1 | 2 | 3
+/** Words with one mark. "\n" is a paragraph break. */
+export type TextRun = [text: string, mark: TextMark]
+
+export interface TextDiffPart {
+  op: '=' | '-' | '+'
+  runs: TextRun[]
+}
+
+export interface BillComparison {
+  from: BillTextVersion
+  to: BillTextVersion
+  parts: TextDiffPart[]
+}
+
+export interface AmendmentChanges {
+  summary: string | null
+  baseVersion: { key: string; label: string }
+  /** Only the changed paragraphs. */
+  paragraphs: TextDiffPart[][]
 }
 
 export interface AiSummary {
@@ -121,6 +158,7 @@ export interface BillDetail extends Bill {
   cosponsors: Cosponsor[]
   hearings: BillHearingRecord[]
   amendments: Amendment[]
+  textVersions: BillTextVersion[]
 }
 
 export interface LegislativeSession {

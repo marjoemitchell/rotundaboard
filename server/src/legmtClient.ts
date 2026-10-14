@@ -8,6 +8,7 @@ import type {
   RawBillHearingSearchPage,
   RawCommitteeMeetingBillHearing,
   RawCommitteeTabsResponse,
+  RawDocument,
   RawExecutiveAction,
   RawLegislator,
   RawNonStandingCommittee,
@@ -164,4 +165,55 @@ export async function* iterateBillHearings(standingCommitteeIds: number[]) {
     for (const hearing of result.content) yield hearing
     if (result.content.length < PAGE_SIZE || page + 1 >= result.totalPages) break
   }
+}
+
+// Bill text documents (versions and amendments) from the document store.
+// The store finds the files by a folder path: legislature ordinal (69),
+// session ordinals (20251), and the bill type and number. A bill that has no
+// documents yet gives a 404 "No Folder found" error. That is not a failure,
+// so these functions return an empty list for it.
+export interface BillDocumentRef {
+  legislatureOrdinal: number
+  sessionOrdinals: string
+  billType: string
+  billNumber: number
+}
+
+async function getDocumentList(endpoint: string, path: string, ref: BillDocumentRef): Promise<RawDocument[]> {
+  const params = new URLSearchParams({
+    legislatureOrdinal: String(ref.legislatureOrdinal),
+    sessionOrdinal: ref.sessionOrdinals,
+    billType: ref.billType,
+    billNumber: String(ref.billNumber),
+  })
+  const url = `${BASE}/docs/v1/documents/${path}?${params}`
+  return monitored(
+    endpoint,
+    async () => {
+      const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } })
+      if (res.status === 404) return []
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        throw new Error(`GET ${url} -> ${res.status}: ${body.slice(0, 300)}`)
+      }
+      return (await res.json()) as RawDocument[]
+    },
+    asList,
+  )
+}
+
+export function getBillVersionDocuments(ref: BillDocumentRef): Promise<RawDocument[]> {
+  return getDocumentList('billVersionDocuments', 'getBillVersions', ref)
+}
+
+export function getBillAmendmentDocuments(ref: BillDocumentRef): Promise<RawDocument[]> {
+  return getDocumentList('billAmendmentDocuments', 'getBillAmendments', ref)
+}
+
+/** The bytes of a document (a PDF for bill versions and amendments). */
+export async function getDocumentContent(documentId: number): Promise<Uint8Array> {
+  const url = `${BASE}/docs/v1/documents/getContent?documentId=${documentId}`
+  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } })
+  if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`)
+  return new Uint8Array(await res.arrayBuffer())
 }

@@ -31,6 +31,8 @@ const HEARING_ACTIVE =
   "(coalesce(cm.status, '') <> 'CANCELED' AND coalesce(cbh.status, '') <> 'CANCELED' AND cbh.removed_at IS NULL)"
 const REMINDER_HOURS = 25
 const REMINDER_MIN_NOTICE_HOURS = 6
+// The maximum time that an amendment alert waits for the amendment summary.
+const AMENDMENT_SUMMARY_WAIT_HOURS = 12
 
 export type DeliveryMode = 'immediate' | 'daily' | 'off'
 export const DEFAULT_DELIVERY: DeliveryMode = 'immediate'
@@ -53,14 +55,25 @@ async function detectChanges(): Promise<{ newEventIds: number[]; baseline: boole
      WHERE NOT EXISTS (SELECT 1 FROM change_events e WHERE e.key = 'status:' || bs.id)
      ON CONFLICT (key) DO NOTHING
      RETURNING id`,
+    // An amendment alert waits for the amendment summary
+    // (refreshBillTexts.ts), so that the email can tell what the amendment
+    // does. It waits a maximum of ${AMENDMENT_SUMMARY_WAIT_HOURS} hours.
     `INSERT INTO change_events (key, kind, bill_id, summary, detail, baseline)
      SELECT 'amendment:' || a.id, 'amendment', a.bill_id,
             'New amendment' || coalesce(' #' || a.number::text, ''),
-            nullif(concat_ws(' · ', a.type, CASE WHEN a.bill_version IS NOT NULL THEN 'to version ' || a.bill_version END), ''),
+            coalesce(ad.summary,
+              nullif(concat_ws(' · ', a.type, CASE WHEN a.bill_version IS NOT NULL THEN 'to version ' || a.bill_version END), '')),
             $1
      FROM amendments a
+     LEFT JOIN LATERAL (
+       SELECT summary FROM amendment_documents ad
+       WHERE ad.amendment_id = a.id AND ad.summary IS NOT NULL
+       ORDER BY ad.posted_at DESC NULLS LAST LIMIT 1
+     ) ad ON true
      WHERE a.bill_id IS NOT NULL
        AND NOT EXISTS (SELECT 1 FROM change_events e WHERE e.key = 'amendment:' || a.id)
+       AND ($1 OR ad.summary IS NOT NULL
+            OR a.first_seen_at < now() - interval '${AMENDMENT_SUMMARY_WAIT_HOURS} hours')
      ON CONFLICT (key) DO NOTHING
      RETURNING id`,
     // Keyed by meeting time too, so a hearing that moves is a new event
@@ -275,13 +288,17 @@ function renderEmail(alerts: PendingAlert[], digest: boolean): { subject: string
           const when = formatWhen(a.occurred_at, a.kind === 'bill_hearing' || a.kind === 'committee_meeting')
           const hearing = a.kind === 'bill_hearing'
           const summary = hearing ? `<b>${escapeHtml(a.summary)}</b>` : escapeHtml(a.summary)
-          const parts = [summary, when ? escapeHtml(when) : null, a.detail ? escapeHtml(a.detail) : null].filter(Boolean)
+          // The detail of an amendment is its summary: show it on its own line.
+          const amendment = a.kind === 'amendment'
+          const parts = [summary, when ? escapeHtml(when) : null, a.detail && !amendment ? escapeHtml(a.detail) : null].filter(Boolean)
+          const below =
+            amendment && a.detail ? `<div style="margin:2px 0 0;color:#5c6b80;">${escapeHtml(a.detail)}</div>` : ''
           // A link to the bill's testimony form, while there is still time to use it.
           const testimony =
             hearing && a.variant !== 'canceled' && a.bill_id != null
               ? ` · <a href="${base}/bills/${a.bill_id}#testimony" style="color:#2b7f8c;">Prepare testimony</a>`
               : ''
-          return `<li style="margin:0 0 4px;">${parts.join(' · ')}${testimony}</li>`
+          return `<li style="margin:0 0 4px;">${parts.join(' · ')}${testimony}${below}</li>`
         })
         .join('')
       const reasons = [...new Set(group.flatMap((a) => a.reasons))]

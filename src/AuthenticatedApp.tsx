@@ -24,6 +24,7 @@ import { TestimonyPage } from './pages/TestimonyPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { HearingsPage } from './pages/HearingsPage'
 import { HearingTranscriptPage } from './pages/HearingTranscriptPage'
+import { BillComparePage } from './pages/BillComparePage'
 import type { Bill, FilterState, LoadState, Position } from './types'
 import styles from './App.module.css'
 
@@ -355,6 +356,7 @@ export function AuthenticatedApp() {
                 />
               }
             />
+            <Route path="/bills/:id/compare" element={<BillComparePage />} />
             <Route path="/sessions" element={<SessionsPage />} />
             <Route path="/sessions/:sessionId" element={<SessionBillsPage />} />
             <Route path="/notes" element={<NotesPage />} />

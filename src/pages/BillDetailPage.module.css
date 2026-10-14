@@ -633,3 +633,32 @@
   line-height: 1.5;
   color: var(--ink);
 }
+
+.amendment {
+  padding: 6px 0 8px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.amendment:last-of-type {
+  border-bottom: none;
+}
+
+.amendmentSummary {
+  margin: 4px 0 6px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.amendmentChanges {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--paper);
+  border-radius: 4px;
+}
+
+.amendmentNote {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--faint);
+}

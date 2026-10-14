@@ -53,6 +53,7 @@ npm run scrape               # full scrape of the target session
 npm run scrape:details       # votes, amendments, and hearings for each bill
 npm run refresh-meetings     # interim committee meetings and materials
 npm run refresh-hearings     # bill hearing schedule, hearing alerts
+npm run refresh-bill-texts   # bill version and amendment text, amendment summaries
 npm run transcribe-hearings  # find hearing videos and make transcripts
 npm run send-alert-digest    # daily digest of change alerts
 ```
@@ -86,6 +87,7 @@ The API reads `server/.env`. See `server/.env.example` for the variables.
 ## Data sources
 
 - Bills, legislators, and committees: `bearbeta.legmt.gov`, an unpublished JSON API (`server/src/legmtClient.ts`).
+- Bill version and amendment text: PDF files in the document store of the same API (`docs/v1`). See "Bill text" in `server/README.md`.
 - Committee meeting materials: the `legmt.gov` WordPress site.
 - Hearing video: the Nomad Media archive at `streaming-video.legmt.gov` (`server/src/nomadClient.ts`).
   The media CDN sends no CORS headers. The browser plays hearing audio through the API proxy at `/api/hearings/:id/audio/`.

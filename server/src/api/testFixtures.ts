@@ -142,3 +142,62 @@ export async function ageHearingAlertFixture(hearingId: number, hours: number): 
     [hearingId, hours],
   )
 }
+
+// Bill text fixtures: two versions of a bill, and one amendment with a
+// summary. The text is small and known, so a test can check the redline.
+// Negative ids mark fixtures for e2eCleanup.ts. The fixture replaces the
+// stored text of the bill.
+export async function billTextFixture(input: {
+  billId: number
+  amendmentId: number
+  documentId: number
+  summary?: string | null
+  /** Hours since the amendment first appeared. */
+  amendmentAgeHours?: number
+}): Promise<{ amendmentNumber: number }> {
+  const { changedParagraphs, diffParagraphs } = await import('../billText.js')
+  type Paragraph = import('../billText.js').Paragraph
+  const v1: Paragraph[] = [
+    [['Section 1. Fees.', 0]],
+    [['The license fee is', 0], [' ', 0], ['$25', 1], [' ', 0], ['$40', 2], [' for each year.', 0]],
+    [['Section 2. Effective date. This act is effective July 1, 2027.', 0]],
+  ]
+  const v2: Paragraph[] = [
+    [['Section 1. Fees.', 0]],
+    [['The license fee is', 0], [' ', 0], ['$25', 1], [' ', 0], ['$35', 2], [' for each year.', 0]],
+    [['A veteran does not pay the fee.', 2]],
+    [['Section 2. Effective date. This act is effective July 1, 2027.', 0]],
+  ]
+  await pool.query(`DELETE FROM amendment_documents WHERE bill_id = $1`, [input.billId])
+  await pool.query(`DELETE FROM bill_text_versions WHERE bill_id = $1`, [input.billId])
+  await pool.query(
+    `INSERT INTO bill_text_versions (id, bill_id, version_key, file_name, posted_at, paragraphs) VALUES
+       ($1 - 1, $2, '1', 'E2E_1.pdf', now() - interval '20 days', $3),
+       ($1 - 2, $2, '2', 'E2E_2.pdf', now() - interval '10 days', $4)`,
+    [input.documentId, input.billId, JSON.stringify(v1), JSON.stringify(v2)],
+  )
+  const amendmentNumber = Math.abs(input.amendmentId) % 1_000_000
+  await pool.query(
+    `INSERT INTO amendments (id, bill_id, bill_version, number, type, section, first_seen_at)
+     VALUES ($1, $2, 1, $3, 'COMMITTEE', 'committee', now() - make_interval(secs => $4::float8 * 3600))
+     ON CONFLICT (id) DO UPDATE SET first_seen_at = EXCLUDED.first_seen_at`,
+    [input.amendmentId, input.billId, amendmentNumber, input.amendmentAgeHours ?? 0],
+  )
+  const changes = changedParagraphs(diffParagraphs(v1, v2))
+  await pool.query(
+    `INSERT INTO amendment_documents
+       (id, bill_id, amendment_id, base_name, bill_version, number, file_name, posted_at, changes, summary, summarized_at)
+     VALUES ($1, $2, $3, $7, 1, $4, 'E2E_amendment.pdf', now() - interval '12 days', $5, $6::text,
+             CASE WHEN $6::text IS NOT NULL THEN now() END)`,
+    [
+      input.documentId,
+      input.billId,
+      input.amendmentId,
+      amendmentNumber,
+      JSON.stringify(changes),
+      input.summary ?? null,
+      `E2E.001.${amendmentNumber}`,
+    ],
+  )
+  return { amendmentNumber }
+}

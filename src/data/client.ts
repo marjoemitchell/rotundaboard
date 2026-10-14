@@ -12,6 +12,8 @@ import type {
   Activity,
   AuthSession,
   Bill,
+  AmendmentChanges,
+  BillComparison,
   BillDetail,
   Brief,
   FollowedCommittee,
@@ -169,6 +171,14 @@ export function getBills(): Promise<Bill[]> {
 
 export function getBillDetail(id: string): Promise<BillDetail> {
   return getJson(`/api/bills/${id}`)
+}
+
+export function compareBillVersions(billId: string, from: string, to: string): Promise<BillComparison> {
+  return getJson(`/api/bills/${billId}/compare?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+}
+
+export function getAmendmentChanges(billId: string, documentId: string): Promise<AmendmentChanges> {
+  return getJson(`/api/bills/${billId}/amendment-documents/${documentId}`)
 }
 
 export function getBrief(): Promise<Brief> {

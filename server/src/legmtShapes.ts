@@ -204,6 +204,8 @@ const committeeTabs = {
   tabs: [{ tabTitle: 'string', sections: [{ sectionTitle: 'string?', layouts: [{ layout: 'string', content: 'string?' }] }] }],
 } satisfies Shape
 
+const billDocument = { id: 'number', fileName: 'string', date: 'string?', creation: 'string?' } satisfies Shape
+
 export interface EndpointSpec {
   /** The shape of one item. A list endpoint checks each item. */
   item: Shape
@@ -224,6 +226,8 @@ export const ENDPOINTS: Record<string, EndpointSpec> = {
   billHearings: { item: { id: 'number', status: 'string?', committeeMeeting }, expectItems: false },
   billHearingSearch: { item: { id: 'number', billId: 'number', status: 'string?', committeeMeeting }, expectItems: false },
   executiveActions: { item: executiveAction, expectItems: false },
+  billVersionDocuments: { item: billDocument, expectItems: false },
+  billAmendmentDocuments: { item: billDocument, expectItems: false },
   nonStandingCommitteeMeetings: { item: nonStandingCommitteeMeeting, expectItems: false },
   committeeTabs: { item: committeeTabs, expectItems: false },
 }

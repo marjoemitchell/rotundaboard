@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import * as client from '../data/client'
 import type {
+  Amendment,
+  AmendmentChanges,
   BillDetail,
   BillVote,
   ExecutiveAction,
@@ -21,6 +23,7 @@ import { EmptyState } from '../components/shared/EmptyState'
 import { Tooltip } from '../components/shared/Tooltip'
 import { MOMENTUM_EXPLANATION } from '../components/shared/MomentumBar'
 import { OutcomeBadge } from '../components/shared/OutcomeBadge'
+import { RedlineParagraph, toParagraphs } from '../components/billText/Redline'
 import styles from './BillDetailPage.module.css'
 
 function formatDraftNumber(draftNumber: string): string {
@@ -736,19 +739,9 @@ export function BillDetailPage({
             </section>
           )}
 
-          {bill.amendments.length > 0 && (
-            <section className={styles.section}>
-              <div className="eyebrow">Amendments ({bill.amendments.length})</div>
-              {bill.amendments.map((a) => (
-                <div key={a.id} className={styles.row}>
-                  <span className={styles.rowLabel}>
-                    #{a.number} {a.type ? `(${a.type})` : ''}
-                  </span>
-                  <span className={styles.rowValue}>{a.billVersion ? `v${a.billVersion}` : ''}</span>
-                </div>
-              ))}
-            </section>
-          )}
+          <BillTextSection bill={bill} />
+
+          {bill.amendments.length > 0 && <AmendmentsSection bill={bill} />}
 
           <TagsSection billId={bill.id} />
 
@@ -757,6 +750,96 @@ export function BillDetailPage({
           <NotesSection billId={bill.id} />
         </div>
       </div>
+    </div>
+  )
+}
+
+// The versions of the bill text, with a link to compare them.
+function BillTextSection({ bill }: { bill: BillDetail }) {
+  if (bill.textVersions.length === 0) return null
+  return (
+    <section className={styles.section} aria-label="Bill text">
+      <div className={styles.testimonyHead}>
+        <div className="eyebrow">Bill text</div>
+        {bill.textVersions.length > 1 && (
+          <Link to={`/bills/${bill.id}/compare`} className={styles.testimonyAddLink}>
+            Compare versions
+          </Link>
+        )}
+      </div>
+      {bill.textVersions.map((v) => (
+        <div key={v.key} className={styles.row}>
+          <span className={styles.rowLabel}>{v.label}</span>
+          <span className={styles.rowValue}>{v.postedAt ? formatDate(v.postedAt) : ''}</span>
+        </div>
+      ))}
+    </section>
+  )
+}
+
+// The amendments, each with its AI summary and the text that it changes.
+function AmendmentsSection({ bill }: { bill: BillDetail }) {
+  const versionName = (n: number | null) =>
+    n == null ? null : (bill.textVersions.find((v) => v.key === String(n))?.label ?? `version ${n}`)
+  const hasSummary = bill.amendments.some((a) => a.summary)
+  return (
+    <section className={styles.section} aria-label="Amendments">
+      <div className="eyebrow">Amendments ({bill.amendments.length})</div>
+      {bill.amendments.map((a) => (
+        <AmendmentRow key={a.id} billId={bill.id} amendment={a} baseName={versionName(a.billVersion)} />
+      ))}
+      {hasSummary && (
+        <div className={styles.amendmentNote}>
+          Summaries are AI-generated from the amendment text. Verify against the official record.
+        </div>
+      )}
+    </section>
+  )
+}
+
+function AmendmentRow({ billId, amendment: a, baseName }: { billId: string; amendment: Amendment; baseName: string | null }) {
+  const [open, setOpen] = useState(false)
+  const [changes, setChanges] = useState<LoadState<AmendmentChanges>>({ status: 'loading' })
+
+  useEffect(() => {
+    if (!open || !a.documentId || changes.status === 'ready') return
+    let cancelled = false
+    client
+      .getAmendmentChanges(billId, a.documentId)
+      .then((c) => !cancelled && setChanges({ status: 'ready', data: c }))
+      .catch(() => !cancelled && setChanges({ status: 'empty' }))
+    return () => {
+      cancelled = true
+    }
+  }, [open, a.documentId, billId, changes.status])
+
+  const name = `Amendment ${a.section ? `${a.section}.` : '#'}${a.number ?? ''}`
+  const meta = [a.type ? a.type.toLowerCase() : null, baseName ? `to ${baseName}` : null].filter(Boolean).join(' · ')
+  return (
+    <div className={styles.amendment} data-testid="amendment">
+      <div className={styles.row}>
+        <span className={styles.rowLabel}>{name}</span>
+        <span className={styles.rowValue}>{meta}</span>
+      </div>
+      {a.summary && <p className={styles.amendmentSummary}>{a.summary}</p>}
+      {a.documentId && (
+        <button className={styles.testimonyAddLink} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          {open ? 'Hide the changes' : 'Show the changes'}
+        </button>
+      )}
+      {open && changes.status === 'loading' && <div className="skeleton" style={{ height: 60, marginTop: 8 }} />}
+      {open && changes.status === 'empty' && <div className={styles.amendmentNote}>The changes couldn’t be loaded.</div>}
+      {open && changes.status === 'ready' && (
+        <div className={styles.amendmentChanges} aria-label={`Changes of ${name}`} role="region">
+          {changes.data.paragraphs.length === 0 ? (
+            <div className={styles.amendmentNote}>This amendment makes no change to the bill text.</div>
+          ) : (
+            changes.data.paragraphs
+              .flatMap((parts) => toParagraphs(parts))
+              .map((pieces, i) => <RedlineParagraph key={i} pieces={pieces} />)
+          )}
+        </div>
+      )}
     </div>
   )
 }

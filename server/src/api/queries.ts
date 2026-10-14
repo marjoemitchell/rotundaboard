@@ -12,6 +12,7 @@
 // without that, a valid session in one workspace could read a row belonging
 // to another just by knowing its numeric id.
 import { pool } from '../db.js'
+import { versionLabel, versionOrder } from '../billText.js'
 import { computeMomentum, determineOutcome, type StatusPoint } from '../momentum.js'
 
 function formatIdentifier(billTypeCode: string | null, billNumber: number | null, draftNumber: string): string {
@@ -763,7 +764,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
   const core = coreRows[0]
   if (!core) return null
 
-  const [statusRows, statusHistoryRows, voteRows, executiveActionRows, cosponsorRows, hearingRows, amendmentRows] =
+  const [statusRows, statusHistoryRows, voteRows, executiveActionRows, cosponsorRows, hearingRows, amendmentRows, versionRows] =
     await Promise.all([
       pool.query<{ occurred_at: string; progress_code: number | null }>(
         `SELECT bs.occurred_at, pc.code AS progress_code
@@ -853,8 +854,32 @@ export async function getBillDetail(billId: number, workspaceId: number) {
          ORDER BY cm.meeting_time ASC`,
         [billId],
       ),
-      pool.query<{ id: number; number: number | null; type: string | null; bill_version: number | null }>(
-        `SELECT id, number, type, bill_version FROM amendments WHERE bill_id = $1 ORDER BY number ASC`,
+      pool.query<{
+        id: number
+        number: number | null
+        type: string | null
+        bill_version: number | null
+        section: string | null
+        document_id: number | null
+        summary: string | null
+        posted_at: string | null
+      }>(
+        // The newest amendment file of each amendment (refreshBillTexts.ts).
+        `SELECT a.id, a.number, a.type, a.bill_version, a.section,
+                ad.id AS document_id, ad.summary, ad.posted_at
+         FROM amendments a
+         LEFT JOIN LATERAL (
+           SELECT id, summary, posted_at FROM amendment_documents
+           WHERE amendment_id = a.id AND changes IS NOT NULL
+           ORDER BY posted_at DESC NULLS LAST LIMIT 1
+         ) ad ON true
+         WHERE a.bill_id = $1
+         ORDER BY a.bill_version ASC NULLS LAST, CASE WHEN a.section ~ '^[A-Z]$' THEN a.section END ASC NULLS FIRST,
+                  a.number ASC`,
+        [billId],
+      ),
+      pool.query<{ version_key: string; posted_at: string | null }>(
+        `SELECT version_key, posted_at FROM bill_text_versions WHERE bill_id = $1`,
         [billId],
       ),
     ])
@@ -978,7 +1003,15 @@ export async function getBillDetail(billId: number, workspaceId: number) {
       number: r.number,
       type: r.type,
       billVersion: r.bill_version,
+      // HB 2 groups its amendments by section letter (A to E).
+      section: r.section && /^[A-Z]$/.test(r.section) ? r.section : null,
+      documentId: r.document_id != null ? String(r.document_id) : null,
+      summary: r.summary,
+      postedAt: r.posted_at,
     })),
+    textVersions: versionRows.rows
+      .map((r) => ({ key: r.version_key, label: versionLabel(r.version_key), postedAt: r.posted_at }))
+      .sort((a, b) => versionOrder(a.key) - versionOrder(b.key)),
   }
 }
 
