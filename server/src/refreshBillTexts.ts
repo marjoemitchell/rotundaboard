@@ -24,6 +24,7 @@ import * as api from './legmtClient.js'
 import { runAlertsAfterScrape } from './alerts.js'
 import { withScrapeMonitoring } from './scrapeHealth.js'
 import { runWithConcurrency } from './concurrency.js'
+import { isCredentialError } from './anthropicErrors.js'
 import {
   changedParagraphs,
   describeChanges,
@@ -237,7 +238,11 @@ async function summarizeAmendments(): Promise<number> {
       : undefined,
   })
   let count = 0
+  let failed = 0
+  let badKey = false
   await runWithConcurrency(rows, SUMMARY_CONCURRENCY, async (row) => {
+    // With a bad API key, all calls fail. Stop after the first one.
+    if (badKey) return
     let summary = NO_CHANGE_SUMMARY
     let model: string | null = null
     if (row.changes.length > 0) {
@@ -259,7 +264,12 @@ async function summarizeAmendments(): Promise<number> {
           .trim()
         model = SUMMARY_MODEL
       } catch (err) {
+        failed += 1
         console.error(`summary failed for amendment document ${row.id}:`, err instanceof Error ? err.message : err)
+        if (isCredentialError(err)) {
+          badKey = true
+          console.error('the Anthropic API key is not valid: stopping the summaries. Fix ANTHROPIC_API_KEY.')
+        }
         return
       }
     }
@@ -270,6 +280,9 @@ async function summarizeAmendments(): Promise<number> {
     )
     count += 1
   })
+  // A failed summary ends the run with an error (see main), so that Railway
+  // shows the run as failed. The next run tries the summary again.
+  if (failed > 0) process.exitCode = 1
   return count
 }
 

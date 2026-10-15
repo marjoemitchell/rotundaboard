@@ -17,6 +17,7 @@ import 'dotenv/config'
 import Anthropic from '@anthropic-ai/sdk'
 import { betaJSONSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/beta/json-schema'
 import { pool } from './db.js'
+import { isCredentialError } from './anthropicErrors.js'
 
 export const SUMMARY_MODEL = 'claude-sonnet-5-5'
 const DEFAULT_LIMIT = 5
@@ -197,6 +198,7 @@ async function main() {
         : undefined,
     })
     let done = 0
+    let failed = 0
     for (const recording of list) {
       try {
         const summary = await summarize(client, recording)
@@ -210,14 +212,24 @@ async function main() {
         done += 1
         console.log(`summarized hearing ${recording.id} (${recording.committee_name}): ${summary.topics.length} topics`)
       } catch (err) {
+        failed += 1
         const message = err instanceof Error ? err.message : String(err)
+        console.error(`summary failed for hearing ${recording.id}:`, message)
+        // A bad API key is not a problem of the hearing. Do not use one of
+        // its attempts, and stop: the other calls fail in the same way.
+        if (isCredentialError(err)) {
+          console.error('the Anthropic API key is not valid: stopping. Fix ANTHROPIC_API_KEY.')
+          break
+        }
         await pool.query(
           `UPDATE hearing_recordings SET ai_summary_attempts = ai_summary_attempts + 1, ai_summary_error = $2 WHERE id = $1`,
           [recording.id, message.slice(0, 1000)],
         )
-        console.error(`summary failed for hearing ${recording.id}:`, message)
       }
     }
+    // A failed summary ends the run with an error, so that Railway shows the
+    // run as failed.
+    if (failed > 0) process.exitCode = 1
     console.log(`summarized ${done} of ${list.length} hearings`)
   } finally {
     await lockClient.query('SELECT pg_advisory_unlock($1)', [ADVISORY_LOCK_KEY]).catch(() => undefined)
