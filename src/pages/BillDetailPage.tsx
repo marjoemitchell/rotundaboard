@@ -779,8 +779,8 @@ function BillTextSection({ bill }: { bill: BillDetail }) {
 
 // The amendments, each with its AI summary and the text that it changes.
 function AmendmentsSection({ bill }: { bill: BillDetail }) {
-  const versionName = (n: number | null) =>
-    n == null ? null : (bill.textVersions.find((v) => v.key === String(n))?.label ?? `version ${n}`)
+  // The bill version that the amendment changes, as words in a sentence.
+  const versionName = (n: number | null) => (n == null ? null : n === 1 ? 'the introduced bill' : `version ${n}`)
   const hasSummary = bill.amendments.some((a) => a.summary)
   return (
     <section className={styles.section} aria-label="Amendments">
@@ -814,13 +814,15 @@ function AmendmentRow({ billId, amendment: a, baseName }: { billId: string; amen
   }, [open, a.documentId, billId, changes.status])
 
   const name = `Amendment ${a.section ? `${a.section}.` : '#'}${a.number ?? ''}`
-  const meta = [a.type ? a.type.toLowerCase() : null, baseName ? `to ${baseName}` : null].filter(Boolean).join(' · ')
+  // COMMITTEE (offered in a committee) or FLOOR (offered in a floor debate).
+  const type = a.type ? a.type.charAt(0) + a.type.slice(1).toLowerCase() : null
   return (
     <div className={styles.amendment} data-testid="amendment">
       <div className={styles.row}>
-        <span className={styles.rowLabel}>{name}</span>
-        <span className={styles.rowValue}>{meta}</span>
+        <span className={styles.amendmentName}>{name}</span>
+        {type && <span className={styles.rowValue}>{type}</span>}
       </div>
+      {baseName && <div className={styles.amendmentBase}>Changes {baseName}</div>}
       {a.summary && <p className={styles.amendmentSummary}>{a.summary}</p>}
       {a.documentId && (
         <button className={styles.testimonyAddLink} onClick={() => setOpen((o) => !o)} aria-expanded={open}>

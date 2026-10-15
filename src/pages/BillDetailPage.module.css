@@ -662,3 +662,14 @@
   font-size: 13px;
   color: var(--faint);
 }
+
+.amendmentName {
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.amendmentBase {
+  font-size: 14px;
+  color: var(--muted);
+}

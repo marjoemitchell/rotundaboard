@@ -82,7 +82,8 @@ test.describe('bill text', () => {
     await page.goto(`/bills/${billId}`)
     const amendment = page.getByTestId('amendment').filter({ hasText: `Amendment #${amendmentNumber}` })
     await expect(amendment.getByText(SUMMARY)).toBeVisible()
-    await expect(amendment.getByText('to Introduced')).toBeVisible()
+    await expect(amendment.getByText('Committee', { exact: true })).toBeVisible()
+    await expect(amendment.getByText('Changes the introduced bill')).toBeVisible()
     await expect(page.getByText('Summaries are AI-generated from the amendment text.')).toBeVisible()
 
     await amendment.getByRole('button', { name: 'Show the changes' }).click()
