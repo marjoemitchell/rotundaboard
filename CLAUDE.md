@@ -55,6 +55,7 @@ npm run refresh-meetings     # interim committee meetings and materials
 npm run refresh-hearings     # bill hearing schedule, hearing alerts
 npm run refresh-bill-texts   # bill version and amendment text, amendment summaries
 npm run transcribe-hearings  # find hearing videos and make transcripts
+npm run summarize-hearings   # AI summaries of hearing transcripts
 npm run send-alert-digest    # daily digest of change alerts
 ```
 

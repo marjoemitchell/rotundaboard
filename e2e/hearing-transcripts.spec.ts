@@ -64,6 +64,46 @@ test.describe('hearing transcript page', () => {
     await expect(transcriptLines(page).nth(2)).not.toHaveAttribute('aria-current', 'true')
   })
 
+  test('shows the AI summary with topics and decisions; a topic time plays the recording from there', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const hearing = await createHearingFixture(page.request, {
+      durationSeconds: 1500,
+      speakers: SPEAKERS,
+      segments: segments(),
+      aiSummary: {
+        overview: 'The committee heard testimony on the property tax study and reviewed agency monitoring.',
+        topics: [
+          { title: 'Property tax study', summary: 'Pat Witness spoke about the property tax study.', startSeconds: 41 },
+          { title: 'Agency monitoring', summary: 'The chair started the agency monitoring report.', startSeconds: 300 },
+        ],
+        actions: [{ text: 'Staff will bring a draft bill to the next meeting.', startSeconds: null }],
+      },
+    })
+
+    await page.goto(`/hearings/recordings/${hearing.id}`)
+    const summary = page.getByRole('region', { name: 'Summary' })
+    await expect(summary.getByText('AI-generated', { exact: true })).toBeVisible()
+    await expect(summary).toContainText('The committee heard testimony on the property tax study')
+    const topics = summary.getByRole('list', { name: 'Topics' }).getByRole('listitem')
+    await expect(topics).toHaveCount(2)
+    await expect(topics.nth(1)).toContainText('Agency monitoring')
+    await expect(summary.getByRole('list', { name: 'Decisions and next steps' })).toContainText(
+      'Staff will bring a draft bill to the next meeting.',
+    )
+
+    await topics.nth(1).getByRole('button', { name: '5:00' }).click()
+    await expect(page.getByTestId('player-clock')).toHaveText('5:00 / 25:00')
+    await expect(transcriptLines(page).nth(2)).toHaveAttribute('aria-current', 'true')
+  })
+
+  test('a hearing with no AI summary yet shows no summary', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const hearing = await createHearingFixture(page.request, { speakers: SPEAKERS, segments: segments() })
+    await page.goto(`/hearings/recordings/${hearing.id}`)
+    await expect(transcriptLines(page)).toHaveCount(3)
+    await expect(page.getByRole('region', { name: 'Summary' })).toHaveCount(0)
+  })
+
   test('search and the speaker filter narrow the transcript', async ({ page }) => {
     await signUpFreshWorkspace(page)
     const hearing = await createHearingFixture(page.request, { speakers: SPEAKERS, segments: segments() })

@@ -16,6 +16,7 @@ schema for it — request shapes were reverse-engineered from live responses.
 | `npm run refresh-bill-texts` | The text of bill versions and amendments (PDF files from the document store), and an AI summary of each amendment | About 3 seconds for each bill. A run checks at most 300 bills (`--limit=N`). One Claude Haiku call for each new amendment |
 | `npm run generate-summaries` | AI-generated bill summaries | Only needs to run after new bills appear |
 | `npm run send-alert-digest` | Daily email digest of change alerts (immediate alerts are sent by the scrape scripts themselves) | Cheap — database only, plus one email per person |
+| `npm run summarize-hearings` | An AI summary of each finished hearing transcript: overview, topics with times, decisions and next steps | One Claude Sonnet call for each hearing |
 | `npm run transcribe-hearings` | Finds newly posted committee hearing videos, ingests their captions, and produces speaker-attributed transcripts | Discovery + captions are free; diarization is free on the self-hosted GPU (WhisperX) or ~$0.006/audio-minute on the OpenAI fallback, plus one Claude call per hearing for speaker names |
 
 ## Recommended cadence
@@ -30,7 +31,7 @@ often after the meeting row itself already exists in our DB with an empty
 **Production (Railway)** runs this on Railway's own cron scheduler — see
 `.railway/railway.ts` at the repo root for the `cron-refresh-meetings`
 (every 6h), `cron-refresh-hearings` (every hour), `cron-refresh-bill-texts` (every 2h), `cron-scrape` (daily), `cron-scrape-details` (daily), and
-`cron-generate-summaries` (daily), and `cron-transcribe-hearings` (every 2h)
+`cron-generate-summaries` (daily), `cron-transcribe-hearings` (every 2h), and `cron-summarize-hearings` (every hour)
 service definitions. That's the source of
 truth for cadence; nothing local needs to run for the deployed app to stay
 current.
@@ -103,6 +104,24 @@ audio-only rendition; the archive replaces them with a processed version
 later (observed lag: weeks to months). The pipeline handles both — it strips
 the audio from the raw stream locally — and pins a recording's stream URLs
 once it's diarized, since transcript timestamps belong to that exact stream.
+
+### Hearing summaries
+
+`npm run summarize-hearings` (`src/summarizeHearings.ts`) writes an AI
+summary of each transcript with `transcript_status = 'ready'`. It waits for
+the speaker names, for a maximum of 6 hours after the transcript is ready.
+The summary has an overview, the topics with their start times, and the
+decisions and next steps. The transcript page shows it above the transcript.
+
+- The summary is in `hearing_recordings.ai_summary`. `ai_summary_basis` is
+  the transcript version that the summary is for. When the transcript or the
+  speaker names change, the next run makes a new summary.
+- The model refers to transcript lines by number, and the job changes them
+  to times in the recording.
+- A run makes at most 5 summaries (`--limit=N`). Use `--recording=<id>`
+  (`hearing_recordings.id`) to make one summary again. A hearing that fails
+  3 times is not tried again (`ai_summary_attempts`, `ai_summary_error`).
+- The job runs on Railway, not on the GPU host. It needs `ANTHROPIC_API_KEY`.
 
 By default only recordings from the last 60 days are processed, and at most 4
 are diarized per run. Backfill with `--since=YYYY-MM-DD` (and `--limit=N`);

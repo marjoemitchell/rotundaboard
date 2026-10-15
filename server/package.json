@@ -10,6 +10,7 @@
     "refresh-meetings": "tsx src/refreshCommitteeMeetings.ts",
     "refresh-hearings": "tsx src/refreshHearings.ts",
     "refresh-bill-texts": "tsx src/refreshBillTexts.ts",
+    "summarize-hearings": "tsx src/summarizeHearings.ts",
     "seed": "tsx src/seedWorkspace.ts",
     "generate-summaries": "tsx src/generateSummaries.ts",
     "transcribe-hearings": "tsx src/transcribeHearings.ts",
