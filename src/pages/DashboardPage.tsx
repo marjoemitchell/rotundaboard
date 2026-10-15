@@ -93,22 +93,23 @@ export function DashboardPage({
   // thing that visibly changes.
   const pageTitle =
     identifierFilter === 'lc' ? 'LC Drafts' : identifierFilter === 'introduced' ? 'Introduced Bills' : 'Dashboard'
-  const pageSubhead =
-    identifierFilter === 'lc'
-      ? filteredCount === null
-        ? 'Loading…'
-        : `${filteredCount} LC draft${filteredCount === 1 ? '' : 's'} your team is tracking — bills that haven't been formally introduced yet.`
-      : identifierFilter === 'introduced'
-        ? filteredCount === null
-          ? 'Loading…'
-          : `${filteredCount} introduced bill${filteredCount === 1 ? '' : 's'} (HB/SB) your team is tracking.${activeFilterCount > 0 ? ` ${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'} applied.` : ''}`
-        : data.billsFailed
-          ? 'Your bills could not be loaded. Refresh the page to try again.'
-          : data.bills.status === 'loading'
-            ? 'Loading today’s activity…'
-            : `${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}: ${
-                data.bills.status === 'empty' ? 'your team tracks no bills yet' : `${movingCount} bills moving this week`
-              }${activeFilterCount > 0 ? `, ${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'} applied` : ''}.`
+  // The same rules for the three views: loading, failed, then the count. An
+  // "empty" bill list (no tracked bills) is a count of 0, not loading.
+  const count = filteredCount ?? 0
+  const filtersApplied = activeFilterCount > 0 ? `${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'} applied` : ''
+  const pageSubhead = data.billsFailed
+    ? 'Your bills could not be loaded. Refresh the page to try again.'
+    : data.bills.status === 'loading'
+      ? identifierFilter === 'all'
+        ? 'Loading today’s activity…'
+        : 'Loading…'
+      : identifierFilter === 'lc'
+        ? `${count} LC draft${count === 1 ? '' : 's'} your team is tracking: bills that are not formally introduced yet.`
+        : identifierFilter === 'introduced'
+          ? `${count} introduced bill${count === 1 ? '' : 's'} (HB/SB) your team is tracking.${filtersApplied ? ` ${filtersApplied}.` : ''}`
+          : `${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}: ${
+              data.bills.status === 'empty' ? 'your team tracks no bills yet' : `${movingCount} bills moving this week`
+            }${filtersApplied ? `, ${filtersApplied}` : ''}.`
 
   return (
     <>
