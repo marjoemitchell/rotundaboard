@@ -155,3 +155,27 @@ test.describe('morning brief', () => {
     expect(email.html).toContain(info.workspaceName)
   })
 })
+
+test.describe('dashboard subtitle', () => {
+  test('a workspace that tracks no bills does not stay on "Loading"', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    await page.goto('/')
+    await expect(page.getByText(/: your team tracks no bills yet\.$/)).toBeVisible()
+    await expect(page.getByText('Loading today’s activity…')).toHaveCount(0)
+  })
+
+  test('a workspace with tracked bills shows how many are moving', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    await trackFirstAvailableBill(page)
+    await page.goto('/')
+    await expect(page.getByText(/: \d+ bills moving this week\.$/)).toBeVisible()
+  })
+
+  test('a failed request for the bills shows an error, not "Loading"', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    await page.route('**/api/bills', (route) => route.fulfill({ status: 500, body: '{"error":"test"}' }))
+    await page.goto('/')
+    await expect(page.getByText('Your bills could not be loaded. Refresh the page to try again.')).toBeVisible()
+    await expect(page.getByText('Loading today’s activity…')).toHaveCount(0)
+  })
+})

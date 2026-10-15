@@ -13,21 +13,33 @@ import type {
   TeamMember,
 } from '../types'
 
+// A failed request gives the state "empty" and failed = true, so that the
+// page does not show "Loading" forever.
 function useResource<T>(
   fetcher: () => Promise<T>,
   isEmpty: (data: T) => boolean = () => false,
-): [LoadState<T>, () => void] {
+): [LoadState<T>, () => void, boolean] {
   const [state, setState] = useState<LoadState<T>>({ status: 'loading' })
+  const [failed, setFailed] = useState(false)
   const fetcherRef = useRef(fetcher)
   fetcherRef.current = fetcher
 
   const load = useCallback(() => {
     let cancelled = false
     setState((prev) => (prev.status === 'ready' ? prev : { status: 'loading' }))
-    fetcherRef.current().then((data) => {
-      if (cancelled) return
-      setState(isEmpty(data) ? { status: 'empty' } : { status: 'ready', data })
-    })
+    fetcherRef.current().then(
+      (data) => {
+        if (cancelled) return
+        setFailed(false)
+        setState(isEmpty(data) ? { status: 'empty' } : { status: 'ready', data })
+      },
+      (err: unknown) => {
+        if (cancelled) return
+        console.error(err)
+        setFailed(true)
+        setState((prev) => (prev.status === 'ready' ? prev : { status: 'empty' }))
+      },
+    )
     return () => {
       cancelled = true
     }
@@ -36,12 +48,14 @@ function useResource<T>(
 
   useEffect(() => load(), [load])
 
-  return [state, load]
+  return [state, load, failed]
 }
 
 export interface DashboardData {
   sessionCalendar: LoadState<SessionCalendar>
   bills: LoadState<Bill[]>
+  /** True when the last request for the bills failed. */
+  billsFailed: boolean
   brief: LoadState<Brief>
   hearings: LoadState<HearingSummary[]>
   teamBoard: LoadState<TeamBoardSummary>
@@ -56,7 +70,7 @@ export interface DashboardData {
 
 export function useDashboardData(): DashboardData {
   const [sessionCalendar] = useResource(client.getSessionCalendar)
-  const [bills, refetchBills] = useResource(client.getBills, (data) => data.length === 0)
+  const [bills, refetchBills, billsFailed] = useResource(client.getBills, (data) => data.length === 0)
   const [brief] = useResource(client.getBrief)
   const [hearings] = useResource(client.getHearings, (data) => data.length === 0)
   const [teamBoard, refetchTeamBoard] = useResource(client.getTeamBoard, (data) => data.activity.length === 0)
@@ -68,6 +82,7 @@ export function useDashboardData(): DashboardData {
   return {
     sessionCalendar,
     bills,
+    billsFailed,
     brief,
     hearings,
     teamBoard,

@@ -102,9 +102,13 @@ export function DashboardPage({
         ? filteredCount === null
           ? 'Loading…'
           : `${filteredCount} introduced bill${filteredCount === 1 ? '' : 's'} (HB/SB) your team is tracking.${activeFilterCount > 0 ? ` ${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'} applied.` : ''}`
-        : movingCount === null
-          ? 'Loading today’s activity…'
-          : `${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} — ${movingCount} bills moving this week${activeFilterCount > 0 ? `, ${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'} applied` : ''}.`
+        : data.billsFailed
+          ? 'Your bills could not be loaded. Refresh the page to try again.'
+          : data.bills.status === 'loading'
+            ? 'Loading today’s activity…'
+            : `${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}: ${
+                data.bills.status === 'empty' ? 'your team tracks no bills yet' : `${movingCount} bills moving this week`
+              }${activeFilterCount > 0 ? `, ${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'} applied` : ''}.`
 
   return (
     <>
