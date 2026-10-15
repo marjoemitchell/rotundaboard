@@ -415,6 +415,16 @@ export interface Hearing extends HearingSummary {
   waveform: number[] // relative amplitude 0-1
   transcript: TranscriptSegment[]
   trackedTermMentions: number
+  aiSummary: HearingAiSummary | null
+}
+
+/** An AI summary of a hearing transcript. A time is in seconds from the start. */
+export interface HearingAiSummary {
+  overview: string
+  topics: { title: string; summary: string; startSeconds: number | null }[]
+  actions: { text: string; startSeconds: number | null }[]
+  model: string | null
+  generatedAt: string | null
 }
 
 export interface BriefTaggedItem {

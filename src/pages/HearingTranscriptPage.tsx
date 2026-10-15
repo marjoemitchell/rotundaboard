@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import * as client from '../data/client'
-import type { Hearing, LoadState } from '../types'
+import type { Hearing, HearingAiSummary, LoadState } from '../types'
 import { formatClock, formatDate, formatDuration, formatTime } from '../lib/format'
 import { clipToNote, transcriptStatusLabel } from '../lib/hearings'
 import { useHearingPlayer } from '../hooks/useHearingPlayer'
@@ -141,6 +141,8 @@ function Transcript({ hearing }: { hearing: Hearing }) {
         </p>
       )}
 
+      {hearing.aiSummary && <AiSummaryCard summary={hearing.aiSummary} onSeek={(t) => seek(t, { play: true })} />}
+
       {hearing.transcript.length === 0 ? (
         <EmptyState message="The transcript for this hearing is still being prepared. Check back soon." />
       ) : (
@@ -208,5 +210,64 @@ function Transcript({ hearing }: { hearing: Hearing }) {
 
       {notice && <Toast message={notice} />}
     </div>
+  )
+}
+
+// The AI summary of the transcript. A time button plays the recording from
+// the start of that topic.
+function AiSummaryCard({ summary, onSeek }: { summary: HearingAiSummary; onSeek: (seconds: number) => void }) {
+  // A column of the same width for each item, also when it has no time.
+  const time = (seconds: number | null) => (
+    <span className={styles.summaryTimeCell}>
+      {seconds != null && (
+        <button className={styles.summaryTime} onClick={() => onSeek(seconds)} title="Play from here">
+          {formatClock(seconds)}
+        </button>
+      )}
+    </span>
+  )
+  return (
+    <section className={styles.summaryCard} aria-label="Summary">
+      <div className={styles.summaryHead}>
+        <h2 className={styles.summaryTitle}>Summary</h2>
+        <span className={styles.summaryBadge}>AI-generated</span>
+      </div>
+      <p className={styles.summaryOverview}>{summary.overview}</p>
+
+      {summary.topics.length > 0 && (
+        <>
+          <h3 className={styles.summarySubhead}>Topics</h3>
+          <ol className={styles.summaryList} aria-label="Topics">
+            {summary.topics.map((t, i) => (
+              <li key={i} className={styles.summaryItem}>
+                {time(t.startSeconds)}
+                <div>
+                  <div className={styles.summaryItemTitle}>{t.title}</div>
+                  <div className={styles.summaryItemText}>{t.summary}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+
+      {summary.actions.length > 0 && (
+        <>
+          <h3 className={styles.summarySubhead}>Decisions and next steps</h3>
+          <ul className={styles.summaryList} aria-label="Decisions and next steps">
+            {summary.actions.map((a, i) => (
+              <li key={i} className={styles.summaryItem}>
+                {time(a.startSeconds)}
+                <div className={styles.summaryItemText}>{a.text}</div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <p className={styles.summaryNote}>
+        Generated from the transcript, which can have speech recognition errors. Verify against the recording.
+      </p>
+    </section>
   )
 }

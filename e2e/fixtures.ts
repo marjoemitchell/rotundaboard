@@ -229,6 +229,12 @@ export async function createHearingFixture(
     durationSeconds?: number
     speakers?: { label: string; displayName: string }[]
     segments: HearingFixtureSegment[]
+    // An AI summary as server/src/summarizeHearings.ts stores it.
+    aiSummary?: {
+      overview: string
+      topics: { title: string; summary: string; startSeconds: number | null }[]
+      actions: { text: string; startSeconds: number | null }[]
+    }
   },
 ): Promise<{ id: string; committee: string }> {
   const res = await request.post(`${API_BASE}/api/__test__/hearing-fixture`, { data: { suffix: uniqueSuffix(), ...input } })

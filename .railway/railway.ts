@@ -184,6 +184,25 @@ export default defineRailway(() => {
     },
   });
 
+  // AI summaries of finished hearing transcripts (src/summarizeHearings.ts).
+  // The GPU host writes the transcripts. This cron only reads them, so it
+  // runs here. Offset to :50.
+  const cronSummarizeHearings = service("cron-summarize-hearings", {
+    source: empty(),
+    root: "server",
+    deploy: {
+      startCommand: "npm run summarize-hearings",
+      cronSchedule: "50 * * * *",
+      restartPolicyType: "NEVER",
+    },
+    env: {
+      DATABASE_URL: db.env.DATABASE_URL,
+      NODE_ENV: "production",
+      ANTHROPIC_API_KEY: preserve(),
+      ANTHROPIC_WORKSPACE_ID: preserve(),
+    },
+  });
+
   // Daily digest of change alerts for people on 'daily' delivery (immediate
   // alerts go out from the scrape crons above). 14:00 UTC is 7–8am in
   // Montana, after the overnight scrapes.
@@ -241,6 +260,7 @@ export default defineRailway(() => {
       cronRefreshMeetings,
       cronRefreshHearings,
       cronRefreshBillTexts,
+      cronSummarizeHearings,
       cronScrape,
       cronScrapeDetails,
       cronGenerateSummaries,

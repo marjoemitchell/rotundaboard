@@ -13,6 +13,7 @@
 // to another just by knowing its numeric id.
 import { pool } from '../db.js'
 import { versionLabel, versionOrder } from '../billText.js'
+import type { HearingAiSummary } from '../summarizeHearings.js'
 import { computeMomentum, determineOutcome, type StatusPoint } from '../momentum.js'
 
 function formatIdentifier(billTypeCode: string | null, billNumber: number | null, draftNumber: string): string {
@@ -532,8 +533,18 @@ async function trackedBillPatterns(workspaceId: number): Promise<{ billId: strin
 }
 
 export async function getHearingDetail(recordingId: number, workspaceId: number) {
-  const { rows } = await pool.query<RecordingRow & { waveform: number[]; hls_url: string; audio_playlist_url: string | null }>(
-    `SELECT ${RECORDING_COLUMNS}, r.waveform, r.hls_url, r.audio_playlist_url
+  const { rows } = await pool.query<
+    RecordingRow & {
+      waveform: number[]
+      hls_url: string
+      audio_playlist_url: string | null
+      ai_summary: HearingAiSummary | null
+      ai_summary_model: string | null
+      ai_summarized_at: string | null
+    }
+  >(
+    `SELECT ${RECORDING_COLUMNS}, r.waveform, r.hls_url, r.audio_playlist_url,
+            r.ai_summary, r.ai_summary_model, r.ai_summarized_at
      FROM hearing_recordings r ${RECORDING_JOINS}
      WHERE r.id = $2`,
     [workspaceId, recordingId],
@@ -577,6 +588,10 @@ export async function getHearingDetail(recordingId: number, workspaceId: number)
     waveform: Array.isArray(r.waveform) ? r.waveform : [],
     transcript,
     trackedTermMentions: transcript.filter((t) => t.mentionedBillIds.length > 0).length,
+    // The AI summary (summarizeHearings.ts), or null before the job runs.
+    aiSummary: r.ai_summary
+      ? { ...r.ai_summary, model: r.ai_summary_model, generatedAt: r.ai_summarized_at }
+      : null,
   }
 }
 
