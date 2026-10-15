@@ -2,8 +2,8 @@ import type { TextDiffPart, TextMark } from '../../types'
 import styles from './Redline.module.css'
 
 // A redline of bill text. Removed words are in <del>, added words are in
-// <ins>. Struck and underlined text keeps the marks of the printed bill:
-// struck text is removed from current law, underlined text is new law.
+// <ins>. Unchanged struck and underlined text keeps the marks of the printed
+// bill: struck text is removed from current law, underlined text is new law.
 
 interface Piece {
   op: TextDiffPart['op']
@@ -29,11 +29,12 @@ export function toParagraphs(parts: TextDiffPart[]): Piece[][] {
 const markClass = (mark: TextMark) =>
   [mark & 1 ? styles.struck : '', mark & 2 ? styles.underlined : ''].filter(Boolean).join(' ') || undefined
 
+// A removed or added word shows only that change. An unchanged word keeps
+// the marks of the printed bill.
 function PieceView({ piece }: { piece: Piece }) {
-  const text = <span className={markClass(piece.mark)}>{piece.text}</span>
-  if (piece.op === '-') return <del className={styles.removed}>{text}</del>
-  if (piece.op === '+') return <ins className={styles.added}>{text}</ins>
-  return text
+  if (piece.op === '-') return <del className={styles.removed}>{piece.text}</del>
+  if (piece.op === '+') return <ins className={styles.added}>{piece.text}</ins>
+  return <span className={markClass(piece.mark)}>{piece.text}</span>
 }
 
 export function RedlineParagraph({ pieces }: { pieces: Piece[] }) {
@@ -56,8 +57,9 @@ export function RedlineLegend() {
         <del className={styles.removed}>Removed</del> and <ins className={styles.added}>added</ins> in the newer text.
       </span>
       <span>
-        <span className={styles.struck}>Struck</span> and <span className={styles.underlined}>underlined</span> text
-        is as printed in the bill: removed from and added to current law.
+        Unchanged <span className={styles.struck}>struck</span> and{' '}
+        <span className={styles.underlined}>underlined</span> text is as printed in the bill: removed from and added
+        to current law.
       </span>
     </div>
   )

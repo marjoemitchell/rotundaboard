@@ -22,8 +22,8 @@ async function runAlerts(request: APIRequestContext) {
 }
 
 // Two versions of the bill and one amendment (see billTextFixture in
-// server/src/api/testFixtures.ts). Version 2 changes the fee from $40 to $35
-// and adds a paragraph about veterans.
+// server/src/api/testFixtures.ts). Version 2 changes the fee from $40 to $35,
+// strikes "year." and adds "license year.", and adds a paragraph about veterans.
 async function addBillText(
   request: APIRequestContext,
   billId: string,
@@ -59,8 +59,12 @@ test.describe('bill text', () => {
     await expect(page).toHaveURL(new RegExp(`/bills/${billId}/compare`))
     const redline = page.getByRole('region', { name: 'Redline' })
     await expect(redline.getByText('2 changed paragraphs')).toBeVisible()
-    await expect(redline.locator('del')).toHaveText(['$40'])
-    await expect(redline.locator('ins')).toHaveText(['$35', 'A veteran does not pay the fee.'])
+    await expect(redline.locator('del')).toHaveText(['$40', 'year.'])
+    await expect(redline.locator('ins')).toHaveText(['$35', 'license year.', 'A veteran does not pay the fee.'])
+    // A word that is only struck now shows one time, as removed.
+    await expect(redline.locator('p', { hasText: 'The license fee' })).toHaveText(
+      'The license fee is $25 $40 $35 for each year. license year.',
+    )
     // The marks of the printed bill stay: $25 is struck (removed from current law).
     await expect(redline.getByText('$25')).toHaveCSS('text-decoration-line', 'line-through')
     // Unchanged paragraphs show only on request.
@@ -88,8 +92,11 @@ test.describe('bill text', () => {
 
     await amendment.getByRole('button', { name: 'Show the changes' }).click()
     const changes = amendment.getByRole('region', { name: `Changes of Amendment #${amendmentNumber}` })
-    await expect(changes.locator('ins')).toHaveText(['$35', 'A veteran does not pay the fee.'])
-    await expect(changes.locator('del')).toHaveText(['$40'])
+    await expect(changes.locator('ins')).toHaveText(['$35', 'license year.', 'A veteran does not pay the fee.'])
+    await expect(changes.locator('del')).toHaveText(['$40', 'year.'])
+    await expect(changes.locator('p', { hasText: 'The license fee' })).toHaveText(
+      'The license fee is $25 $40 $35 for each year. license year.',
+    )
   })
 })
 

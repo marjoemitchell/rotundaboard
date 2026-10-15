@@ -413,6 +413,58 @@ export interface ChangedParagraph {
   parts: DiffPart[]
 }
 
+/**
+ * The changes in a form that people can read. A word that only gets a strike
+ * (the newer text removes it from the bill) is in the diff two times: as a
+ * removed plain word and as an added struck word. This function shows such a
+ * word one time, as removed. Other changes of a mark only are not changes
+ * here. After this function, a removed part means "removed" and an added
+ * part means "added", with no other meaning from the marks.
+ */
+export function readableChanges(parts: DiffPart[]): DiffPart[] {
+  const out: DiffPart[] = []
+  const emit = (op: DiffPart['op'], token: Token) => {
+    const last = out[out.length - 1]
+    if (last && last.op === op) last.tokens.push(token)
+    else out.push({ op, tokens: [token] })
+  }
+  const sameText = (a: Token, b: Token) => a.text.toLowerCase() === b.text.toLowerCase()
+
+  let i = 0
+  while (i < parts.length) {
+    if (parts[i].op === '=') {
+      for (const t of parts[i].tokens) emit('=', t)
+      i++
+      continue
+    }
+    // A hunk: the removed and added words between two unchanged parts.
+    const removed: Token[] = []
+    const added: Token[] = []
+    while (i < parts.length && parts[i].op !== '=') {
+      ;(parts[i].op === '-' ? removed : added).push(...parts[i].tokens)
+      i++
+    }
+    let r = 0
+    let a = 0
+    for (const c of diffArrays(removed, added, { comparator: sameText })) {
+      const n = c.count ?? c.value.length
+      for (let k = 0; k < n; k++) {
+        if (c.removed) emit('-', removed[r++])
+        else if (c.added) {
+          const token = added[a++]
+          // New struck text: the newer text removes it from the bill.
+          emit(token.mark & 1 ? '-' : '+', token)
+        } else {
+          const before = removed[r++]
+          const after = added[a++]
+          emit(after.mark & 1 && !(before.mark & 1) ? '-' : '=', after)
+        }
+      }
+    }
+  }
+  return out
+}
+
 /** Only the paragraphs that have a change. */
 export function changedParagraphs(parts: DiffPart[]): ChangedParagraph[] {
   const paragraphs: DiffPart[][] = [[]]

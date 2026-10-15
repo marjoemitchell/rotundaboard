@@ -6,14 +6,14 @@
 }
 
 .removed {
-  text-decoration: none;
+  text-decoration: line-through;
   background: var(--oppose-bg);
   color: var(--oppose-fg);
   border-radius: 2px;
 }
 
 .added {
-  text-decoration: none;
+  text-decoration: underline;
   background: var(--support-bg);
   color: var(--support-fg);
   border-radius: 2px;

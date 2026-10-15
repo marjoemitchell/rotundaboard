@@ -164,7 +164,10 @@ export async function billTextFixture(input: {
   ]
   const v2: Paragraph[] = [
     [['Section 1. Fees.', 0]],
-    [['The license fee is', 0], [' ', 0], ['$25', 1], [' ', 0], ['$35', 2], [' for each year.', 0]],
+    [
+      ['The license fee is', 0], [' ', 0], ['$25', 1], [' ', 0], ['$35', 2], [' for each', 0], [' ', 0], ['year.', 1],
+      [' ', 0], ['license year.', 2],
+    ],
     [['A veteran does not pay the fee.', 2]],
     [['Section 2. Effective date. This act is effective July 1, 2027.', 0]],
   ]

@@ -3,6 +3,7 @@
 import { pool } from '../db.js'
 import {
   diffParagraphs,
+  readableChanges,
   versionLabel,
   type ChangedParagraph,
   type DiffPart,
@@ -40,7 +41,7 @@ export async function compareVersions(billId: number, fromKey: string, toKey: st
   const to = rows.find((r) => r.version_key === toKey)
   if (!from || !to) return null
   const info = (r: typeof from) => ({ key: r.version_key, label: versionLabel(r.version_key), postedAt: r.posted_at })
-  return { from: info(from), to: info(to), parts: compact(diffParagraphs(from.paragraphs, to.paragraphs)) }
+  return { from: info(from), to: info(to), parts: compact(readableChanges(diffParagraphs(from.paragraphs, to.paragraphs))) }
 }
 
 export async function getAmendmentChanges(billId: number, documentId: number) {
@@ -53,6 +54,6 @@ export async function getAmendmentChanges(billId: number, documentId: number) {
   return {
     summary: row.summary,
     baseVersion: { key: String(row.bill_version), label: versionLabel(String(row.bill_version)) },
-    paragraphs: row.changes.map((c) => compact(c.parts)),
+    paragraphs: row.changes.map((c) => compact(readableChanges(c.parts))),
   }
 }
