@@ -6,12 +6,12 @@ import { InitialsSquare } from './shared/InitialsSquare'
 import styles from './LeftNav.module.css'
 
 export type NavId =
+  | 'dashboard'
   | 'all-bills'
   | 'lc-drafts'
   | 'introduced'
   | 'hearings'
   | 'legislators'
-  | 'sessions'
   | 'tracking-board'
   | 'notes'
   | 'watches'
@@ -86,16 +86,17 @@ export function LeftNav({
   return (
     <nav className={`${styles.nav} ${isOpen ? styles.navOpen : ''}`} aria-label="Primary">
       {confirmDialog}
-      <button className={styles.sessionSelector} onClick={() => onNavigate('sessions')}>
-        Browse sessions
-      </button>
-
       <div className={styles.navScroll}>
         <div className={styles.group}>
+          {/* The count is the bills that the team tracks: the dashboard table. */}
+          <NavItem id="dashboard" label="Dashboard" count={counts?.allBills} loading={countsLoading} activeId={activeId} onNavigate={onNavigate} />
+        </div>
+        <div className={styles.group}>
           <div className={`${styles.groupLabel} eyebrow`}>Tracking</div>
-          <NavItem id="all-bills" label="All bills" count={counts?.allBills} loading={countsLoading} activeId={activeId} onNavigate={onNavigate} />
-          <NavItem id="lc-drafts" label="LC drafts" count={counts?.lcDrafts} loading={countsLoading} activeId={activeId} onNavigate={onNavigate} indent />
-          <NavItem id="introduced" label="Introduced (HB / SB)" count={counts?.introduced} loading={countsLoading} activeId={activeId} onNavigate={onNavigate} indent />
+          {/* All bills of a session: reference data, so no counts (see NavItem). */}
+          <NavItem id="all-bills" label="All bills" loading={countsLoading} activeId={activeId} onNavigate={onNavigate} hideCount />
+          <NavItem id="lc-drafts" label="LC drafts" loading={countsLoading} activeId={activeId} onNavigate={onNavigate} indent hideCount />
+          <NavItem id="introduced" label="Introduced (HB / SB)" loading={countsLoading} activeId={activeId} onNavigate={onNavigate} indent hideCount />
           <NavItem id="hearings" label="Hearings" loading={countsLoading} activeId={activeId} onNavigate={onNavigate} hideCount />
           <NavItem id="legislators" label="Legislators" loading={countsLoading} activeId={activeId} onNavigate={onNavigate} hideCount />
           <NavItem id="watches" label="Subject watches" count={counts?.subjectWatches} loading={countsLoading} activeId={activeId} onNavigate={onNavigate} />

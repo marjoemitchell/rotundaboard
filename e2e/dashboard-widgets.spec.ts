@@ -171,25 +171,11 @@ test.describe('dashboard subtitle', () => {
     await expect(page.getByText(/: \d+ bills moving this week\.$/)).toBeVisible()
   })
 
-  test('the LC drafts and introduced views of a workspace with no bills show a count of 0, not "Loading"', async ({
-    page,
-  }) => {
-    await signUpFreshWorkspace(page)
-    await page.goto('/')
-    await page.getByRole('button', { name: 'LC drafts' }).click()
-    await expect(page.getByText('0 LC drafts your team is tracking: bills that are not formally introduced yet.')).toBeVisible()
-    await page.getByRole('button', { name: 'Introduced (HB / SB)' }).click()
-    await expect(page.getByText('0 introduced bills (HB/SB) your team is tracking.')).toBeVisible()
-    await expect(page.getByText('Loading…', { exact: true })).toHaveCount(0)
-  })
-
   test('a failed request for the bills shows an error, not "Loading"', async ({ page }) => {
     await signUpFreshWorkspace(page)
     await page.route('**/api/bills', (route) => route.fulfill({ status: 500, body: '{"error":"test"}' }))
     await page.goto('/')
     await expect(page.getByText('Your bills could not be loaded. Refresh the page to try again.')).toBeVisible()
     await expect(page.getByText('Loading today’s activity…')).toHaveCount(0)
-    await page.getByRole('button', { name: 'Introduced (HB / SB)' }).click()
-    await expect(page.getByText('Your bills could not be loaded. Refresh the page to try again.')).toBeVisible()
   })
 })

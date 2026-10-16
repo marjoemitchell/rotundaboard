@@ -31,7 +31,6 @@ export function DashboardPage({
   data,
   filteredBills,
   filters,
-  identifierFilter,
   onSetFilter,
   onRemoveFilter,
   onSaveView,
@@ -41,7 +40,6 @@ export function DashboardPage({
   data: DashboardData
   filteredBills: LoadState<Bill[]>
   filters: FilterState
-  identifierFilter: 'all' | 'lc' | 'introduced'
   onSetFilter: (key: keyof FilterState, value: string) => void
   onRemoveFilter: (key: keyof FilterState) => void
   onSaveView: () => void
@@ -85,36 +83,20 @@ export function DashboardPage({
   const activeFilterCount = Object.keys(filters).length
   const movingCount =
     data.bills.status === 'ready' ? data.bills.data.filter((b) => b.momentum.score >= 60).length : null
-  const filteredCount = filteredBills.status === 'ready' ? filteredBills.data.length : null
-
-  // LC Drafts / Introduced are quick filters on the same tracked-bill list,
-  // not separate pages — the title/subhead switching is the only signal
-  // that a filter is active, since the table below is otherwise the only
-  // thing that visibly changes.
-  const pageTitle =
-    identifierFilter === 'lc' ? 'LC Drafts' : identifierFilter === 'introduced' ? 'Introduced Bills' : 'Dashboard'
-  // The same rules for the three views: loading, failed, then the count. An
-  // "empty" bill list (no tracked bills) is a count of 0, not loading.
-  const count = filteredCount ?? 0
   const filtersApplied = activeFilterCount > 0 ? `${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'} applied` : ''
+  // An "empty" bill list (no tracked bills) is not loading.
   const pageSubhead = data.billsFailed
     ? 'Your bills could not be loaded. Refresh the page to try again.'
     : data.bills.status === 'loading'
-      ? identifierFilter === 'all'
-        ? 'Loading today’s activity…'
-        : 'Loading…'
-      : identifierFilter === 'lc'
-        ? `${count} LC draft${count === 1 ? '' : 's'} your team is tracking: bills that are not formally introduced yet.`
-        : identifierFilter === 'introduced'
-          ? `${count} introduced bill${count === 1 ? '' : 's'} (HB/SB) your team is tracking.${filtersApplied ? ` ${filtersApplied}.` : ''}`
-          : `${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}: ${
-              data.bills.status === 'empty' ? 'your team tracks no bills yet' : `${movingCount} bills moving this week`
-            }${filtersApplied ? `, ${filtersApplied}` : ''}.`
+      ? 'Loading today’s activity…'
+      : `${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}: ${
+          data.bills.status === 'empty' ? 'your team tracks no bills yet' : `${movingCount} bills moving this week`
+        }${filtersApplied ? `, ${filtersApplied}` : ''}.`
 
   return (
     <>
       <PageHeader
-        title={pageTitle}
+        title="Dashboard"
         subhead={pageSubhead}
         secondaryLabel="Export list"
         onSecondaryAction={() => setNotice('Export isn’t part of the dashboard home screen yet.')}

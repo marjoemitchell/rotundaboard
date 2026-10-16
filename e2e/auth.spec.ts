@@ -4,7 +4,7 @@ test.describe('auth', () => {
   test('signup creates a workspace and lands on the dashboard', async ({ page }) => {
     const info = await signUpFreshWorkspace(page)
     await expect(page.locator('text=' + info.workspaceName)).toBeVisible()
-    await expect(page.locator('text=Dashboard')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
   })
 
   test('rejects a duplicate email on signup', async ({ page }) => {
