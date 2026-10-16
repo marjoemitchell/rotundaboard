@@ -11,25 +11,6 @@
   border-right: 1px solid var(--border);
 }
 
-.sessionSelector {
-  flex-shrink: 0;
-  display: block;
-  width: 100%;
-  padding: 10px 16px;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  background: var(--soft);
-  color: var(--ink-2);
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 600;
-  text-align: left;
-}
-
-.sessionSelector:hover {
-  background: #e4eaf1;
-}
-
 .navScroll {
   flex: 1;
   min-height: 0;

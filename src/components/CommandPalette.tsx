@@ -5,6 +5,7 @@ import type { NavId } from './LeftNav'
 import styles from './CommandPalette.module.css'
 
 const DESTINATIONS: { id: NavId; label: string }[] = [
+  { id: 'dashboard', label: 'Dashboard' },
   { id: 'all-bills', label: 'All bills' },
   { id: 'lc-drafts', label: 'LC drafts' },
   { id: 'introduced', label: 'Introduced (HB / SB)' },

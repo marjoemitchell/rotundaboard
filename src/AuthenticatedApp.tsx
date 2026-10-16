@@ -12,7 +12,7 @@ import { usePrompt } from './hooks/usePrompt'
 import { DashboardPage } from './pages/DashboardPage'
 import { BillDetailPage } from './pages/BillDetailPage'
 import { SessionsPage } from './pages/SessionsPage'
-import { SessionBillsPage } from './pages/SessionBillsPage'
+import { AllBillsPage, SessionBillsRedirect } from './pages/AllBillsPage'
 import { LegislatorsPage } from './pages/LegislatorsPage'
 import { LegislatorDetailPage } from './pages/LegislatorDetailPage'
 import { NotesPage } from './pages/NotesPage'
@@ -58,10 +58,8 @@ function parseSavedViewQuery(query: string): FilterState {
   return filters
 }
 
-function applyFilters(bills: Bill[], filters: FilterState, identifierFilter: 'all' | 'lc' | 'introduced'): Bill[] {
+function applyFilters(bills: Bill[], filters: FilterState): Bill[] {
   let list = bills
-  if (identifierFilter === 'lc') list = list.filter((b) => b.identifier.startsWith('LC'))
-  else if (identifierFilter === 'introduced') list = list.filter((b) => !b.identifier.startsWith('LC'))
 
   if (filters.status) list = list.filter((b) => b.status === filters.status)
   if (filters.subject) list = list.filter((b) => b.subjects.includes(filters.subject!))
@@ -86,8 +84,7 @@ export function AuthenticatedApp() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const [navActive, setNavActive] = useState<NavId>('all-bills')
-  const [identifierFilter, setIdentifierFilter] = useState<'all' | 'lc' | 'introduced'>('all')
+  const [navActive, setNavActive] = useState<NavId>('dashboard')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null)
@@ -113,13 +110,21 @@ export function AuthenticatedApp() {
 
   // navActive only updates when the nav itself is clicked (handleNavigate),
   // so it goes stale on direct navigation, a page refresh, or the browser
-  // back/forward buttons. Routes with an unambiguous nav item override it
-  // from the actual URL instead; "/" is intentionally left alone since its
-  // highlighted item (all bills / LC drafts / introduced / a saved view)
-  // depends on filter state handleNavigate already keeps in sync.
-  const effectiveNavActive: NavId = location.pathname.startsWith('/sessions')
-    ? 'sessions'
-    : location.pathname.startsWith('/legislators')
+  // back/forward buttons. The URL gives the nav item. On "/", the item is
+  // the dashboard, or the saved filter that the person chose.
+  const billType = new URLSearchParams(location.search).get('type')
+  const effectiveNavActive: NavId =
+    location.pathname === '/'
+      ? navActive.startsWith('view:')
+        ? navActive
+        : 'dashboard'
+      : location.pathname === '/bills' || location.pathname.startsWith('/sessions')
+        ? billType === 'lc'
+          ? 'lc-drafts'
+          : billType === 'introduced'
+            ? 'introduced'
+            : 'all-bills'
+        : location.pathname.startsWith('/legislators')
       ? 'legislators'
       : location.pathname.startsWith('/notes')
         ? 'notes'
@@ -137,8 +142,8 @@ export function AuthenticatedApp() {
 
   const filteredBills = useMemo<LoadState<Bill[]>>(() => {
     if (data.bills.status !== 'ready') return data.bills
-    return { status: 'ready', data: applyFilters(data.bills.data, filters, identifierFilter) }
-  }, [data.bills, filters, identifierFilter])
+    return { status: 'ready', data: applyFilters(data.bills.data, filters) }
+  }, [data.bills, filters])
 
   const selectedBill = data.bills.status === 'ready' ? data.bills.data.find((b) => b.id === selectedBillId) ?? null : null
   const selectedAssignee =
@@ -152,7 +157,6 @@ export function AuthenticatedApp() {
     navigate('/')
     clearFilters()
     setFilter('assignee', memberId)
-    setIdentifierFilter('all')
   }
 
   const handleViewFullDetails = (billId: string) => {
@@ -164,27 +168,25 @@ export function AuthenticatedApp() {
     setNavActive(id)
     setMobileNavOpen(false)
 
-    if (id === 'all-bills') {
+    if (id === 'dashboard') {
       navigate('/')
-      setIdentifierFilter('all')
+      return
+    }
+    // All bills keeps the session that the person chose last (AllBillsPage).
+    if (id === 'all-bills') {
+      navigate('/bills')
       return
     }
     if (id === 'lc-drafts') {
-      navigate('/')
-      setIdentifierFilter('lc')
+      navigate('/bills?type=lc')
       return
     }
     if (id === 'introduced') {
-      navigate('/')
-      setIdentifierFilter('introduced')
+      navigate('/bills?type=introduced')
       return
     }
     if (id === 'hearings') {
       navigate('/hearings')
-      return
-    }
-    if (id === 'sessions') {
-      navigate('/sessions')
       return
     }
     if (id === 'legislators') {
@@ -221,7 +223,6 @@ export function AuthenticatedApp() {
         for (const [key, value] of Object.entries(parsed)) {
           if (value) setFilter(key as keyof FilterState, value)
         }
-        setIdentifierFilter('all')
         setNotice(`Applied saved filter "${view.name}".`)
       }
       return
@@ -335,7 +336,6 @@ export function AuthenticatedApp() {
                   data={data}
                   filteredBills={filteredBills}
                   filters={filters}
-                  identifierFilter={identifierFilter}
                   onSetFilter={setFilter}
                   onRemoveFilter={removeFilter}
                   onSaveView={handleSaveView}
@@ -358,7 +358,8 @@ export function AuthenticatedApp() {
             />
             <Route path="/bills/:id/compare" element={<BillComparePage />} />
             <Route path="/sessions" element={<SessionsPage />} />
-            <Route path="/sessions/:sessionId" element={<SessionBillsPage />} />
+            <Route path="/bills" element={<AllBillsPage />} />
+            <Route path="/sessions/:sessionId" element={<SessionBillsRedirect />} />
             <Route path="/notes" element={<NotesPage />} />
             <Route path="/watches" element={<SubjectWatchesPage />} />
             <Route path="/committees" element={<CommitteesPage />} />

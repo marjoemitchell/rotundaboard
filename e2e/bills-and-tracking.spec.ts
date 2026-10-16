@@ -5,10 +5,10 @@ test.describe('sessions browsing', () => {
     await signUpFreshWorkspace(page)
     const sessionId = await findSessionIdWithBills(page)
     await page.goto('/sessions')
-    const sessionCard = page.locator(`a[href="/sessions/${sessionId}"]`)
+    const sessionCard = page.locator(`a[href="/bills?session=${sessionId}"]`)
     await expect(sessionCard).toBeVisible()
     await sessionCard.click()
-    await page.waitForURL(`/sessions/${sessionId}`)
+    await page.waitForURL(`/bills?session=${sessionId}`)
     await expect(page.locator('a[role="row"]').first()).toBeVisible()
 
     const firstRow = page.locator('a[role="row"]').first()
@@ -22,7 +22,7 @@ test.describe('sessions browsing', () => {
   test('searching session bills filters the list', async ({ page }) => {
     await signUpFreshWorkspace(page)
     const sessionId = await findSessionIdWithBills(page)
-    await page.goto(`/sessions/${sessionId}`)
+    await page.goto(`/bills?session=${sessionId}`)
     await expect(page.locator('a[role="row"]').first()).toBeVisible()
 
     const totalText = await page.locator('[class*="resultCount"]').textContent()

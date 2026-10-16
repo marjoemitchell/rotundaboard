@@ -1,37 +1,89 @@
-import { test, expect, signUpFreshWorkspace, trackOneLcAndOneIntroducedBill } from './fixtures'
+import { test, expect, signUpFreshWorkspace, trackOneLcAndOneIntroducedBill, findSessionIdWithBills } from './fixtures'
 
-test.describe('LC Drafts / Introduced dashboard filters', () => {
-  test('each filter changes the page title/subhead and shows only the matching bills', async ({ page }) => {
+test.describe('Dashboard and All bills navigation', () => {
+  test('Dashboard is the first nav item and shows the tracked bills', async ({ page }) => {
     await signUpFreshWorkspace(page)
     const { lc, introduced } = await trackOneLcAndOneIntroducedBill(page)
-    // Scope nav clicks to the primary nav — several of these labels also
-    // appear as substrings inside the dashboard's own stat cards
-    // ("LC DRAFTS FILED", "HEARINGS, NEXT 30 DAYS"), which a bare text=
-    // locator would also match.
     const nav = page.locator('nav[aria-label="Primary"]')
 
-    await page.goto('/')
+    await page.goto('/hearings')
+    await expect(nav.getByRole('button').first()).toHaveText(/^Dashboard/)
+    await nav.getByRole('button', { name: /^Dashboard/ }).click()
+    await expect(page).toHaveURL(/\/$/)
     await expect(page.locator('h1', { hasText: 'Dashboard' })).toBeVisible()
+    await expect(nav.getByRole('button', { name: /^Dashboard/ })).toHaveAttribute('aria-current', 'page')
     await expect(page.locator('[role="row"]', { hasText: lc.identifier })).toBeVisible()
     await expect(page.locator('[role="row"]', { hasText: introduced.identifier })).toBeVisible()
+    await expect(nav.getByText('Browse sessions')).toHaveCount(0)
+  })
 
-    await nav.locator('button', { hasText: 'LC drafts' }).click()
-    await expect(page.locator('h1', { hasText: 'LC Drafts' })).toBeVisible()
-    await expect(page.locator('text=/\\d+ LC drafts? your team is tracking/')).toBeVisible()
-    await expect(page.locator('[role="row"]', { hasText: lc.identifier })).toBeVisible()
-    await expect(page.locator('[role="row"]', { hasText: introduced.identifier })).not.toBeVisible()
-    await expect(nav.locator('button', { hasText: 'LC drafts' })).toHaveAttribute('aria-current', 'page')
+  test('All bills lists every bill of the session, and LC drafts and Introduced filter it', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const { lc, introduced } = await trackOneLcAndOneIntroducedBill(page)
+    const nav = page.locator('nav[aria-label="Primary"]')
+    const rows = page.getByRole('table', { name: 'Bills' }).locator('a[role="row"]')
 
-    await nav.locator('button', { hasText: 'Introduced (HB / SB)' }).click()
-    await expect(page.locator('h1', { hasText: 'Introduced Bills' })).toBeVisible()
-    await expect(page.locator('text=/\\d+ introduced bills? \\(HB\\/SB\\) your team is tracking/')).toBeVisible()
-    await expect(page.locator('[role="row"]', { hasText: introduced.identifier })).toBeVisible()
-    await expect(page.locator('[role="row"]', { hasText: lc.identifier })).not.toBeVisible()
+    await nav.getByRole('button', { name: 'All bills' }).click()
+    await expect(page).toHaveURL(/\/bills$/)
+    await expect(page.locator('h1', { hasText: 'All bills' })).toBeVisible()
+    await expect(nav.getByRole('button', { name: 'All bills' })).toHaveAttribute('aria-current', 'page')
+    // The page shows 100 rows first, not the whole session.
+    await expect(rows).toHaveCount(100)
+    await expect(page.getByRole('button', { name: /^Show more/ })).toBeVisible()
 
-    await nav.locator('button', { hasText: 'All bills' }).click()
-    await expect(page.locator('h1', { hasText: 'Dashboard' })).toBeVisible()
-    await expect(page.locator('[role="row"]', { hasText: lc.identifier })).toBeVisible()
-    await expect(page.locator('[role="row"]', { hasText: introduced.identifier })).toBeVisible()
+    // Search finds a tracked bill, with its badge.
+    await page.getByPlaceholder('Search by bill number, title, or sponsor').fill(introduced.identifier)
+    await expect(rows.filter({ hasText: introduced.identifier }).first()).toContainText('Tracked')
+
+    await nav.getByRole('button', { name: 'LC drafts' }).click()
+    await expect(page).toHaveURL(/type=lc/)
+    await expect(nav.getByRole('button', { name: 'LC drafts' })).toHaveAttribute('aria-current', 'page')
+    await page.getByPlaceholder('Search by bill number, title, or sponsor').fill(lc.identifier)
+    await expect(rows.filter({ hasText: lc.identifier }).first()).toBeVisible()
+    await expect(rows.locator('[class*="identifier"]').filter({ hasNotText: /^LC/ })).toHaveCount(0)
+
+    await nav.getByRole('button', { name: 'Introduced (HB / SB)' }).click()
+    await expect(page).toHaveURL(/type=introduced/)
+    await expect(rows.first()).toBeVisible()
+    await expect(rows.locator('[class*="identifier"]').filter({ hasText: /^LC/ })).toHaveCount(0)
+  })
+
+  test('the session switch changes the session, and the choice stays', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const sessions = await page.evaluate(async () => {
+      const res = await fetch('http://localhost:4000/api/sessions', { credentials: 'include' })
+      return (await res.json()) as { id: string; ordinals: string; billCount: number }[]
+    })
+    test.skip(sessions.length < 2, 'needs two sessions')
+    const withBills = [...sessions].sort((a, b) => b.billCount - a.billCount)[0]
+    const other = sessions.find((s) => s.id !== withBills.id)!
+
+    await page.goto('/bills')
+    const switcher = page.getByRole('group', { name: 'Session' })
+    await expect(switcher.getByRole('button')).toHaveCount(sessions.length)
+    await switcher.getByRole('button', { name: new RegExp(`^${other.ordinals.slice(0, 4)} session`) }).click()
+    await expect(page).toHaveURL(new RegExp(`session=${other.id}`))
+    await expect(switcher.getByRole('button', { name: new RegExp(`^${other.ordinals.slice(0, 4)} session`) })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+
+    // The nav item opens the session that the person chose last.
+    await page.locator('nav[aria-label="Primary"]').getByRole('button', { name: 'All bills' }).click()
+    await expect(switcher.getByRole('button', { name: new RegExp(`^${other.ordinals.slice(0, 4)} session`) })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await switcher.getByRole('button', { name: new RegExp(`^${withBills.ordinals.slice(0, 4)} session`) }).click()
+    await expect(page.getByRole('table', { name: 'Bills' }).locator('a[role="row"]').first()).toBeVisible()
+  })
+
+  test('an old session bills link opens All bills for that session', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const sessionId = await findSessionIdWithBills(page)
+    await page.goto(`/sessions/${sessionId}`)
+    await expect(page).toHaveURL(new RegExp(`/bills\\?session=${sessionId}$`))
+    await expect(page.locator('h1', { hasText: 'All bills' })).toBeVisible()
   })
 })
 

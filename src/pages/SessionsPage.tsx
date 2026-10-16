@@ -35,7 +35,7 @@ export function SessionsPage() {
       {sessions.status === 'ready' && (
         <div className={styles.list}>
           {sessions.data.map((s) => (
-            <Link key={s.id} to={`/sessions/${s.id}`} className={styles.card}>
+            <Link key={s.id} to={`/bills?session=${s.id}`} className={styles.card}>
               <div className={styles.cardHead}>
                 <span className={styles.ordinal}>{formatOrdinal(s.legislatureOrdinal)} Legislature</span>
                 <span className={`${styles.statusBadge} ${styles[s.status]}`}>{STATUS_LABEL[s.status]}</span>
