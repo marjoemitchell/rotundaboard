@@ -58,8 +58,8 @@ import type {
 // DEV/PROD flags to pick the right default for each build type.
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://localhost:4000' : '')
 
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' })
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include', signal })
   if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`)
   return res.json() as Promise<T>
 }
@@ -243,8 +243,8 @@ export function getSessions(): Promise<LegislativeSession[]> {
   return getJson('/api/sessions')
 }
 
-export function getSessionBills(sessionId: string): Promise<SessionBillSummary[]> {
-  return getJson(`/api/sessions/${sessionId}/bills`)
+export function getSessionBills(sessionId: string, signal?: AbortSignal): Promise<SessionBillSummary[]> {
+  return getJson(`/api/sessions/${sessionId}/bills`, signal)
 }
 
 export function getLegislators(): Promise<LegislatorSummary[]> {

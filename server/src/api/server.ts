@@ -1,5 +1,6 @@
 import { pipeline, Readable } from 'node:stream'
 import cookieParser from 'cookie-parser'
+import compression from 'compression'
 import cors from 'cors'
 import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
@@ -36,6 +37,9 @@ const PORT = Number(process.env.PORT ?? process.env.API_PORT ?? 4000)
 // origin and as the base for invite/reset links (see auth.ts).
 app.use(cors({ origin: process.env.APP_BASE_URL ?? 'http://localhost:5173', credentials: true }))
 app.use(cookieParser())
+// Gzip the JSON responses. A session bill list is about 870 kB of JSON. The
+// filter skips the hearing audio proxy: its media is compressed already.
+app.use(compression({ filter: (req, res) => !req.path.includes('/audio/') && compression.filter(req, res) }))
 // 20mb: testimony attachments arrive base64-encoded in the JSON body (no
 // multipart handling elsewhere in this API), which inflates size by ~33% —
 // comfortably covers the 15MB attachment cap enforced in mutations.ts.

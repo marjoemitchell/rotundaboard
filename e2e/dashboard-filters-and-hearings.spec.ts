@@ -18,6 +18,9 @@ test.describe('Dashboard and All bills navigation', () => {
   })
 
   test('All bills lists every bill of the session, and LC drafts and Introduced filter it', async ({ page }) => {
+    // The fixture opens two bill pages to track the bills. Under a parallel
+    // run, this test can need more than the default 30 seconds.
+    test.slow()
     await signUpFreshWorkspace(page)
     const { lc, introduced } = await trackOneLcAndOneIntroducedBill(page)
     const nav = page.locator('nav[aria-label="Primary"]')
@@ -75,6 +78,48 @@ test.describe('Dashboard and All bills navigation', () => {
       'true',
     )
     await switcher.getByRole('button', { name: new RegExp(`^${withBills.ordinals.slice(0, 4)} session`) }).click()
+    await expect(page.getByRole('table', { name: 'Bills' }).locator('a[role="row"]').first()).toBeVisible()
+  })
+
+  test('going back to a session shows its bills at once, also while the refresh is slow', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const sessions = await page.evaluate(async () => {
+      const res = await fetch('http://localhost:4000/api/sessions', { credentials: 'include' })
+      return (await res.json()) as { id: string; ordinals: string; billCount: number }[]
+    })
+    test.skip(sessions.length < 2, 'needs two sessions')
+    const withBills = [...sessions].sort((a, b) => b.billCount - a.billCount)[0]
+    const other = sessions.find((s) => s.id !== withBills.id)!
+    const button = (s: { ordinals: string }) =>
+      page.getByRole('group', { name: 'Session' }).getByRole('button', { name: new RegExp(`^${s.ordinals.slice(0, 4)} session`) })
+    const rows = page.getByRole('table', { name: 'Bills' }).locator('a[role="row"]')
+
+    await page.goto(`/bills?session=${withBills.id}`)
+    await expect(rows.first()).toBeVisible()
+    await button(other).click()
+    await expect(button(other)).toHaveAttribute('aria-pressed', 'true')
+
+    // The next request for the session takes 8 seconds.
+    await page.route(`**/api/sessions/${withBills.id}/bills`, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 8000))
+      await route.continue().catch(() => undefined)
+    })
+    await button(withBills).click()
+    await expect(rows.first()).toBeVisible({ timeout: 2000 })
+  })
+
+  test('a failed request shows an error, and "Try again" loads the bills', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const sessionId = await findSessionIdWithBills(page)
+    await page.route(`**/api/sessions/${sessionId}/bills`, (route) => route.fulfill({ status: 502, body: 'Bad gateway' }))
+
+    await page.goto(`/bills?session=${sessionId}`)
+    const alert = page.getByRole('alert')
+    await expect(alert).toContainText('The bills could not be loaded.')
+    await expect(page.getByText('No bills found for this session yet.')).toHaveCount(0)
+
+    await page.unroute(`**/api/sessions/${sessionId}/bills`)
+    await alert.getByRole('button', { name: 'Try again' }).click()
     await expect(page.getByRole('table', { name: 'Bills' }).locator('a[role="row"]').first()).toBeVisible()
   })
 

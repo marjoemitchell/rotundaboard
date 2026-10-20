@@ -20,6 +20,10 @@ const SESSION_KEY = 'rotunda.allBills.session'
 
 const isLc = (b: SessionBillSummary) => b.identifier.startsWith('LC')
 
+// The bills of each session that this page loaded before. A click on that
+// session shows them at once, and the page refreshes them in the background.
+const billCache = new Map<string, SessionBillSummary[]>()
+
 /** "2025 session" from the ordinals "20251". A later session in the same year is a special session. */
 export function sessionLabel(s: LegislativeSession): string {
   const year = s.ordinals.slice(0, 4)
@@ -47,6 +51,9 @@ export function AllBillsPage() {
   const [search, setSearch] = useSearchParams()
   const [sessions, setSessions] = useState<LoadState<LegislativeSession[]>>({ status: 'loading' })
   const [bills, setBills] = useState<LoadState<SessionBillSummary[]>>({ status: 'loading' })
+  // True when the request failed and the page has no bills to show.
+  const [failed, setFailed] = useState(false)
+  const [reloads, setReloads] = useState(0)
   const [shown, setShown] = useState(PAGE_SIZE)
 
   const type = (['lc', 'introduced'].includes(search.get('type') ?? '') ? search.get('type') : 'all') as BillType
@@ -69,19 +76,30 @@ export function AllBillsPage() {
   const session =
     available.find((s) => s.id === requested) ?? available.find((s) => s.billCount > 0) ?? available[0] ?? null
 
+  const sessionId = session?.id ?? null
   useEffect(() => {
-    if (!session) return
-    let cancelled = false
-    setBills({ status: 'loading' })
-    setShown(PAGE_SIZE)
+    if (!sessionId) return
+    // A new click cancels the request for the session before.
+    const controller = new AbortController()
+    const toState = (data: SessionBillSummary[]): LoadState<SessionBillSummary[]> =>
+      data.length === 0 ? { status: 'empty' } : { status: 'ready', data }
+    const cached = billCache.get(sessionId)
+    setBills(cached ? toState(cached) : { status: 'loading' })
+    setFailed(false)
     client
-      .getSessionBills(session.id)
-      .then((data) => !cancelled && setBills(data.length === 0 ? { status: 'empty' } : { status: 'ready', data }))
-      .catch(() => !cancelled && setBills({ status: 'empty' }))
-    return () => {
-      cancelled = true
-    }
-  }, [session?.id])
+      .getSessionBills(sessionId, controller.signal)
+      .then((data) => {
+        billCache.set(sessionId, data)
+        setBills(toState(data))
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return
+        console.error(err)
+        // With cached bills, keep them. Without, show the error and a retry.
+        if (!cached) setFailed(true)
+      })
+    return () => controller.abort()
+  }, [sessionId, reloads])
 
   const update = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(search)
@@ -96,6 +114,7 @@ export function AllBillsPage() {
   const chooseSession = (id: string) => {
     storeSession(id)
     update({ session: id })
+    setShown(PAGE_SIZE)
   }
 
   const counts = useMemo(() => {
@@ -156,10 +175,21 @@ export function AllBillsPage() {
             </div>
           </div>
 
-          {bills.status === 'loading' && <div className="skeleton" style={{ height: 300, marginTop: 16 }} />}
-          {bills.status === 'empty' && <EmptyState message="No bills found for this session yet." />}
+          {failed ? (
+            <div className={styles.loadError} role="alert">
+              The bills could not be loaded.{' '}
+              <button className={styles.retry} onClick={() => setReloads((n) => n + 1)}>
+                Try again
+              </button>
+            </div>
+          ) : (
+            <>
+              {bills.status === 'loading' && <div className="skeleton" style={{ height: 300, marginTop: 16 }} />}
+              {bills.status === 'empty' && <EmptyState message="No bills found for this session yet." />}
+            </>
+          )}
 
-          {bills.status === 'ready' && (
+          {!failed && bills.status === 'ready' && (
             <>
               <div className={styles.searchRow}>
                 <input
