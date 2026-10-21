@@ -207,3 +207,54 @@
   border: 1px solid var(--border);
   border-radius: 4px;
 }
+
+/* Phone width: each bill is a small card, with no column header and no
+   sideways scroll. Cell order: number, title, sponsor, status, tracked. */
+@media (max-width: 600px) {
+  .table {
+    max-height: none;
+  }
+  .grid {
+    display: block;
+  }
+  .headerRow {
+    display: none;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--card);
+  }
+  .row .cell {
+    padding: 0;
+    border-bottom: none;
+    background: none;
+  }
+  .row:hover .cell {
+    background: none;
+  }
+  .row .cell:nth-child(1) {
+    grid-column: 1;
+  }
+  .row .cell:nth-child(5) {
+    grid-column: 2;
+    grid-row: 1;
+    justify-content: flex-end;
+  }
+  .row .cell:nth-child(2),
+  .row .cell:nth-child(3),
+  .row .cell:nth-child(4) {
+    grid-column: 1 / -1;
+    font-size: 15px;
+  }
+  .row .cell:nth-child(2) .titleCell {
+    white-space: normal;
+  }
+  .row .cell:nth-child(3),
+  .row .cell:nth-child(4) {
+    color: var(--muted);
+    font-size: 14px;
+  }
+}

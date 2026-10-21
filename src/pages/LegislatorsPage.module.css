@@ -112,3 +112,51 @@
   font-size: 16px;
   font-weight: 600;
 }
+
+/* Phone width: each legislator is a small card, with no column header and
+   no sideways scroll. Cell order: name, chamber, party, district, sponsored. */
+@media (max-width: 600px) {
+  .table {
+    max-height: none;
+  }
+  .grid {
+    display: block;
+  }
+  .headerRow {
+    display: none;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    column-gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--card);
+  }
+  .row .cell {
+    padding: 0;
+    border-bottom: none;
+    background: none;
+  }
+  .row:hover .cell {
+    background: none;
+  }
+  .row .cell:nth-child(1) {
+    grid-column: 1 / 3;
+  }
+  .row .cell:nth-child(3) {
+    grid-column: 3;
+    grid-row: 1;
+    justify-content: flex-end;
+  }
+  .row .cell:nth-child(2),
+  .row .cell:nth-child(4) {
+    grid-row: 2;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  /* The count has no label without the header row. */
+  .row .cell:nth-child(5) {
+    display: none;
+  }
+}

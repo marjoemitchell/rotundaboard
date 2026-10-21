@@ -58,3 +58,46 @@ test.describe('mobile TopBar', () => {
     await expect(topRow.locator('[class*="inlineOutcome"]')).toBeVisible()
   })
 })
+
+test.describe('mobile layout', () => {
+  // Pages that must fit a phone screen with no sideways scroll.
+  const PAGES = ['/', '/bills', '/hearings', '/legislators', '/watches', '/committees', '/notes', '/testimony', '/settings', '/sessions']
+
+  test('every main page fits a phone screen, with no sideways scroll', async ({ page }) => {
+    test.slow()
+    await signUpFreshWorkspace(page)
+    const { billId } = await trackFirstAvailableBill(page)
+    await page.setViewportSize({ width: 375, height: 700 })
+    for (const path of [...PAGES, `/bills/${billId}`]) {
+      await page.goto(path)
+      await expect(page.locator('h1').first()).toBeVisible()
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+      expect(overflow, `${path} is wider than the screen`).toBeLessThanOrEqual(0)
+    }
+  })
+
+  test('the bill page controls wrap, so "Stop tracking" stays on the screen', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const { billId } = await trackFirstAvailableBill(page)
+    await page.setViewportSize({ width: 375, height: 700 })
+    await page.goto(`/bills/${billId}`)
+    await expect(page.getByRole('button', { name: 'Stop tracking' })).toBeInViewport({ ratio: 1 })
+  })
+
+  test('the All bills and Legislators lists show cards, with no column header', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    await page.setViewportSize({ width: 375, height: 700 })
+
+    await page.goto('/bills')
+    const billRow = page.locator('a[role="row"]').first()
+    await expect(billRow).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Sponsor' })).toBeHidden()
+    // The status is in the card, on the screen, not in a column off to the side.
+    await expect(billRow.locator('[class*="statusCell"]')).toBeInViewport({ ratio: 1 })
+
+    await page.goto('/legislators')
+    const legislatorRow = page.locator('a[role="row"]').first()
+    await expect(legislatorRow).toBeVisible()
+    await expect(legislatorRow.locator('[role="cell"]').nth(3)).toBeInViewport({ ratio: 1 })
+  })
+})
