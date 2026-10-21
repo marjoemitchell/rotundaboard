@@ -19,6 +19,22 @@ const MAX_CAPTURED_EMAILS = 50
 // is only written to the log. That counts as sent in local development, but
 // not in production: there it is a configuration error, and callers that
 // retry (scrapeHealth.ts) must try again.
+/**
+ * EMAIL_FROM_ADDRESS, cleaned. A value pasted into a hosting dashboard can
+ * have characters that Resend refuses: spaces or line breaks at the ends,
+ * quotes around the value, or non-breaking spaces. Resend accepts
+ * "email@example.com" or "Name <email@example.com>".
+ */
+export function fromAddress(raw: string | undefined = process.env.EMAIL_FROM_ADDRESS): string {
+  const value = (raw ?? '')
+    .replace(/[\u00a0\u2007\u202f]/g, ' ')
+    .trim()
+    .replace(/^["'\u201c\u2018](.*)["'\u201d\u2019]$/s, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return value || 'notifications@rotundaboard.example'
+}
+
 export async function sendEmail(to: string, subject: string, html: string, text?: string): Promise<boolean> {
   sentEmails.push({ to, subject, html, text: text ?? null, sentAt: Date.now() })
   if (sentEmails.length > MAX_CAPTURED_EMAILS) sentEmails.shift()
@@ -31,14 +47,18 @@ export async function sendEmail(to: string, subject: string, html: string, text?
     console.log(`[email:dev] to=${to} subject="${subject}"\n${html}`)
     return true
   }
-  const from = process.env.EMAIL_FROM_ADDRESS ?? 'notifications@rotundaboard.example'
+  const from = fromAddress()
   // The Resend SDK does not throw on an API-level failure (unverified
   // sender domain, restricted recipient in test mode, etc.) — it resolves
   // with { error } instead, so that has to be checked explicitly or a
   // rejected send fails completely silently.
   const { error } = await resend.emails.send({ from, to, subject, html, ...(text ? { text } : {}) })
   if (error) {
-    console.error(`[email:resend] failed to send "${subject}" to ${to}: ${error.name} - ${error.message}`)
+    // JSON.stringify shows hidden characters in the from address (a line
+    // break, a non-breaking space, quotes).
+    console.error(
+      `[email:resend] failed to send "${subject}" to ${to} from ${JSON.stringify(from)}: ${error.name} - ${error.message}`,
+    )
     return false
   }
   return true
