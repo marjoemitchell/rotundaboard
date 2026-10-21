@@ -526,6 +526,15 @@ app.get('/api/bills/:id/amendment-documents/:documentId', async (req, res) => {
   }
 })
 
+// The values for the dashboard filter menus (FilterBar.tsx).
+app.get('/api/filter-options', async (_req, res) => {
+  try {
+    res.json(await queries.getFilterOptions())
+  } catch (err) {
+    handleError(res, 'GET /api/filter-options', err)
+  }
+})
+
 app.get('/api/bills/:id', async (req, res) => {
   const billId = parseBillId(req, res)
   if (billId === null) return

@@ -1816,3 +1816,30 @@ export async function getNotificationPreferences(userId: number, workspaceId: nu
     })),
   }
 }
+
+// All the values for the dashboard filter menus, not only the values of
+// the tracked bills. Each value has the same format as in getBills().
+export async function getFilterOptions() {
+  const [statuses, subjects, committees, sponsors, parties] = await Promise.all([
+    pool.query<{ v: string }>(
+      `SELECT DISTINCT bsc.name AS v FROM bill_statuses bs JOIN bill_status_codes bsc ON bsc.id = bs.bill_status_code_id
+       WHERE bsc.name IS NOT NULL ORDER BY 1`,
+    ),
+    pool.query<{ v: string }>(`SELECT DISTINCT description AS v FROM subject_codes WHERE description IS NOT NULL ORDER BY 1`),
+    pool.query<{ v: string }>(`SELECT DISTINCT name AS v FROM standing_committees WHERE name IS NOT NULL ORDER BY 1`),
+    pool.query<{ v: string }>(
+      `SELECT DISTINCT trim(coalesce(sp.first_name, '') || ' ' || coalesce(sp.last_name, '')) AS v
+       FROM bills b JOIN legislators sp ON sp.id = b.sponsor_id
+       WHERE sp.first_name IS NOT NULL OR sp.last_name IS NOT NULL ORDER BY 1`,
+    ),
+    pool.query<{ v: string }>(`SELECT DISTINCT code AS v FROM political_parties WHERE code IS NOT NULL ORDER BY 1`),
+  ])
+  const values = (r: { rows: { v: string }[] }) => r.rows.map((row) => row.v).filter(Boolean)
+  return {
+    statuses: values(statuses),
+    subjects: values(subjects),
+    committees: values(committees),
+    sponsors: values(sponsors),
+    parties: values(parties),
+  }
+}

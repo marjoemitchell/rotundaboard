@@ -179,3 +179,25 @@ test.describe('dashboard subtitle', () => {
     await expect(page.getByText('Loading today’s activity…')).toHaveCount(0)
   })
 })
+
+test.describe('dashboard filter menus', () => {
+  test('the menus list all values, not only the values of the tracked bills', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    // One tracked bill has one sponsor party and one committee.
+    await trackFirstAvailableBill(page)
+    const res = await page.request.get('http://localhost:4000/api/filter-options')
+    expect(res.ok()).toBeTruthy()
+    const all = (await res.json()) as { committees: string[]; parties: string[]; subjects: string[] }
+    expect(all.parties.length).toBeGreaterThan(1)
+    expect(all.committees.length).toBeGreaterThan(1)
+
+    await page.goto('/')
+    await page.getByLabel('Add filter').selectOption('party')
+    const party = page.getByLabel('Party', { exact: true })
+    for (const p of all.parties) await expect(party.locator('option', { hasText: new RegExp(`^${p}$`) })).toHaveCount(1)
+
+    await page.getByLabel('Add filter').selectOption('committee')
+    const committee = page.getByLabel('Committee', { exact: true })
+    await expect(committee.locator('option')).toHaveCount(all.committees.length)
+  })
+})

@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
-import type { Bill, FilterState, LoadState, TeamMember } from '../types'
+import { useEffect, useMemo, useState } from 'react'
+import * as client from '../data/client'
+import type { Bill, FilterOptions, FilterState, LoadState, TeamMember } from '../types'
 import styles from './FilterBar.module.css'
 
 type FilterKey = keyof FilterState
@@ -14,13 +15,38 @@ function unique(values: (string | undefined)[]): string[] {
   return Array.from(new Set(values.filter((v): v is string => Boolean(v)))).sort()
 }
 
+// The menus show all values from the API (getFilterOptions), and also the
+// values of the tracked bills, so that no value of a tracked bill is missing.
+// The API values are the same for all pages, so the page loads them one time.
+let optionsRequest: Promise<FilterOptions> | null = null
+
+function useFilterOptions(): FilterOptions | null {
+  const [options, setOptions] = useState<FilterOptions | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    optionsRequest ??= client.getFilterOptions()
+    optionsRequest
+      .then((o) => !cancelled && setOptions(o))
+      .catch((err: unknown) => {
+        // Try again on the next mount. The menus use the tracked bills until then.
+        optionsRequest = null
+        console.error(err)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return options
+}
+
 function useFilterDefs(bills: Bill[], teamMembers: TeamMember[]): FilterDef[] {
+  const all = useFilterOptions()
   return useMemo(
     (): FilterDef[] => [
       {
         key: 'status',
         label: 'Status',
-        options: unique(bills.map((b) => b.status)).map((v) => ({ value: v, label: v })),
+        options: unique([...(all?.statuses ?? []), ...bills.map((b) => b.status)]).map((v) => ({ value: v, label: v })),
       },
       {
         key: 'assignee',
@@ -30,7 +56,7 @@ function useFilterDefs(bills: Bill[], teamMembers: TeamMember[]): FilterDef[] {
       {
         key: 'subject',
         label: 'Subject',
-        options: unique(bills.flatMap((b) => b.subjects)).map((v) => ({ value: v, label: v })),
+        options: unique([...(all?.subjects ?? []), ...bills.flatMap((b) => b.subjects)]).map((v) => ({ value: v, label: v })),
       },
       {
         key: 'position',
@@ -50,7 +76,7 @@ function useFilterDefs(bills: Bill[], teamMembers: TeamMember[]): FilterDef[] {
       {
         key: 'committee',
         label: 'Committee',
-        options: unique(bills.map((b) => b.committee)).map((v) => ({ value: v, label: v })),
+        options: unique([...(all?.committees ?? []), ...bills.map((b) => b.committee)]).map((v) => ({ value: v, label: v })),
       },
       {
         key: 'chamber',
@@ -63,12 +89,12 @@ function useFilterDefs(bills: Bill[], teamMembers: TeamMember[]): FilterDef[] {
       {
         key: 'sponsor',
         label: 'Sponsor',
-        options: unique(bills.map((b) => b.sponsor.name)).map((v) => ({ value: v, label: v })),
+        options: unique([...(all?.sponsors ?? []), ...bills.map((b) => b.sponsor.name)]).map((v) => ({ value: v, label: v })),
       },
       {
         key: 'party',
         label: 'Party',
-        options: unique(bills.map((b) => b.sponsor.party)).map((v) => ({ value: v, label: v })),
+        options: unique([...(all?.parties ?? []), ...bills.map((b) => b.sponsor.party)]).map((v) => ({ value: v, label: v })),
       },
       {
         key: 'lastActionWithin',
@@ -76,7 +102,7 @@ function useFilterDefs(bills: Bill[], teamMembers: TeamMember[]): FilterDef[] {
         options: ['7', '14', '30', '90'].map((v) => ({ value: v, label: `Last ${v} days` })),
       },
     ],
-    [bills, teamMembers],
+    [bills, teamMembers, all],
   )
 }
 

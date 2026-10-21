@@ -15,6 +15,7 @@ import type {
   AmendmentChanges,
   BillComparison,
   BillDetail,
+  FilterOptions,
   Brief,
   FollowedCommittee,
   AlertDelivery,
@@ -237,6 +238,10 @@ export function createSavedView(name: string, color: string, query: string): Pro
 
 export function deleteSavedView(id: string): Promise<void> {
   return sendJson(`/api/saved-views/${id}`, 'DELETE')
+}
+
+export function getFilterOptions(): Promise<FilterOptions> {
+  return getJson('/api/filter-options')
 }
 
 export function getSessions(): Promise<LegislativeSession[]> {

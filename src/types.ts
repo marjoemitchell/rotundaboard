@@ -569,3 +569,12 @@ export interface DataFreshness {
   lastSuccessfulScrape: string | null
   jobs: DataFreshnessJob[]
 }
+
+/** All values for the dashboard filter menus, not only the values of tracked bills. */
+export interface FilterOptions {
+  statuses: string[]
+  subjects: string[]
+  committees: string[]
+  sponsors: string[]
+  parties: string[]
+}
