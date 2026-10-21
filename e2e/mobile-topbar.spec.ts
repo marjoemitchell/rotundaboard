@@ -23,6 +23,22 @@ test.describe('mobile TopBar', () => {
     await expect(nav.locator('button', { hasText: 'Log out' })).toBeVisible()
   })
 
+  test('Settings in the phone menu opens the settings page and closes the menu', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 700 })
+    await signUpFreshWorkspace(page)
+    const nav = page.locator('nav[aria-label="Primary"]')
+
+    await page.locator('button', { hasText: 'Menu' }).click()
+    const settings = nav.locator('a', { hasText: 'Settings' })
+    // The link is on the screen, not under the bottom edge.
+    await expect(settings).toBeInViewport({ ratio: 1 })
+    await settings.click()
+
+    await expect(page).toHaveURL(/\/settings$/)
+    await expect(page.locator('h1', { hasText: 'Settings' })).toBeInViewport()
+    await expect(nav).not.toBeInViewport()
+  })
+
   test('the hamburger menu button uses a dark, readable color on the light page background', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 700 })
     await signUpFreshWorkspace(page)

@@ -86,6 +86,12 @@ export function AuthenticatedApp() {
 
   const [navActive, setNavActive] = useState<NavId>('dashboard')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  // Close the phone menu on each page change. A link in the menu (such as
+  // Settings) does not go through handleNavigate, and without this the open
+  // menu stays on top of the new page.
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [location.pathname])
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)

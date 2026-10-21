@@ -5,6 +5,10 @@
   width: 232px;
   flex-shrink: 0;
   height: calc(100vh - 52px);
+  /* On a phone, 100vh includes the area under the browser toolbar, which
+     hid Settings and Log out at the bottom of the menu. dvh is the visible
+     height. */
+  height: calc(100dvh - 52px);
   display: flex;
   flex-direction: column;
   background: var(--card);
@@ -199,6 +203,9 @@
   .nav {
     position: fixed;
     inset: 52px 0 0 0;
+    /* The menu ends at the bottom of the visible screen (inset), so that
+       Settings and Log out are not under the browser toolbar. */
+    height: auto;
     z-index: 30;
     width: 100%;
     transform: translateX(-100%);
