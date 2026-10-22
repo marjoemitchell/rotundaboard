@@ -16,6 +16,8 @@ import type {
   BillComparison,
   BillDetail,
   FilterOptions,
+  SuggestedBills,
+  UpcomingMeetings,
   Brief,
   FollowedCommittee,
   AlertDelivery,
@@ -238,6 +240,14 @@ export function createSavedView(name: string, color: string, query: string): Pro
 
 export function deleteSavedView(id: string): Promise<void> {
   return sendJson(`/api/saved-views/${id}`, 'DELETE')
+}
+
+export function getUpcomingMeetings(): Promise<UpcomingMeetings> {
+  return getJson('/api/upcoming-meetings')
+}
+
+export function getSuggestedBills({ limit = 5 }: { limit?: number } = {}): Promise<SuggestedBills> {
+  return getJson(`/api/suggested-bills?limit=${limit}`)
 }
 
 export function getFilterOptions(): Promise<FilterOptions> {

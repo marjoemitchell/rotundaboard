@@ -10,15 +10,28 @@ function formatWhen(iso: string): string {
 
 // How recent the Legislature data is. All bill and committee data comes from
 // an unpublished API. This line shows the user when that data is old.
+/** "4:12 AM (16h ago)" today, "Oct 13, 4:12 AM (7d ago)" before today. */
+function formatWhenWithAgo(iso: string): string {
+  const d = new Date(iso)
+  const today = new Date().toDateString() === d.toDateString()
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  const when = today ? time : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
+  return `${when} (${formatRelativeTime(iso)})`
+}
+
 export function DataFreshness() {
   const [freshness, setFreshness] = useState<Freshness | null>(null)
+  const [checking, setChecking] = useState(false)
 
-  useEffect(() => {
+  const load = () => {
+    setChecking(true)
     client
       .getDataFreshness()
       .then(setFreshness)
       .catch(() => setFreshness(null))
-  }, [])
+      .finally(() => setChecking(false))
+  }
+  useEffect(load, [])
 
   if (!freshness) return null
 
@@ -28,6 +41,7 @@ export function DataFreshness() {
     .sort()
   const latestSuccess = freshness.lastSuccessfulScrape ?? successes[successes.length - 1] ?? null
   const ago = latestSuccess ? formatRelativeTime(latestSuccess) : null
+  const whenWithAgo = latestSuccess ? formatWhenWithAgo(latestSuccess) : 'none'
 
   let text: string
   switch (freshness.status) {
@@ -35,10 +49,10 @@ export function DataFreshness() {
       text = 'The time of the last data update is not recorded yet.'
       break
     case 'failing':
-      text = `The last data update failed. Last successful update: ${ago ?? 'none'}.`
+      text = `The last data update failed. Last successful update ${whenWithAgo}.`
       break
     case 'stale':
-      text = `Legislature data may be out of date. Last successful update: ${ago ?? 'none'}.`
+      text = `Legislature data may be out of date. Last successful update ${whenWithAgo}.`
       break
     default:
       text = `Legislature data updated ${ago}.`
@@ -52,6 +66,12 @@ export function DataFreshness() {
     <p className={`${styles.line} ${warn ? styles.warn : ''}`} aria-label="Data freshness" title={details}>
       <span className={styles.dot} aria-hidden="true" />
       {text}
+      {/* Check again: a run can finish while the page is open. */}
+      {freshness.status === 'failing' && (
+        <button className={styles.retry} onClick={load} disabled={checking}>
+          {checking ? 'Checking…' : 'Retry'}
+        </button>
+      )}
     </p>
   )
 }

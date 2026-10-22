@@ -79,6 +79,8 @@ export function TeamBoard({
         })}
       </div>
 
+      {/* The stats row hides when all three counts are 0. */}
+      {(data.toReview > 0 || data.testimonyDrafts > 0 || data.overdue > 0) && (
       <div className={styles.footer}>
         <div className={styles.stat}>
           <div className={styles.statValue}>{data.toReview}</div>
@@ -93,6 +95,7 @@ export function TeamBoard({
           <div className={styles.statLabel}>Overdue</div>
         </div>
       </div>
+      )}
     </div>
   )
 }

@@ -41,6 +41,8 @@ export interface Bill {
   assigneeId: string | null
   momentum: Momentum
   outcome: BillOutcome
+  /** The process of the bill is over: it became law, died, was vetoed or withdrawn, or its session ended. */
+  closed: boolean
 }
 
 export interface BillStatusEvent {
@@ -436,6 +438,8 @@ export interface BriefTaggedItem {
 export interface Brief {
   generatedAt: string
   summary: string
+  /** True when no tracked bill moved in the last 7 days. */
+  quiet: boolean
   boldedBillIds: string[]
   taggedItems: BriefTaggedItem[]
   sourceCounts: { actions: number; hearings: number; fiscalNotes: number }
@@ -577,4 +581,38 @@ export interface FilterOptions {
   committees: string[]
   sponsors: string[]
   parties: string[]
+}
+
+/** A meeting of a followed committee in the next 30 days (dashboard "Coming up"). */
+export interface UpcomingMeeting {
+  id: string
+  committeeId: string
+  committee: string
+  datetime: string
+  location: string | null
+  /** Tracked bills that the agenda names. */
+  trackedBillIds: string[]
+  /** Subjects of subject watches that the agenda names. */
+  watchSubjects: string[]
+}
+
+export interface UpcomingMeetings {
+  meetings: UpcomingMeeting[]
+  /** Followed committees with no meeting in the next 30 days. */
+  idleFollowedCount: number
+}
+
+export interface SuggestedBill {
+  id: string
+  identifier: string
+  title: string
+  requester: string | null
+  subject: string | null
+}
+
+export interface SuggestedBills {
+  /** "watches": the drafts match a subject watch. "statewide": the newest drafts. */
+  source: 'watches' | 'statewide'
+  hasWatches: boolean
+  bills: SuggestedBill[]
 }

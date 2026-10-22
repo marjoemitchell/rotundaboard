@@ -22,3 +22,17 @@
 .warn .dot {
   background: var(--accent);
 }
+
+.retry {
+  margin-left: 8px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+}
+
+.retry:hover {
+  border-color: var(--accent);
+}

@@ -210,3 +210,58 @@ export async function billTextFixture(input: {
   )
   return { amendmentNumber }
 }
+
+// Open LC drafts in a session that has not ended, for the dashboard tests.
+// The scraped data has few open bills between sessions. Negative ids mark
+// the fixtures for e2eCleanup.ts. The first subject code of the database goes
+// on each draft, so a subject watch on that code matches them.
+export async function openDraftsFixture(input: { count: number; titlePrefix?: string }): Promise<{
+  bills: { billId: string; identifier: string; title: string }[]
+  subjectCode: string
+}> {
+  const { rows: sessions } = await pool.query<{ id: number }>(
+    `SELECT id FROM sessions WHERE sine_die_date IS NULL OR sine_die_date > now() ORDER BY start_date DESC LIMIT 1`,
+  )
+  if (!sessions[0]) throw new Error('no open session to attach draft fixtures to')
+  const { rows: subjects } = await pool.query<{ id: number; code: string }>('SELECT id, code FROM subject_codes ORDER BY id LIMIT 1')
+  const base = Math.floor(Math.random() * 100_000_000) + 1
+  const bills: { billId: string; identifier: string; title: string }[] = []
+  for (let i = 0; i < input.count; i++) {
+    const id = -(base * 10 + i)
+    const number = String(9000 + ((base + i) % 1000)).padStart(4, '0')
+    const title = `${input.titlePrefix ?? 'E2E draft'} ${base}-${i}`
+    await pool.query(
+      `INSERT INTO drafts (id, session_id, draft_number, drafted_at, short_title, requester_type)
+       VALUES ($1, $2, $3, now() - make_interval(mins => $4), $5, 'AGENCY')`,
+      [id, sessions[0].id, `LC${number}`, i, title],
+    )
+    await pool.query('INSERT INTO bills (id, session_id, draft_id, bill_number) VALUES ($1, $2, $1, NULL)', [id, sessions[0].id])
+    if (subjects[0]) {
+      await pool.query('INSERT INTO draft_subjects (draft_id, subject_code_id, is_primary) VALUES ($1, $2, true)', [id, subjects[0].id])
+    }
+    bills.push({ billId: String(id), identifier: `LC ${number}`, title })
+  }
+  return { bills, subjectCode: subjects[0]?.code ?? '' }
+}
+
+// An interim committee meeting a few days from now, with agenda items. The
+// test follows the committee to see the meeting on the dashboard. Negative
+// ids mark the fixture for e2eCleanup.ts.
+export async function committeeMeetingFixture(input: {
+  daysFromNow: number
+  location?: string
+  agenda?: string[]
+}): Promise<{ committeeId: string; committee: string; meetingId: number }> {
+  const { rows } = await pool.query<{ id: number; name: string }>(
+    'SELECT id, name FROM non_standing_committees WHERE name IS NOT NULL ORDER BY id LIMIT 1',
+  )
+  if (!rows[0]) throw new Error('no committees to attach a meeting fixture to')
+  const meetingId = -(Math.floor(Math.random() * 1_000_000_000) + 1)
+  const agenda = (input.agenda ?? []).map((title, i) => ({ id: -(i + 1), title, description: '', orderNumber: i + 1 }))
+  await pool.query(
+    `INSERT INTO non_standing_committee_meetings (id, non_standing_committee_id, meeting_time, location, status, agenda_items)
+     VALUES ($1, $2, date_trunc('minute', (now() AT TIME ZONE 'America/Denver') + make_interval(days => $3)), $4, 'SCHEDULED', $5)`,
+    [meetingId, rows[0].id, input.daysFromNow, input.location ?? 'Room 102 (E2E)', JSON.stringify(agenda)],
+  )
+  return { committeeId: String(rows[0].id), committee: rows[0].name, meetingId }
+}

@@ -1,4 +1,4 @@
-import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill, trackBillWithOutcome, getLastEmail } from './fixtures'
+import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill, trackBillWithOutcome, getLastEmail, showClosedBills } from './fixtures'
 
 const OUTCOME_LABELS: Record<string, string> = {
   became_law: 'Became law',
@@ -13,15 +13,13 @@ test.describe('dashboard bill table and drawer', () => {
     await signUpFreshWorkspace(page)
     const { identifier } = await trackFirstAvailableBill(page)
 
-    // The only session with real bill data here concluded in 2025, so every
-    // bill in it has a final outcome (see determineOutcome in
-    // server/src/momentum.ts) and shows an outcome badge, not the live
-    // momentum tracker — that path only applies to a bill whose session is
-    // still active, which no seeded/scraped data currently has, so it isn't
-    // covered by this suite.
+    // The only session with real bill data here ended in 2025, so the bill is
+    // closed. The table shows it in the "Closed" group, with "—" for momentum.
+    // The drawer and the bill page show its outcome badge.
     await page.goto('/')
+    await showClosedBills(page)
     const row = page.locator('[role="row"]', { hasText: identifier })
-    await expect(row.locator('[class*="momentumCell"] [class*="badge"]')).toBeVisible()
+    await expect(row.locator('[class*="momentumCell"]')).toHaveText('—')
 
     await row.click()
     const drawer = page.locator(`[aria-label="${identifier} details"]`)
@@ -57,6 +55,7 @@ test.describe('dashboard bill table and drawer', () => {
     const { identifier } = await trackFirstAvailableBill(page)
 
     await page.goto('/')
+    await showClosedBills(page)
     await page.locator('[role="row"]', { hasText: identifier }).click()
     const drawer = page.locator(`[aria-label="${identifier} details"]`)
     await expect(drawer).toBeVisible()
@@ -73,7 +72,7 @@ test.describe('dashboard bill table and drawer', () => {
 })
 
 test.describe('resolved bills show their real outcome instead of a live momentum tracker', () => {
-  test('the outcome badge label matches the bill\'s actual outcome, consistently across the table, drawer, and full page', async ({
+  test('the outcome badge label matches the bill\'s actual outcome in the drawer and on the full page', async ({
     page,
   }) => {
     await signUpFreshWorkspace(page)
@@ -86,9 +85,11 @@ test.describe('resolved bills show their real outcome instead of a live momentum
     const expectedLabel = OUTCOME_LABELS[detail.outcome]
     expect(expectedLabel).toBeTruthy()
 
+    // The table keeps the momentum column numeric: a closed bill shows "—".
     await page.goto('/')
+    await showClosedBills(page)
     const row = page.locator('[role="row"]', { hasText: identifier })
-    await expect(row.locator('[class*="momentumCell"]')).toHaveText(expectedLabel)
+    await expect(row.locator('[class*="momentumCell"]')).toHaveText('—')
 
     await row.click()
     const drawer = page.locator(`[aria-label="${identifier} details"]`)

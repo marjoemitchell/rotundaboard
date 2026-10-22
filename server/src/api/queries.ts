@@ -14,7 +14,7 @@
 import { pool } from '../db.js'
 import { versionLabel, versionOrder } from '../billText.js'
 import type { HearingAiSummary } from '../summarizeHearings.js'
-import { computeMomentum, determineOutcome, type StatusPoint } from '../momentum.js'
+import { computeMomentum, determineOutcome, isProgressStopped, type StatusPoint } from '../momentum.js'
 
 function formatIdentifier(billTypeCode: string | null, billNumber: number | null, draftNumber: string): string {
   if (billTypeCode && billNumber != null) return `${billTypeCode} ${billNumber}`
@@ -165,6 +165,10 @@ export async function getBills(workspaceId: number) {
       identifier: formatIdentifier(r.bill_type_code, r.bill_number, r.draft_number),
       title: r.short_title,
       officialUrl: buildOfficialBillUrl(r.legislature_id, r.draft_number),
+      // The bill's process is over: it became law, its latest status is a
+      // final one (died, vetoed, withdrawn, missed a deadline), or its
+      // session ended.
+      closed: outcome != null || isProgressStopped(statuses),
       sponsor: { name: sponsorName, district: r.sponsor_district ?? '', party: r.sponsor_party ?? '' },
       committee: r.committee_name ?? undefined,
       chamber: r.chamber ? (r.chamber.toLowerCase() as 'house' | 'senate') : undefined,
@@ -300,7 +304,13 @@ export async function getNavCounts(workspaceId: number) {
   }
 }
 
-export async function getSessionCalendar() {
+// Montana wall-clock time now. Scraped meeting times are naive Montana time.
+const NOW_MT = `(now() AT TIME ZONE 'America/Denver')`
+
+// The dashboard strip. The counts are for this workspace only: the LC drafts
+// that it tracks for the next session, and the meetings of the committees
+// that it follows.
+export async function getSessionCalendar(workspaceId: number) {
   const { rows: sessionRows } = await pool.query<{
     id: number
     ordinals: string
@@ -321,9 +331,10 @@ export async function getSessionCalendar() {
     const { rows } = await pool.query<{ total: string; recent: string }>(
       `SELECT
          count(*) AS total,
-         count(*) FILTER (WHERE d.drafted_at >= now() - interval '7 days') AS recent
-       FROM drafts d WHERE d.session_id = $1`,
-      [nextSession.id],
+         count(*) FILTER (WHERE tb.tracked_at >= now() - interval '7 days') AS recent
+       FROM tracked_bills tb JOIN bills b ON b.id = tb.bill_id
+       WHERE tb.workspace_id = $2 AND b.session_id = $1 AND b.bill_number IS NULL`,
+      [nextSession.id, workspaceId],
     )
     lcDraftsFiled = Number(rows[0]?.total ?? 0)
     lcDraftsDelta7d = Number(rows[0]?.recent ?? 0)
@@ -333,7 +344,10 @@ export async function getSessionCalendar() {
     `SELECT count(*) AS n, coalesce(array_agg(DISTINCT nsc.name), '{}') AS committees
      FROM non_standing_committee_meetings m
      JOIN non_standing_committees nsc ON nsc.id = m.non_standing_committee_id
-     WHERE m.meeting_time BETWEEN now() AND now() + interval '30 days'`,
+     JOIN followed_committees fc ON fc.committee_id = nsc.id AND fc.workspace_id = $1
+     WHERE m.meeting_time BETWEEN ${NOW_MT} AND ${NOW_MT} + interval '30 days'
+       AND coalesce(m.status, '') <> 'CANCELED'`,
+    [workspaceId],
   )
 
   const daysToConvene = nextSession?.start_date
@@ -361,7 +375,7 @@ export async function getSessionCalendar() {
 export async function getBrief(workspaceId: number) {
   const [bills, hearings, activityCount] = await Promise.all([
     getBills(workspaceId),
-    getNextInterimMeetings(),
+    getNextInterimMeetings(workspaceId),
     pool.query<{ n: string }>('SELECT count(*) AS n FROM activity_log WHERE workspace_id = $1', [workspaceId]),
   ])
 
@@ -382,15 +396,9 @@ export async function getBrief(workspaceId: number) {
     summaryParts.push(`**${biggestDrop.identifier}** lost the most ground over the same window.`)
     boldedBillIds.push(biggestDrop.id)
   }
-  if (summaryParts.length === 0) {
-    summaryParts.push(
-      'No tracked bills moved meaningfully in the last 7 days. The 2025 session concluded over a year ago, so most status history is long settled. Momentum here mostly shows how far each bill got, not recent activity.',
-    )
-  }
-  if (hearings.length > 0) {
-    const when = new Date(hearings[0].datetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    summaryParts.push(`Next up on the interim calendar: **${hearings[0].committee}** on ${when}.`)
-  }
+  // A quiet week: one sentence. The tagged items below carry the rest.
+  const quiet = summaryParts.length === 0
+  if (quiet) summaryParts.push('No tracked bills moved in the last 7 days.')
 
   const taggedItems: { tag: 'RISK' | 'NEW' | 'CAL'; text: string; sourceIds: string[] }[] = []
   if (untriaged.length > 0) {
@@ -404,7 +412,7 @@ export async function getBrief(workspaceId: number) {
     const when = new Date(hearings[0].datetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     taggedItems.push({
       tag: 'CAL',
-      text: `${hearings[0].committee} meets ${when}. This is the next interim hearing on the calendar.`,
+      text: `${hearings[0].committee} meets ${when}. This is the next meeting of a committee that you follow.`,
       sourceIds: [],
     })
   }
@@ -412,6 +420,7 @@ export async function getBrief(workspaceId: number) {
   return {
     generatedAt: new Date().toISOString(),
     summary: summaryParts.join(' '),
+    quiet,
     boldedBillIds,
     taggedItems,
     sourceCounts: {
@@ -422,18 +431,20 @@ export async function getBrief(workspaceId: number) {
   }
 }
 
-// The next few scheduled interim meetings — what the brief's "next up on
-// the calendar" line is built from. Recorded hearings (with transcripts)
-// are getRecordedHearings() below.
-async function getNextInterimMeetings() {
-  const { rows } = await pool.query<{ committee: string; meeting_time: string }>(`
-    SELECT nsc.name AS committee, m.meeting_time
-    FROM non_standing_committee_meetings m
-    JOIN non_standing_committees nsc ON nsc.id = m.non_standing_committee_id
-    WHERE m.meeting_time >= now()
-    ORDER BY m.meeting_time ASC
-    LIMIT 5
-  `)
+// The next meetings of the committees that the workspace follows: the
+// brief's calendar item. Recorded hearings (with transcripts) are
+// getRecordedHearings() below.
+async function getNextInterimMeetings(workspaceId: number) {
+  const { rows } = await pool.query<{ committee: string; meeting_time: string }>(
+    `SELECT nsc.name AS committee, m.meeting_time
+     FROM non_standing_committee_meetings m
+     JOIN non_standing_committees nsc ON nsc.id = m.non_standing_committee_id
+     JOIN followed_committees fc ON fc.committee_id = nsc.id AND fc.workspace_id = $1
+     WHERE m.meeting_time >= ${NOW_MT} AND coalesce(m.status, '') <> 'CANCELED'
+     ORDER BY m.meeting_time ASC
+     LIMIT 5`,
+    [workspaceId],
+  )
   return rows.map((r) => ({ committee: r.committee, datetime: r.meeting_time }))
 }
 
@@ -1049,7 +1060,9 @@ export async function getSessions(workspaceId: number) {
     `
     SELECT
       s.id, s.ordinals, l.ordinal AS legislature_ordinal, s.start_date, s.sine_die_date,
-      count(b.id) AS bill_count,
+      -- Not the e2e fixture bills (negative ids), so that a fixture does not
+      -- change which session looks current to the other tests.
+      count(b.id) FILTER (WHERE b.id > 0) AS bill_count,
       count(tb.bill_id) FILTER (WHERE tb.workspace_id = $1) AS tracked_count
     FROM sessions s
     JOIN legislatures l ON l.id = s.legislature_id
@@ -1379,7 +1392,8 @@ export async function getBillTags(billId: number, workspaceId: number) {
 // workspace; the watch row itself and its tag_ids are already
 // workspace-scoped by construction.
 
-const WORKING_SESSION_SQL = `(SELECT id FROM sessions WHERE id IN (SELECT DISTINCT session_id FROM bills) ORDER BY start_date DESC LIMIT 1)`
+// The newest session with scraped bills. Fixture bills (negative ids) do not count.
+const WORKING_SESSION_SQL = `(SELECT id FROM sessions WHERE id IN (SELECT DISTINCT session_id FROM bills WHERE id > 0) ORDER BY start_date DESC LIMIT 1)`
 
 export async function getSubjectWatches(workspaceId: number) {
   const { rows } = await pool.query<{
@@ -1841,5 +1855,132 @@ export async function getFilterOptions() {
     committees: values(committees),
     sponsors: values(sponsors),
     parties: values(parties),
+  }
+}
+
+// The dashboard "Coming up" list: meetings of the followed committees in the
+// next 30 days. A badge shows when the agenda names a tracked bill or a
+// subject of a subject watch.
+export async function getUpcomingMeetings(workspaceId: number) {
+  const [{ rows }, patterns, { rows: watchSubjects }, { rows: idle }] = await Promise.all([
+    pool.query<{
+      id: number
+      committee_id: number
+      committee: string
+      meeting_time: string
+      location: string | null
+      agenda_items: { title?: string | null; description?: string | null }[] | null
+    }>(
+      `SELECT m.id, nsc.id AS committee_id, nsc.name AS committee, m.meeting_time, m.location, m.agenda_items
+       FROM non_standing_committee_meetings m
+       JOIN non_standing_committees nsc ON nsc.id = m.non_standing_committee_id
+       JOIN followed_committees fc ON fc.committee_id = nsc.id AND fc.workspace_id = $1
+       WHERE m.meeting_time BETWEEN ${NOW_MT} AND ${NOW_MT} + interval '30 days'
+         AND coalesce(m.status, '') <> 'CANCELED'
+       ORDER BY m.meeting_time`,
+      [workspaceId],
+    ),
+    trackedBillPatterns(workspaceId),
+    pool.query<{ description: string }>(
+      `SELECT DISTINCT sc.description
+       FROM subject_watches w JOIN subject_codes sc ON sc.code = ANY(w.subject_codes)
+       WHERE w.workspace_id = $1 AND sc.description IS NOT NULL`,
+      [workspaceId],
+    ),
+    // Followed committees with no meeting in the next 30 days.
+    pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM followed_committees fc
+       WHERE fc.workspace_id = $1 AND NOT EXISTS (
+         SELECT 1 FROM non_standing_committee_meetings m
+         WHERE m.non_standing_committee_id = fc.committee_id
+           AND m.meeting_time BETWEEN ${NOW_MT} AND ${NOW_MT} + interval '30 days'
+           AND coalesce(m.status, '') <> 'CANCELED')`,
+      [workspaceId],
+    ),
+  ])
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const subjectPatterns = watchSubjects.map((w) => ({
+    subject: w.description,
+    pattern: new RegExp(`\\b${escape(w.description)}\\b`, 'i'),
+  }))
+  return {
+    meetings: rows.map((r) => {
+      const agenda = (r.agenda_items ?? []).map((a) => `${a.title ?? ''} ${a.description ?? ''}`).join('\n')
+      return {
+        id: String(r.id),
+        committeeId: String(r.committee_id),
+        committee: r.committee,
+        datetime: r.meeting_time,
+        location: r.location,
+        trackedBillIds: patterns.filter((p) => p.pattern.test(agenda)).map((p) => p.billId),
+        watchSubjects: subjectPatterns.filter((s) => s.pattern.test(agenda)).map((s) => s.subject),
+      }
+    }),
+    idleFollowedCount: Number(idle[0]?.n ?? 0),
+  }
+}
+
+// LC drafts to suggest for tracking: the newest open drafts of a session that
+// has not ended, that match a subject watch, and that the workspace does not
+// track. With no match, the newest open drafts statewide ("source" tells
+// which). A draft whose latest status is final (code 5, for example "Draft
+// Died in Process") is not open.
+export async function getSuggestedBills(workspaceId: number, limit: number) {
+  const { rows: watchRows } = await pool.query<{ codes: string[] | null }>(
+    `SELECT array_agg(DISTINCT code) AS codes FROM subject_watches w, unnest(w.subject_codes) AS code WHERE w.workspace_id = $1`,
+    [workspaceId],
+  )
+  const codes = watchRows[0]?.codes ?? []
+  const query = (matchWatches: boolean) =>
+    pool.query<{
+      bill_id: number
+      draft_number: string
+      short_title: string
+      requester: string | null
+      subject: string | null
+    }>(
+      `SELECT b.id AS bill_id, d.draft_number, d.short_title,
+              CASE d.requester_type
+                WHEN 'LEGISLATOR' THEN (SELECT trim(coalesce(l.first_name, '') || ' ' || coalesce(l.last_name, '')) FROM legislators l WHERE l.id = d.requester_id)
+                WHEN 'NON_STANDING_COMMITTEE' THEN (SELECT name FROM non_standing_committees WHERE id = d.requester_id)
+                WHEN 'AGENCY' THEN 'An agency'
+              END AS requester,
+              (SELECT sc.description FROM draft_subjects ds JOIN subject_codes sc ON sc.id = ds.subject_code_id
+               WHERE ds.draft_id = d.id ${matchWatches ? 'AND sc.code = ANY($3)' : ''}
+               ORDER BY ds.is_primary DESC NULLS LAST, sc.description LIMIT 1) AS subject
+       FROM bills b
+       JOIN drafts d ON d.id = b.draft_id
+       JOIN sessions s ON s.id = b.session_id
+       WHERE (s.sine_die_date IS NULL OR s.sine_die_date > now())
+         AND b.bill_number IS NULL
+         AND NOT EXISTS (SELECT 1 FROM tracked_bills tb WHERE tb.bill_id = b.id AND tb.workspace_id = $1)
+         AND coalesce((SELECT pc.code FROM bill_statuses bs JOIN progress_categories pc ON pc.id = bs.progress_category_id
+                       WHERE bs.draft_id = d.id ORDER BY bs.occurred_at DESC LIMIT 1), 0) <> 5
+         ${
+           matchWatches
+             ? `AND EXISTS (SELECT 1 FROM draft_subjects ds JOIN subject_codes sc ON sc.id = ds.subject_code_id
+                            WHERE ds.draft_id = d.id AND sc.code = ANY($3))`
+             : ''
+         }
+       ORDER BY d.drafted_at DESC NULLS LAST, b.id DESC
+       LIMIT $2`,
+      matchWatches ? [workspaceId, limit, codes] : [workspaceId, limit],
+    )
+  let source: 'watches' | 'statewide' = 'watches'
+  let { rows } = codes.length > 0 ? await query(true) : { rows: [] }
+  if (rows.length === 0) {
+    source = 'statewide'
+    rows = (await query(false)).rows
+  }
+  return {
+    source,
+    hasWatches: codes.length > 0,
+    bills: rows.map((r) => ({
+      id: String(r.bill_id),
+      identifier: formatIdentifier(null, null, r.draft_number),
+      title: r.short_title,
+      requester: r.requester,
+      subject: r.subject,
+    })),
   }
 }

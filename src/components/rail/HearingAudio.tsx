@@ -58,7 +58,7 @@ export function HearingAudio({
         <div className={styles.head}>
           <div className="eyebrow">Hearing audio</div>
         </div>
-        <EmptyState message="No hearings recorded yet." />
+        <EmptyState message="No recordings of committees that you follow yet. Follow a committee to hear its newest hearing here." />
       </div>
     )
   }
@@ -130,6 +130,9 @@ function HearingPlayer({
   }
 
   const hasTranscript = hearing.transcript.length > 0
+  // With no named speakers, the excerpt would say "Speaker 1". The card is
+  // then compact: details, the player, and the transcript link.
+  const compact = !hearing.speakersNamed
 
   return (
     <div
@@ -152,7 +155,7 @@ function HearingPlayer({
         {transcriptStatusLabel(hearing)}
       </div>
 
-      {hasTranscript && (
+      {hasTranscript && !compact && (
         <div className={styles.searchRow}>
           <input
             className={styles.searchInput}
@@ -191,7 +194,7 @@ function HearingPlayer({
         </div>
       )}
 
-      {activeSegment && (
+      {activeSegment && !compact && (
         <div className={styles.excerpt}>
           <div className={styles.excerptHead}>
             <span>{formatClock(activeSegment.timestamp)}</span>
@@ -205,7 +208,7 @@ function HearingPlayer({
         <button className={styles.actionButton} onClick={() => onOpenTranscript(hearing.id)}>
           Full transcript
         </button>
-        {activeSegment && (
+        {activeSegment && !compact && (
           <button className={styles.actionButton} onClick={handleClip}>
             Clip → notes
           </button>

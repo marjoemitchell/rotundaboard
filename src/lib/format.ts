@@ -60,3 +60,8 @@ export function formatSignedDelta(value: number): string {
   if (value === 0) return '0'
   return value > 0 ? `+${value}` : `${value}`
 }
+
+/** "1 bill", "2 bills". Give `many` for an irregular plural. */
+export function plural(n: number, one: string, many: string = `${one}s`): string {
+  return `${n.toLocaleString()} ${n === 1 ? one : many}`
+}

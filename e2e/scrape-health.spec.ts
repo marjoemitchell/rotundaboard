@@ -111,7 +111,7 @@ test.describe('data freshness on the dashboard', () => {
 
     await signUpFreshWorkspace(page)
     const freshness = page.getByLabel('Data freshness')
-    await expect(freshness).toHaveText('Legislature data may be out of date. Last successful update: 2d ago.')
+    await expect(freshness).toHaveText(/^Legislature data may be out of date\. Last successful update \w{3} \d+, .+ \(2d ago\)\.$/)
 
     const maintainer = `e2e-maintainer-${uniqueSuffix()}@example.dev`
     const res = await page.request.post(`${API_BASE}/api/__test__/scrape-health/check-staleness`, { data: { alertTo: maintainer } })
@@ -136,6 +136,10 @@ test.describe('data freshness on the dashboard', () => {
     await addRun(page.request, 'refresh-meetings', 'failed', 0)
 
     await signUpFreshWorkspace(page)
-    await expect(page.getByLabel('Data freshness')).toHaveText('The last data update failed. Last successful update: 1h ago.')
+    const freshness = page.getByLabel('Data freshness')
+    await expect(freshness).toContainText(/The last data update failed\. Last successful update .+ \(1h ago\)\./)
+    // Retry checks the data freshness again.
+    await freshness.getByRole('button', { name: 'Retry' }).click()
+    await expect(freshness.getByRole('button', { name: 'Retry' })).toBeVisible()
   })
 })

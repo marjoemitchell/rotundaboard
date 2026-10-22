@@ -66,6 +66,7 @@ function useFilterDefs(bills: Bill[], teamMembers: TeamMember[]): FilterDef[] {
           { value: 'oppose', label: 'Oppose' },
           { value: 'watch', label: 'Watch' },
           { value: 'neutral', label: 'Neutral' },
+          { value: 'none', label: 'No position' },
         ],
       },
       {

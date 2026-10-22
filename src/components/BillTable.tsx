@@ -3,9 +3,9 @@ import type { KeyboardEvent } from 'react'
 import type { Bill, LoadState } from '../types'
 import { InitialsSquare } from './shared/InitialsSquare'
 import { MomentumBar } from './shared/MomentumBar'
-import { OutcomeBadge } from './shared/OutcomeBadge'
 import { PositionChip } from './shared/PositionChip'
 import { EmptyState } from './shared/EmptyState'
+import { plural } from '../lib/format'
 import type { TeamMember } from '../types'
 import styles from './BillTable.module.css'
 
@@ -37,16 +37,21 @@ function sortValue(bill: Bill, key: SortKey): string | number {
 
 export function BillTable({
   bills,
+  closedBills = [],
   teamMembers,
   onSelectBill,
   onViewAll,
 }: {
+  /** The active bills. */
   bills: LoadState<Bill[]>
+  /** Bills whose process is over. They show in a collapsed "Closed" group under the active bills. */
+  closedBills?: Bill[]
   teamMembers: LoadState<TeamMember[]>
   onSelectBill: (id: string) => void
   onViewAll: () => void
 }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'momentum', dir: 'desc' })
+  const [showClosed, setShowClosed] = useState(false)
   const [focusedIndex, setFocusedIndex] = useState(0)
 
   const memberById = useMemo(() => {
@@ -92,6 +97,73 @@ export function BillTable({
     }
   }
 
+  // The momentum column is always a number. A closed bill has no momentum: "—".
+  // Its final status is in the last-action line.
+  const momentum = (bill: Bill, closed: boolean) =>
+    closed ? <span className={styles.noMomentum} aria-label="No momentum: closed">—</span> : <MomentumBar score={bill.momentum.score} />
+
+  const renderRow = (bill: Bill, index: number, closed: boolean) => (
+            <div
+              key={bill.id}
+              className={`${styles.row} ${closed ? styles.rowClosed : ''}`}
+              role="row"
+              tabIndex={closed ? 0 : index === focusedIndex ? 0 : -1}
+              onFocus={() => !closed && setFocusedIndex(index)}
+              onClick={() => onSelectBill(bill.id)}
+              onKeyDown={(e) => {
+                if (!closed) handleRowKeyDown(e, index, bill.id)
+                else if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onSelectBill(bill.id)
+                }
+              }}
+              aria-rowindex={closed ? undefined : index + 2}
+            >
+              <div className={`${styles.cell} ${styles.billCol}`} role="gridcell">
+                <div className={styles.cellStack}>
+                  <span className={styles.billNumber}>{bill.identifier}</span>
+                  {bill.requestNumber && <span className={styles.requestNumber}>{bill.requestNumber}</span>}
+                </div>
+              </div>
+              <div className={styles.cell} role="gridcell">
+                <div className={styles.cellStack}>
+                  <span className={styles.inlineTopRow}>
+                    <span className={styles.billNumber}>{bill.identifier}</span>
+                    <span className={styles.inlineOutcome}>{momentum(bill, closed)}</span>
+                  </span>
+                  <span className={styles.billTitle}>{bill.title}</span>
+                  <span className={styles.lastAction}>{bill.lastAction.text}</span>
+                  <span className={`${styles.foldedLine} ${styles.showAt1180}`}>
+                    {bill.sponsor.name || 'Not yet assigned'}
+                    {bill.sponsor.district && ` · ${bill.sponsor.district}${bill.sponsor.party ? ` (${bill.sponsor.party})` : ''}`}
+                    {' · '}
+                    {bill.position ? bill.position : 'No position'}
+                  </span>
+                </div>
+              </div>
+              <div className={`${styles.cell} ${styles.sponsorCol}`} role="gridcell">
+                <div className={styles.cellStack}>
+                  <span className={styles.sponsorName}>{bill.sponsor.name || 'Not yet assigned'}</span>
+                  {bill.sponsor.district && (
+                    <span className={styles.sponsorMeta}>
+                      {bill.sponsor.district}
+                      {bill.sponsor.party ? ` (${bill.sponsor.party})` : ''}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className={`${styles.cell} ${styles.positionCol}`} role="gridcell">
+                <PositionChip position={bill.position} />
+              </div>
+              <div className={`${styles.cell} ${styles.momentumCol}`} role="gridcell">
+                <div className={styles.momentumCell}>{momentum(bill, closed)}</div>
+              </div>
+              <div className={`${styles.cell} ${styles.assigneeCol}`} role="gridcell">
+                <InitialsSquare member={memberById.get(bill.assigneeId ?? '') ?? null} />
+              </div>
+            </div>
+  )
+
   return (
     <section className={styles.section}>
       <div className={styles.wrap}>
@@ -134,78 +206,34 @@ export function BillTable({
               </div>
             ))}
 
-          {bills.status === 'ready' &&
-            sorted.map((bill, index) => (
-              <div
-                key={bill.id}
-                className={styles.row}
-                role="row"
-                tabIndex={index === focusedIndex ? 0 : -1}
-                onFocus={() => setFocusedIndex(index)}
-                onClick={() => onSelectBill(bill.id)}
-                onKeyDown={(e) => handleRowKeyDown(e, index, bill.id)}
-                aria-rowindex={index + 2}
-              >
-                <div className={`${styles.cell} ${styles.billCol}`} role="gridcell">
-                  <div className={styles.cellStack}>
-                    <span className={styles.billNumber}>{bill.identifier}</span>
-                    {bill.requestNumber && <span className={styles.requestNumber}>{bill.requestNumber}</span>}
-                  </div>
-                </div>
-                <div className={styles.cell} role="gridcell">
-                  <div className={styles.cellStack}>
-                    <span className={styles.inlineTopRow}>
-                      <span className={styles.billNumber}>{bill.identifier}</span>
-                      <span className={styles.inlineOutcome}>
-                        {bill.outcome ? <OutcomeBadge outcome={bill.outcome} /> : <MomentumBar score={bill.momentum.score} />}
-                      </span>
-                    </span>
-                    <span className={styles.billTitle}>{bill.title}</span>
-                    <span className={styles.lastAction}>{bill.lastAction.text}</span>
-                    <span className={`${styles.foldedLine} ${styles.showAt1180}`}>
-                      {bill.sponsor.name || 'Not yet assigned'}
-                      {bill.sponsor.district && ` · ${bill.sponsor.district}${bill.sponsor.party ? ` (${bill.sponsor.party})` : ''}`}
-                      {' · '}
-                      {bill.position ? bill.position : 'No position'}
-                    </span>
-                  </div>
-                </div>
-                <div className={`${styles.cell} ${styles.sponsorCol}`} role="gridcell">
-                  <div className={styles.cellStack}>
-                    <span className={styles.sponsorName}>{bill.sponsor.name || 'Not yet assigned'}</span>
-                    {bill.sponsor.district && (
-                      <span className={styles.sponsorMeta}>
-                        {bill.sponsor.district}
-                        {bill.sponsor.party ? ` (${bill.sponsor.party})` : ''}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className={`${styles.cell} ${styles.positionCol}`} role="gridcell">
-                  <PositionChip position={bill.position} />
-                </div>
-                <div className={`${styles.cell} ${styles.momentumCol}`} role="gridcell">
-                  <div className={styles.momentumCell}>
-                    {bill.outcome ? <OutcomeBadge outcome={bill.outcome} /> : <MomentumBar score={bill.momentum.score} />}
-                  </div>
-                </div>
-                <div className={`${styles.cell} ${styles.assigneeCol}`} role="gridcell">
-                  <InitialsSquare member={memberById.get(bill.assigneeId ?? '') ?? null} />
-                </div>
-              </div>
-            ))}
+          {bills.status === 'ready' && sorted.map((bill, index) => renderRow(bill, index, false))}
+
+          {bills.status === 'empty' && closedBills.length > 0 && (
+            <div className={styles.inlineEmpty}>No active tracked bills.</div>
+          )}
+          {closedBills.length > 0 && (
+            <button
+              className={styles.closedToggle}
+              onClick={() => setShowClosed((v) => !v)}
+              aria-expanded={showClosed}
+            >
+              <span>
+                Closed · {closedBills.length}
+              </span>
+              <span aria-hidden="true">{showClosed ? '▴' : '▾'}</span>
+            </button>
+          )}
+          {showClosed && closedBills.map((bill, index) => renderRow(bill, index, true))}
         </div>
 
-        {bills.status === 'empty' && <EmptyState message="No bills are being tracked yet. Add a bill to get started." />}
-
-        {bills.status === 'ready' && sorted.length === 0 && (
+        {bills.status === 'empty' && closedBills.length === 0 && (
           <EmptyState message="No bills match the current filters." />
         )}
 
         {bills.status === 'ready' && sorted.length > 0 && (
           <div className={styles.footer}>
             <button className={styles.footerLink} onClick={onViewAll}>
-              View all {sorted.length} tracked bills →
+              {sorted.length === 1 ? 'View tracked bill →' : `View all ${plural(sorted.length, 'tracked bill')} →`}
             </button>
           </div>
         )}

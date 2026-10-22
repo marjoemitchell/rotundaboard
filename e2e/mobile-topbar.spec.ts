@@ -1,4 +1,4 @@
-import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill } from './fixtures'
+import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill, showClosedBills } from './fixtures'
 
 test.describe('mobile TopBar', () => {
   test('the header stays a single row and settings/logout stay reachable at phone widths', async ({ page }) => {
@@ -64,6 +64,7 @@ test.describe('mobile TopBar', () => {
     await trackFirstAvailableBill(page)
 
     await page.goto('/')
+    await showClosedBills(page)
     await page.waitForSelector('[class*="inlineTopRow"]')
 
     const overflowsViewport = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
