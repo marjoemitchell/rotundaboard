@@ -18,7 +18,7 @@ test.describe('interim committees', () => {
     await expect(page.locator('div[class^="_row_"]', { hasText: name })).toBeVisible()
   })
 
-  test('a followed committee appears on the dashboard rail, and unfollowing from the detail page removes it', async ({
+  test('a followed committee changes the dashboard "Coming up" list, and unfollowing from the detail page works', async ({
     page,
   }) => {
     await signUpFreshWorkspace(page)
@@ -37,8 +37,12 @@ test.describe('interim committees', () => {
     await page.locator('button', { hasText: '+ Follow' }).click()
     await expect(page.locator('button', { hasText: 'Following' })).toBeVisible()
 
+    // With a meeting in the next 30 days, the committee is a row. Without
+    // one, the list says that no followed committee meets soon.
     await page.goto('/')
-    await expect(page.locator('[class*="itemName"]', { hasText: name })).toBeVisible()
+    const comingUp = page.getByRole('region', { name: 'Coming up' })
+    await expect(comingUp.getByRole('link', { name }).or(comingUp.getByText('No followed committees meet in the next 30 days.'))).toBeVisible()
+    await expect(comingUp.getByText('Follow an interim committee to see its meetings here.')).toHaveCount(0)
 
     await page.goBack()
     await page.waitForURL(/\/committees\/.+/)

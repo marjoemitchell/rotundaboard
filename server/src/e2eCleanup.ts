@@ -72,6 +72,16 @@ async function main() {
   await pool.query('DELETE FROM bill_text_versions WHERE id < 0')
   await pool.query('DELETE FROM amendments WHERE id < 0')
 
+  // Open draft fixtures (negative bill and draft ids) and the rows that point
+  // to them. The workspace delete above removes most of these rows already.
+  await pool.query('DELETE FROM tracked_bills WHERE bill_id < 0')
+  await pool.query('DELETE FROM activity_log WHERE bill_id < 0')
+  await pool.query('DELETE FROM change_events WHERE bill_id < 0')
+  await pool.query('DELETE FROM bills WHERE id < 0')
+  await pool.query('DELETE FROM drafts WHERE id < 0')
+  // Interim committee meeting fixtures.
+  await pool.query('DELETE FROM non_standing_committee_meetings WHERE id < 0')
+
   // Scrape health fixtures: simulated jobs ("e2e-...") and fixture runs.
   await pool.query(`DELETE FROM scrape_runs WHERE job LIKE 'e2e-%' OR counts ? 'e2eFixture'`)
   // The staleness alerts follow the fixture runs, so clear them too (dev and test only).

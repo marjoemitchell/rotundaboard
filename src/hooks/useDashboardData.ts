@@ -11,6 +11,7 @@ import type {
   SessionCalendar,
   TeamBoardSummary,
   TeamMember,
+  UpcomingMeetings,
 } from '../types'
 
 // A failed request gives the state "empty" and failed = true, so that the
@@ -63,6 +64,8 @@ export interface DashboardData {
   momentumFactors: LoadState<MomentumFactor[]>
   savedViews: LoadState<SavedView[]>
   navCounts: LoadState<NavCounts>
+  /** Meetings of the followed committees in the next 30 days. */
+  upcomingMeetings: LoadState<UpcomingMeetings>
   refetchBills: () => void
   refetchTeamBoard: () => void
   refetchSavedViews: () => void
@@ -78,6 +81,7 @@ export function useDashboardData(): DashboardData {
   const [momentumFactors] = useResource(client.getMomentumFactors, (data) => data.length === 0)
   const [savedViews, refetchSavedViews] = useResource(client.getSavedViews, (data) => data.length === 0)
   const [navCounts] = useResource(client.getNavCounts)
+  const [upcomingMeetings] = useResource(client.getUpcomingMeetings)
 
   return {
     sessionCalendar,
@@ -90,6 +94,7 @@ export function useDashboardData(): DashboardData {
     momentumFactors,
     savedViews,
     navCounts,
+    upcomingMeetings,
     refetchBills,
     refetchTeamBoard,
     refetchSavedViews,

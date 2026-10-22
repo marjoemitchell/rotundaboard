@@ -204,6 +204,9 @@ test.describe('hearing audio on the dashboard', () => {
   test('plays the newest recording, opens its full transcript, and clips the current segment', async ({ page }) => {
     await signUpFreshWorkspace(page)
     const hearing = await createHearingFixture(page.request, { speakers: SPEAKERS, segments: segments() })
+    // The dashboard plays only recordings of the committees that the team follows.
+    const { committeeId } = (await (await page.request.get(`${API_BASE}/api/hearings/${hearing.id}`)).json()) as { committeeId: string }
+    expect((await page.request.post(`${API_BASE}/api/committees/${committeeId}/follow`)).ok()).toBeTruthy()
 
     // Rendering the player must not touch the stream: every dashboard visit
     // renders it, and the stream proxies through to the Legislature's archive.

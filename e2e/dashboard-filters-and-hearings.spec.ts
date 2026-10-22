@@ -1,4 +1,4 @@
-import { test, expect, signUpFreshWorkspace, trackOneLcAndOneIntroducedBill, findSessionIdWithBills } from './fixtures'
+import { test, expect, signUpFreshWorkspace, trackOneLcAndOneIntroducedBill, findSessionIdWithBills, showClosedBills } from './fixtures'
 
 test.describe('Dashboard and All bills navigation', () => {
   test('Dashboard is the first nav item and shows the tracked bills', async ({ page }) => {
@@ -12,6 +12,7 @@ test.describe('Dashboard and All bills navigation', () => {
     await expect(page).toHaveURL(/\/$/)
     await expect(page.locator('h1', { hasText: 'Dashboard' })).toBeVisible()
     await expect(nav.getByRole('button', { name: /^Dashboard/ })).toHaveAttribute('aria-current', 'page')
+    await showClosedBills(page)
     await expect(page.locator('[role="row"]', { hasText: lc.identifier })).toBeVisible()
     await expect(page.locator('[role="row"]', { hasText: introduced.identifier })).toBeVisible()
     await expect(nav.getByText('Browse sessions')).toHaveCount(0)

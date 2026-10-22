@@ -86,6 +86,18 @@ export function determineOutcome(statuses: StatusPoint[], sessionEnded: boolean)
   return maxProgress >= FLOOR_STAGE_CODE ? 'failed' : 'died'
 }
 
+/**
+ * True when the latest status of the bill is in the "Progress Stopped"
+ * category (code 5). The Legislature uses it for the final statuses: died in
+ * process or in committee, vetoed, withdrawn, and missed a transmittal
+ * deadline. A tabled bill (code 25) can come back, so it is not stopped.
+ */
+export function isProgressStopped(statuses: StatusPoint[]): boolean {
+  let latest: StatusPoint | null = null
+  for (const s of statuses) if (!latest || s.occurredAt > latest.occurredAt) latest = s
+  return latest?.progressCode === PROGRESS_STOPPED_CODE
+}
+
 export function computeMomentum(statuses: StatusPoint[], activityDates: Date[], now: Date = new Date()): MomentumResult {
   const score = scoreAsOf(statuses, activityDates, now)
 

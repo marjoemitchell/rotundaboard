@@ -35,12 +35,17 @@ function SkeletonCell({ label }: { label: string }) {
   )
 }
 
+/** Joins the parts that have text with " · ". An empty part gets no separator. */
+function joinParts(parts: (string | null)[]): string {
+  return parts.filter((p): p is string => Boolean(p)).join(' · ')
+}
+
 export function SessionClockStrip({ calendar }: { calendar: LoadState<SessionCalendar> }) {
   if (calendar.status === 'loading') {
     return (
       <div className={styles.strip}>
         <SkeletonCell label="Days to convene" />
-        <SkeletonCell label="LC drafts filed" />
+        <SkeletonCell label="LC drafts tracked" />
         <SkeletonCell label="Hearings, next 30 days" />
         <SkeletonCell label="Days to transmittal" />
       </div>
@@ -58,34 +63,41 @@ export function SessionClockStrip({ calendar }: { calendar: LoadState<SessionCal
       <Cell
         label="Days to convene"
         value={c.daysToConvene}
-        unit="days"
+        unit={c.daysToConvene === 1 ? 'day' : 'days'}
         context={
           c.sessionNumber && c.convenesOn
             ? `${formatOrdinal(c.sessionNumber)} Session · ${formatDate(c.convenesOn)}`
             : 'No upcoming session on the calendar yet'
         }
       />
+      {/* Only the drafts that the team tracks, not all drafts statewide. A zero
+          shows as "—" with the reason in words, not as a bare 0. */}
       <Cell
-        label="LC drafts filed"
-        value={c.lcDraftsFiled}
-        unit="filed"
-        context={
-          c.draftRequestDeadline
-            ? `+${c.lcDraftsDelta7d} this week · requests due ${formatDate(c.draftRequestDeadline)}`
-            : `+${c.lcDraftsDelta7d} this week`
-        }
+        label="LC drafts tracked"
+        value={c.lcDraftsFiled > 0 ? c.lcDraftsFiled : null}
+        unit={c.lcDraftsFiled === 1 ? 'draft' : 'drafts'}
+        context={joinParts([
+          c.lcDraftsFiled === 0 ? 'None tracked yet' : null,
+          c.lcDraftsDelta7d > 0 ? `+${c.lcDraftsDelta7d} this week` : null,
+          c.draftRequestDeadline ? `requests due ${formatDate(c.draftRequestDeadline)}` : null,
+        ])}
       />
+      {/* Only the committees that the team follows. */}
       <Cell
         label="Hearings, next 30 days"
-        value={c.hearingsNext30Days}
+        value={c.hearingsNext30Days > 0 ? c.hearingsNext30Days : null}
         unit="scheduled"
-        context={c.hearingCommittees.length > 0 ? c.hearingCommittees.join(' · ') : 'None scheduled'}
+        context={
+          c.hearingsNext30Days > 0
+            ? c.hearingCommittees.join(' · ')
+            : 'None for committees that you follow'
+        }
       />
       <Cell
         label="Days to transmittal"
         value={c.daysToTransmittal}
-        unit="days"
-        context={c.transmittalDate ? formatDate(c.transmittalDate) : 'Not in session'}
+        unit={c.daysToTransmittal === 1 ? 'day' : 'days'}
+        context={c.transmittalDate ? `General bills · ${formatDate(c.transmittalDate)}` : 'Date not set yet'}
       />
     </div>
   )

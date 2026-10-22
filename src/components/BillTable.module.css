@@ -216,3 +216,45 @@
     margin-bottom: 2px;
   }
 }
+
+/* Closed bills: a collapsed group under the active bills. Muted, no hover fill. */
+.closedToggle {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--soft);
+  border: none;
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+
+.rowClosed .cell,
+.rowClosed:hover .cell {
+  color: var(--muted);
+  background: var(--card);
+}
+
+.rowClosed .billTitle,
+.rowClosed .billNumber {
+  color: var(--muted);
+}
+
+.noMomentum {
+  font-family: var(--font-mono);
+  color: var(--faint);
+}
+
+.inlineEmpty {
+  grid-column: 1 / -1;
+  padding: 16px 12px;
+  font-size: 15px;
+  text-align: center;
+  color: var(--muted);
+}

@@ -241,3 +241,12 @@ export async function createHearingFixture(
   if (!res.ok()) throw new Error(`hearing fixture failed: ${res.status()} ${await res.text()}`)
   return res.json()
 }
+
+// The dashboard table puts closed bills (became law, died, session ended) in a
+// collapsed "Closed" group. Every bill of the 2025 session is closed, so a
+// test that tracks one of those bills opens the group to see its row.
+export async function showClosedBills(page: Page) {
+  const toggle = page.getByRole('grid', { name: 'Tracked bills' }).getByRole('button', { name: /^Closed ·/ })
+  await toggle.waitFor()
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
+}

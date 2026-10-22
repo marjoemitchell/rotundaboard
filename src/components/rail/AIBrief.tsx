@@ -1,5 +1,5 @@
 import type { Bill, Brief, LoadState } from '../../types'
-import { formatTime, formatDate } from '../../lib/format'
+import { formatTime, formatDate, plural } from '../../lib/format'
 import styles from './AIBrief.module.css'
 
 function renderSummary(summary: string) {
@@ -7,6 +7,18 @@ function renderSummary(summary: string) {
   return parts.map((part, i) =>
     i % 2 === 1 ? <strong key={i}>{part}</strong> : <span key={i}>{part}</span>,
   )
+}
+
+/** "Sourced from 1 action and 5 hearings." Counts of zero are not in the line. */
+function sourceLine(counts: Brief['sourceCounts']): string | null {
+  const parts = [
+    counts.actions > 0 ? plural(counts.actions, 'action') : null,
+    counts.hearings > 0 ? plural(counts.hearings, 'hearing') : null,
+    counts.fiscalNotes > 0 ? plural(counts.fiscalNotes, 'fiscal note') : null,
+  ].filter((p): p is string => Boolean(p))
+  if (parts.length === 0) return null
+  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+  return `Sourced from ${list}.`
 }
 
 export function AIBrief({
@@ -64,7 +76,7 @@ export function AIBrief({
 
       <p className={styles.summary}>{renderSummary(b.summary)}</p>
 
-      <div className={styles.hairline} />
+      {b.taggedItems.length > 0 && <div className={styles.hairline} />}
 
       <div className={styles.taggedList}>
         {b.taggedItems.map((item, i) => (
@@ -89,10 +101,9 @@ export function AIBrief({
         ))}
       </div>
 
-      <div className={styles.footer}>
-        Sourced from {b.sourceCounts.actions} actions, {b.sourceCounts.hearings} hearings, and{' '}
-        {b.sourceCounts.fiscalNotes} fiscal notes. Every claim above links to its source record.
-      </div>
+      {sourceLine(b.sourceCounts) && (
+        <div className={styles.footer}>{sourceLine(b.sourceCounts)} Every claim above links to its source record.</div>
+      )}
 
       <button className={styles.sendButton} onClick={onSendBrief} disabled={sending}>
         {sending ? 'Sending…' : 'Send this brief →'}

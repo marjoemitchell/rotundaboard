@@ -1,0 +1,233 @@
+/* Shared styles for the dashboard cards in the primary column:
+   SetupChecklist, SuggestedDrafts, and ComingUp. */
+.card {
+  margin-bottom: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.headRight {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.subhead {
+  padding: 0 16px 10px;
+  margin-top: -4px;
+  font-size: 14px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--rule);
+}
+
+.subhead a {
+  color: var(--accent);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.hint {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.action {
+  flex: none;
+  padding: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent);
+  background: none;
+  border: none;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.action:hover {
+  text-decoration: underline;
+}
+
+/* Setup checklist */
+.check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-2);
+  background: var(--card);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.checkDone {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.labelDone {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+
+/* Suggested drafts: the same columns as the bill table. */
+.billRow {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.billRow:last-child {
+  border-bottom: none;
+}
+
+.identifier {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.title {
+  font-size: 15px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip {
+  max-width: 180px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-2);
+  background: var(--soft);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trackButton {
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+}
+
+.trackButton:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Coming up */
+.dateBlock {
+  flex: none;
+  width: 92px;
+  font-family: var(--font-mono);
+  text-align: left;
+}
+
+.dateDay {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  text-transform: uppercase;
+}
+
+.dateTime {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.committee {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.committee:hover {
+  color: var(--accent);
+}
+
+.badge {
+  flex: none;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  white-space: nowrap;
+}
+
+.empty {
+  padding: 14px 16px;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.footerLink {
+  display: block;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: var(--accent);
+  border-top: 1px solid var(--rule);
+  text-decoration: none;
+}
+
+.footerLink:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+  .billRow {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .billRow .chip {
+    display: none;
+  }
+  .title {
+    white-space: normal;
+  }
+}

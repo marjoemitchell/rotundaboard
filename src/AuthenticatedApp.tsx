@@ -63,7 +63,8 @@ function applyFilters(bills: Bill[], filters: FilterState): Bill[] {
 
   if (filters.status) list = list.filter((b) => b.status === filters.status)
   if (filters.subject) list = list.filter((b) => b.subjects.includes(filters.subject!))
-  if (filters.position) list = list.filter((b) => b.position === filters.position)
+  // "none": the bills with no position.
+  if (filters.position) list = list.filter((b) => (filters.position === 'none' ? !b.position : b.position === filters.position))
   if (filters.momentumMin) list = list.filter((b) => b.momentum.score >= Number(filters.momentumMin))
   if (filters.committee) list = list.filter((b) => b.committee === filters.committee)
   if (filters.chamber) list = list.filter((b) => b.chamber === filters.chamber)
@@ -346,6 +347,11 @@ export function AuthenticatedApp() {
                   onRemoveFilter={removeFilter}
                   onSaveView={handleSaveView}
                   onSelectBill={handleSelectBill}
+                  onTrackBill={async (billId) => {
+                    await client.trackBill(billId)
+                    data.refetchBills()
+                    data.refetchTeamBoard()
+                  }}
                   setNotice={setNotice}
                 />
               }

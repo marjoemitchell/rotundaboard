@@ -1,4 +1,4 @@
-import { test, expect, signUpFreshWorkspace, inviteAndAcceptMember, uniqueSuffix } from './fixtures'
+import { test, expect, signUpFreshWorkspace, inviteAndAcceptMember, uniqueSuffix, trackFirstAvailableBill } from './fixtures'
 
 test.describe('workspace rename', () => {
   test('an admin can rename the workspace; a member cannot', async ({ page, browser }) => {
@@ -102,6 +102,8 @@ test.describe('ownership-gated deletes', () => {
     const bystander = await inviteAndAcceptMember(page, browser)
 
     // The owner needs a tracked bill to have something to filter/save a view from.
+    // With no tracked bill, the dashboard shows no filter bar.
+    await trackFirstAvailableBill(owner.page)
     await owner.page.goto('/')
     await owner.page.locator('select[aria-label="Add filter"]').selectOption('chamber')
     await owner.page.click('button:has-text("Save as filter")')

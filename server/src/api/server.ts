@@ -18,6 +18,8 @@ import { getLastEmailTo } from '../auth/email.js'
 import {
   ageHearingAlertFixture,
   billTextFixture,
+  committeeMeetingFixture,
+  openDraftsFixture,
   createHearingFixture,
   createScrapeRunFixture,
   createStatusChangeFixture,
@@ -146,6 +148,22 @@ if (process.env.NODE_ENV !== 'production') {
       res.json(await upsertBillHearingFixture(req.body as Parameters<typeof upsertBillHearingFixture>[0]))
     } catch (err) {
       handleError(res, 'POST /api/__test__/bill-hearing', err)
+    }
+  })
+
+  app.post('/api/__test__/open-drafts', async (req, res) => {
+    try {
+      res.json(await openDraftsFixture(req.body as Parameters<typeof openDraftsFixture>[0]))
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/open-drafts', err)
+    }
+  })
+
+  app.post('/api/__test__/committee-meeting', async (req, res) => {
+    try {
+      res.json(await committeeMeetingFixture(req.body as Parameters<typeof committeeMeetingFixture>[0]))
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/committee-meeting', err)
     }
   })
 
@@ -344,9 +362,13 @@ function route(path: string, handler: (req: Request) => Promise<unknown>) {
   })
 }
 
-route('/api/session-calendar', () => queries.getSessionCalendar())
+route('/api/session-calendar', (req) => queries.getSessionCalendar(req.auth!.workspaceId))
 route('/api/bills', (req) => queries.getBills(req.auth!.workspaceId))
 route('/api/brief', (req) => queries.getBrief(req.auth!.workspaceId))
+route('/api/upcoming-meetings', (req) => queries.getUpcomingMeetings(req.auth!.workspaceId))
+route('/api/suggested-bills', (req) =>
+  queries.getSuggestedBills(req.auth!.workspaceId, Math.min(Math.max(Number(req.query.limit) || 5, 1), 10)),
+)
 route('/api/hearings', (req) => queries.getRecordedHearings(req.auth!.workspaceId))
 route('/api/hearings/schedule', (req) => queries.getUpcomingHearings(req.auth!.workspaceId))
 route('/api/team-board', (req) => queries.getTeamBoard(req.auth!.workspaceId))
