@@ -82,6 +82,48 @@ test.describe('Dashboard and All bills navigation', () => {
     await expect(page.getByRole('table', { name: 'Bills' }).locator('a[role="row"]').first()).toBeVisible()
   })
 
+  test('each session and type click changes the list at once, with no page reload', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    // Open drafts in the upcoming session, so that both sessions have bills.
+    // A day old, so that they do not push the drafts of the dashboard specs out of the newest suggestions.
+    const res = await page.request.post('http://localhost:4000/api/__test__/open-drafts', { data: { count: 3, ageMinutes: 1440 } })
+    const drafts = (await res.json()).bills as { identifier: string; title: string }[]
+    const sessions = await page.evaluate(async () => {
+      const r = await fetch('http://localhost:4000/api/sessions', { credentials: 'include' })
+      return (await r.json()) as { id: string; ordinals: string; startDate: string | null; billCount: number }[]
+    })
+    const old = [...sessions].sort((a, b) => b.billCount - a.billCount)[0]
+    const upcoming = sessions.find((s) => s.id !== old.id && s.ordinals > old.ordinals)
+    test.skip(!upcoming, 'needs an upcoming session')
+    const year = (s: { ordinals: string }) => new RegExp(`^${s.ordinals.slice(0, 4)} session`)
+    const sessionTabs = page.getByRole('group', { name: 'Session' })
+    const typeTabs = page.getByRole('group', { name: 'Bill type' })
+    const rows = page.getByRole('table', { name: 'Bills' }).locator('a[role="row"]')
+
+    // No session in the URL: the page picks the session with bills. (The bug
+    // occurred from this start: a tab click changed the URL, but the list kept
+    // the bills of the session before.)
+    await page.goto('/bills')
+    await expect(sessionTabs.getByRole('button', { name: year(old) })).toHaveAttribute('aria-pressed', 'true')
+    await expect(rows).toHaveCount(100)
+
+    await sessionTabs.getByRole('button', { name: year(upcoming!) }).click()
+    await expect(rows.filter({ hasText: drafts[0].title })).toBeVisible()
+    await expect(page.locator('[class*="resultCount"]')).not.toContainText('4,')
+
+    await typeTabs.getByRole('button', { name: /^LC drafts/ }).click()
+    await expect(rows.filter({ hasText: drafts[0].title })).toBeVisible()
+
+    await sessionTabs.getByRole('button', { name: year(old) }).click()
+    await expect(rows.filter({ hasText: drafts[0].title })).toHaveCount(0)
+    await expect(rows).toHaveCount(100)
+    await expect(rows.locator('[class*="identifier"]').filter({ hasNotText: /^LC/ })).toHaveCount(0)
+
+    await typeTabs.getByRole('button', { name: /^Introduced/ }).click()
+    await expect(rows.locator('[class*="identifier"]').filter({ hasText: /^LC/ })).toHaveCount(0)
+    await expect(rows.first()).toBeVisible()
+  })
+
   test('going back to a session shows its bills at once, also while the refresh is slow', async ({ page }) => {
     await signUpFreshWorkspace(page)
     const sessions = await page.evaluate(async () => {

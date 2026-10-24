@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import * as client from '../data/client'
 import type { LegislativeSession, LoadState, SessionBillSummary } from '../types'
@@ -53,7 +53,6 @@ export function AllBillsPage() {
   const [bills, setBills] = useState<LoadState<SessionBillSummary[]>>({ status: 'loading' })
   // True when the request failed and the page has no bills to show.
   const [failed, setFailed] = useState(false)
-  const [reloads, setReloads] = useState(0)
   const [shown, setShown] = useState(PAGE_SIZE)
 
   const type = (['lc', 'introduced'].includes(search.get('type') ?? '') ? search.get('type') : 'all') as BillType
@@ -77,29 +76,42 @@ export function AllBillsPage() {
     available.find((s) => s.id === requested) ?? available.find((s) => s.billCount > 0) ?? available[0] ?? null
 
   const sessionId = session?.id ?? null
-  useEffect(() => {
-    if (!sessionId) return
-    // A new click cancels the request for the session before.
+
+  // Loads the bills of a session: cached bills at once, then a refresh. A
+  // click on a session tab calls this directly. The effect below only covers
+  // the first load and a session change from the URL (a link, Back). A
+  // dependency-driven effect alone sometimes did not run after a tab click,
+  // and the list kept the bills of the session before.
+  const loadedFor = useRef<string | null>(null)
+  const controllerRef = useRef<AbortController | null>(null)
+  const loadSession = useCallback((id: string) => {
+    controllerRef.current?.abort()
     const controller = new AbortController()
+    controllerRef.current = controller
+    loadedFor.current = id
     const toState = (data: SessionBillSummary[]): LoadState<SessionBillSummary[]> =>
       data.length === 0 ? { status: 'empty' } : { status: 'ready', data }
-    const cached = billCache.get(sessionId)
+    const cached = billCache.get(id)
     setBills(cached ? toState(cached) : { status: 'loading' })
     setFailed(false)
     client
-      .getSessionBills(sessionId, controller.signal)
+      .getSessionBills(id, controller.signal)
       .then((data) => {
-        billCache.set(sessionId, data)
-        setBills(toState(data))
+        billCache.set(id, data)
+        if (loadedFor.current === id) setBills(toState(data))
       })
       .catch((err: unknown) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || loadedFor.current !== id) return
         console.error(err)
         // With cached bills, keep them. Without, show the error and a retry.
         if (!cached) setFailed(true)
       })
-    return () => controller.abort()
-  }, [sessionId, reloads])
+  }, [])
+
+  useEffect(() => {
+    if (sessionId && loadedFor.current !== sessionId) loadSession(sessionId)
+  }, [sessionId, loadSession])
+  useEffect(() => () => controllerRef.current?.abort(), [])
 
   const update = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(search)
@@ -115,6 +127,7 @@ export function AllBillsPage() {
     storeSession(id)
     update({ session: id })
     setShown(PAGE_SIZE)
+    loadSession(id)
   }
 
   const counts = useMemo(() => {
@@ -178,7 +191,7 @@ export function AllBillsPage() {
           {failed ? (
             <div className={styles.loadError} role="alert">
               The bills could not be loaded.{' '}
-              <button className={styles.retry} onClick={() => setReloads((n) => n + 1)}>
+              <button className={styles.retry} onClick={() => sessionId && loadSession(sessionId)}>
                 Try again
               </button>
             </div>

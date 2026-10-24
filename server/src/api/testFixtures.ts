@@ -215,7 +215,12 @@ export async function billTextFixture(input: {
 // The scraped data has few open bills between sessions. Negative ids mark
 // the fixtures for e2eCleanup.ts. The first subject code of the database goes
 // on each draft, so a subject watch on that code matches them.
-export async function openDraftsFixture(input: { count: number; titlePrefix?: string }): Promise<{
+export async function openDraftsFixture(input: {
+  count: number
+  titlePrefix?: string
+  /** How old the newest draft is, in minutes. Older drafts are not in the newest suggestions. */
+  ageMinutes?: number
+}): Promise<{
   bills: { billId: string; identifier: string; title: string }[]
   subjectCode: string
 }> {
@@ -233,7 +238,7 @@ export async function openDraftsFixture(input: { count: number; titlePrefix?: st
     await pool.query(
       `INSERT INTO drafts (id, session_id, draft_number, drafted_at, short_title, requester_type)
        VALUES ($1, $2, $3, now() - make_interval(mins => $4), $5, 'AGENCY')`,
-      [id, sessions[0].id, `LC${number}`, i, title],
+      [id, sessions[0].id, `LC${number}`, (input.ageMinutes ?? 0) + i, title],
     )
     await pool.query('INSERT INTO bills (id, session_id, draft_id, bill_number) VALUES ($1, $2, $1, NULL)', [id, sessions[0].id])
     if (subjects[0]) {
