@@ -1,5 +1,6 @@
 import sanitizeHtml from 'sanitize-html'
 import { pool } from './db.js'
+import { selectSessionOrdinals } from './scrapeSessions.js'
 import { runAlertsAfterScrape } from './alerts.js'
 import { withScrapeMonitoring } from './scrapeHealth.js'
 import * as api from './legmtClient.js'
@@ -13,7 +14,6 @@ import type {
   RawSubjectCode,
 } from './legmtTypes.js'
 
-const TARGET_SESSION_ORDINALS = process.env.SCRAPE_SESSION_ORDINALS ?? '20251'
 
 function toDateOnly(iso: string | null): string | null {
   return iso ? iso.slice(0, 10) : null
@@ -247,10 +247,12 @@ async function upsertLegislatorsAndDeps(legislature_id: number) {
   return legislature_id
 }
 
-async function upsertCommittees(sessionId: number) {
+// The endpoint returns the committees of all sessions, so one call covers
+// all the sessions of the run.
+async function upsertCommittees(sessionIds: number[]) {
   const all = await api.getStandingCommittees()
-  const forSession = all.filter((c) => c.sessionId === sessionId)
-  console.log(`fetched ${all.length} standing committees total, ${forSession.length} for session ${sessionId}`)
+  const forSession = all.filter((c) => sessionIds.includes(c.sessionId))
+  console.log(`fetched ${all.length} standing committees total, ${forSession.length} for sessions ${sessionIds.join(', ')}`)
 
   for (const c of forSession as RawStandingCommittee[]) {
     const details = c.committeeDetails
@@ -385,19 +387,19 @@ export async function upsertCommitteeMaterials(committeeIds: number[]) {
 }
 
 async function main() {
-  console.log(`looking up session ${TARGET_SESSION_ORDINALS}...`)
   const sessions = await api.getSessions()
-  const target = sessions.find((s) => s.ordinals === TARGET_SESSION_ORDINALS)
-  if (!target) {
+  const wanted = selectSessionOrdinals(sessions.map((s) => ({ ordinals: s.ordinals, sineDieDate: s.sineDieDate })))
+  const targets = sessions.filter((s) => wanted.includes(s.ordinals)).sort((a, b) => a.ordinals.localeCompare(b.ordinals))
+  const missing = wanted.filter((o) => !targets.some((t) => t.ordinals === o))
+  if (targets.length === 0 || missing.length > 0) {
     throw new Error(
-      `session ${TARGET_SESSION_ORDINALS} not found among: ${sessions.map((s) => s.ordinals).join(', ')}`,
+      `session ${missing.join(', ') || wanted.join(', ')} not found among: ${sessions.map((s) => s.ordinals).join(', ')}`,
     )
   }
-  console.log(`target session id=${target.id} (${target.type}, legislature ${target.legislature.ordinals})`)
+  console.log(`target sessions: ${targets.map((t) => `${t.ordinals} (id ${t.id}, ${t.type})`).join(', ')}`)
 
-  // Upsert every session the API knows about, not just the target — the
-  // session-clock strip needs the *next* session's convene date (2027 as of
-  // this writing) even though we only pull bill data for the target session.
+  // Upsert every session the API knows about, not just the targets: the
+  // session-clock strip needs the next session's convene date.
   for (const s of sessions) {
     await pool.query(
       `INSERT INTO legislatures (id, ordinal, start_date, end_date) VALUES ($1,$2,$3,$4)
@@ -423,37 +425,42 @@ async function main() {
     )
   }
 
-  await upsertLegislatorsAndDeps(target.legislature.id)
-  await upsertCommittees(target.id)
-  await upsertNonStandingCommittees(target.legislature.id)
+  // The legislator and standing committee endpoints return all sessions, so
+  // they run one time. The interim committees are per legislature.
+  await upsertLegislatorsAndDeps(targets[targets.length - 1].legislature.id)
+  await upsertCommittees(targets.map((t) => t.id))
+  const legislatureIds = [...new Set(targets.map((t) => t.legislature.id))]
+  for (const id of legislatureIds) await upsertNonStandingCommittees(id)
 
   const { rows: nonStandingCommittees } = await pool.query<{ id: number }>(
-    'SELECT id FROM non_standing_committees WHERE legislature_id = $1',
-    [target.legislature.id],
+    'SELECT id FROM non_standing_committees WHERE legislature_id = ANY($1)',
+    [legislatureIds],
   )
   await upsertNonStandingCommitteeMeetings(nonStandingCommittees.map((c) => c.id))
   await upsertCommitteeMaterials(nonStandingCommittees.map((c) => c.id))
 
-  console.log('fetching bills...')
-  let count = 0
-  for await (const bill of api.iterateBillsForSession(target.id)) {
-    await upsertBillType(bill.billType)
-    await upsertDraftAndBill(target.id, bill.draft, bill.id, {
-      billNumber: bill.billNumber,
-      billTypeId: bill.billType?.id ?? null,
-      sponsorId: bill.sponsorId,
-      carrierId: bill.carrierId,
-      drafterStaffMemberId: bill.drafterStaffMemberId,
-      deadlineCodeId: bill.deadlineCodeId,
-      enrolled: bill.enrolled,
-      versionNumber: bill.versionNumber,
-      sessionLawChapter: bill.sessionLawChapter?.number != null ? String(bill.sessionLawChapter.number) : null,
-      sessionLawChapterNumber: bill.sessionLawChapterNumber,
-    })
-    count += 1
-    if (count % 250 === 0) console.log(`  ...${count} bills/drafts processed`)
+  for (const target of targets) {
+    console.log(`fetching bills for session ${target.ordinals}...`)
+    let count = 0
+    for await (const bill of api.iterateBillsForSession(target.id)) {
+      await upsertBillType(bill.billType)
+      await upsertDraftAndBill(target.id, bill.draft, bill.id, {
+        billNumber: bill.billNumber,
+        billTypeId: bill.billType?.id ?? null,
+        sponsorId: bill.sponsorId,
+        carrierId: bill.carrierId,
+        drafterStaffMemberId: bill.drafterStaffMemberId,
+        deadlineCodeId: bill.deadlineCodeId,
+        enrolled: bill.enrolled,
+        versionNumber: bill.versionNumber,
+        sessionLawChapter: bill.sessionLawChapter?.number != null ? String(bill.sessionLawChapter.number) : null,
+        sessionLawChapterNumber: bill.sessionLawChapterNumber,
+      })
+      count += 1
+      if (count % 250 === 0) console.log(`  ...${count} bills/drafts processed`)
+    }
+    console.log(`done. ${count} bills/drafts processed for session ${target.ordinals}.`)
   }
-  console.log(`done. ${count} bills/drafts processed for session ${TARGET_SESSION_ORDINALS}.`)
   await runAlertsAfterScrape()
 }
 

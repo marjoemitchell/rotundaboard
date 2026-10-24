@@ -31,6 +31,16 @@ test.describe('Dashboard and All bills navigation', () => {
     await expect(page).toHaveURL(/\/bills$/)
     await expect(page.locator('h1', { hasText: 'All bills' })).toBeVisible()
     await expect(nav.getByRole('button', { name: 'All bills' })).toHaveAttribute('aria-current', 'page')
+    // The tracked bills are in the session with the most bills (2025).
+    const trackedSession = await findSessionIdWithBills(page)
+    const ordinals = await page.evaluate(async (id) => {
+      const res = await fetch('http://localhost:4000/api/sessions', { credentials: 'include' })
+      return ((await res.json()) as { id: string; ordinals: string }[]).find((x) => x.id === id)!.ordinals
+    }, trackedSession)
+    await page
+      .getByRole('group', { name: 'Session' })
+      .getByRole('button', { name: new RegExp(`^${ordinals.slice(0, 4)} session`) })
+      .click()
     // The page shows 100 rows first, not the whole session.
     await expect(rows).toHaveCount(100)
     await expect(page.getByRole('button', { name: /^Show more/ })).toBeVisible()
@@ -100,19 +110,30 @@ test.describe('Dashboard and All bills navigation', () => {
     const typeTabs = page.getByRole('group', { name: 'Bill type' })
     const rows = page.getByRole('table', { name: 'Bills' }).locator('a[role="row"]')
 
-    // No session in the URL: the page picks the session with bills. (The bug
-    // occurred from this start: a tab click changed the URL, but the list kept
-    // the bills of the session before.)
+    // No session in the URL: the page picks the newest session with bills.
+    // (The bug occurred from this start: a tab click changed the URL, but the
+    // list kept the bills of the session before.)
+    const search = page.getByPlaceholder('Search by bill number, title, or sponsor')
     await page.goto('/bills')
-    await expect(sessionTabs.getByRole('button', { name: year(old) })).toHaveAttribute('aria-pressed', 'true')
+    await expect(rows.first()).toBeVisible()
+    const startedOnOld = (await sessionTabs.getByRole('button', { name: year(old) }).getAttribute('aria-pressed')) === 'true'
+    if (!startedOnOld) {
+      await sessionTabs.getByRole('button', { name: year(old) }).click()
+      await expect(rows.filter({ hasText: drafts[0].title })).toHaveCount(0)
+    }
     await expect(rows).toHaveCount(100)
 
     await sessionTabs.getByRole('button', { name: year(upcoming!) }).click()
+    // The upcoming session can have many real drafts, so find the fixture by its title.
+    await search.fill(drafts[0].title)
     await expect(rows.filter({ hasText: drafts[0].title })).toBeVisible()
+    await search.fill('')
     await expect(page.locator('[class*="resultCount"]')).not.toContainText('4,')
 
     await typeTabs.getByRole('button', { name: /^LC drafts/ }).click()
+    await search.fill(drafts[0].title)
     await expect(rows.filter({ hasText: drafts[0].title })).toBeVisible()
+    await search.fill('')
 
     await sessionTabs.getByRole('button', { name: year(old) }).click()
     await expect(rows.filter({ hasText: drafts[0].title })).toHaveCount(0)

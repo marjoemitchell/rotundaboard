@@ -49,7 +49,7 @@ npm run api                  # API on http://localhost:4000
 npm run migrate              # apply new SQL migrations
 npm run typecheck            # server type check
 npm run seed                 # demo workspace (dev only, password "password123")
-npm run scrape               # full scrape of the target session
+npm run scrape               # full scrape of the scraped sessions (see server/README.md)
 npm run scrape:details       # votes, amendments, and hearings for each bill
 npm run refresh-meetings     # interim committee meetings and materials
 npm run refresh-hearings     # bill hearing schedule, hearing alerts

@@ -94,7 +94,8 @@ if (process.env.NODE_ENV !== 'production') {
   // fake a scraped change and run the pipeline on demand.
   app.post('/api/__test__/status-change', async (req, res) => {
     try {
-      res.status(201).json(await createStatusChangeFixture(Number((req.body as { billId: string }).billId)))
+      const body = req.body as { billId: string; daysAgo?: number }
+      res.status(201).json(await createStatusChangeFixture(Number(body.billId), Number(body.daysAgo ?? 0)))
     } catch (err) {
       handleError(res, 'POST /api/__test__/status-change', err)
     }

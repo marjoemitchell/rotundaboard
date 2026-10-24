@@ -24,6 +24,7 @@ import * as api from './legmtClient.js'
 import { runAlertsAfterScrape } from './alerts.js'
 import { withScrapeMonitoring } from './scrapeHealth.js'
 import { runWithConcurrency } from './concurrency.js'
+import { sessionsToScrape } from './scrapeSessions.js'
 import { isCredentialError } from './anthropicErrors.js'
 import {
   changedParagraphs,
@@ -38,7 +39,6 @@ import {
 } from './billText.js'
 import type { RawDocument } from './legmtTypes.js'
 
-const TARGET_SESSION_ORDINALS = process.env.SCRAPE_SESSION_ORDINALS ?? '20251'
 const DEFAULT_BILL_LIMIT = 300
 const BILL_CONCURRENCY = 4
 const SUMMARY_LIMIT = 150
@@ -82,7 +82,7 @@ async function billsToCheck(limit: number, billId: number | null): Promise<BillT
      JOIN bill_types bt ON bt.id = b.bill_type_id
      WHERE b.bill_number IS NOT NULL
        AND ($2::int IS NOT NULL AND b.id = $2
-         OR $2::int IS NULL AND s.ordinals = $1 AND (
+         OR $2::int IS NULL AND s.ordinals = ANY($1) AND (
               b.texts_checked_at IS NULL
            -- occurred_at is Montana time with no time zone.
            OR EXISTS (SELECT 1 FROM bill_statuses bs
@@ -94,7 +94,7 @@ async function billsToCheck(limit: number, billId: number | null): Promise<BillT
               AND b.texts_checked_at < now() - interval '1 day'))
      ORDER BY b.texts_checked_at NULLS FIRST, b.id
      LIMIT $3`,
-    [TARGET_SESSION_ORDINALS, billId, limit],
+    [(await sessionsToScrape()).map((s) => s.ordinals), billId, limit],
   )
   return rows
 }

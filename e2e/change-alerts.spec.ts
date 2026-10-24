@@ -111,6 +111,21 @@ test.describe('alert emails', () => {
     expect((await lastEmail(page.request, user.email))?.sentAt).toBe(email?.sentAt)
   })
 
+  test('a status older than 7 days (history from the first scrape of a session) sends no alert', async ({ page }) => {
+    const user: FreshWorkspace = await signUpFreshWorkspace(page)
+    const { billId } = await trackFirstAvailableBill(page)
+
+    const old = await page.request.post(`${API_BASE}/api/__test__/status-change`, { data: { billId, daysAgo: 30 } })
+    expect(old.ok()).toBeTruthy()
+    await runAlerts(page.request)
+    expect(await lastEmail(page.request, user.email)).toBeNull()
+
+    // A new status on the same bill still alerts.
+    await scrapeStatusChange(page.request, billId)
+    await runAlerts(page.request)
+    expect((await lastEmail(page.request, user.email))?.subject).toMatch(/update/)
+  })
+
   test('daily-digest members get nothing until the digest runs, then everything in one email', async ({ page }) => {
     const user = await signUpFreshWorkspace(page)
     const { billId, identifier } = await trackFirstAvailableBill(page)

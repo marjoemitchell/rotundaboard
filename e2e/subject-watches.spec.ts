@@ -1,4 +1,4 @@
-import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill } from './fixtures'
+import { test, expect, signUpFreshWorkspace, trackWorkingSessionBill } from './fixtures'
 
 test.describe('subject watches', () => {
   test('creating a watch from an official subject code surfaces matching bills', async ({ page }) => {
@@ -22,7 +22,8 @@ test.describe('subject watches', () => {
     page,
   }) => {
     await signUpFreshWorkspace(page)
-    await trackFirstAvailableBill(page)
+    // Watches match the bills of the working session.
+    await trackWorkingSessionBill(page)
     const tagName = `E2E Tag ${Date.now()}`
     await page.fill('input[placeholder="Add a tag…"]', tagName)
     await page.click('button:has-text("Add")')
@@ -58,11 +59,14 @@ test.describe('subject watches', () => {
     // matched one is more likely central — and each result says which
     // subject(s) actually matched.
     await signUpFreshWorkspace(page)
+    // A subject that a bill of the working session has, so the watch matches.
+    const { subjects } = await trackWorkingSessionBill(page, { withSubjects: true })
+    const subject = subjects[0]
     await page.goto('/watches')
     await page.click('button:has-text("+ New watch")')
     await page.fill('input[placeholder="e.g. Water rights"]', 'E2E K-12 Watch')
-    await page.fill('input[placeholder="Search subjects…"]', 'K-12')
-    const option = page.locator('[class*="optionRow"]', { hasText: 'K-12' }).first()
+    await page.fill('input[placeholder="Search subjects…"]', subject)
+    const option = page.locator('[class*="optionRow"]', { hasText: subject }).first()
     await expect(option).toBeVisible()
     await option.locator('input[type="checkbox"]').check()
     await page.click('button:has-text("Create watch")')
@@ -82,12 +86,12 @@ test.describe('subject watches', () => {
 
     expect(bills.length).toBeGreaterThan(0)
     for (const bill of bills) {
-      expect(bill.matchedSubjects.some((s) => s.includes('K-12'))).toBe(true)
+      expect(bill.matchedSubjects).toContain(subject)
     }
     const counts = bills.map((b) => b.subjectCount)
     expect(counts).toEqual([...counts].sort((a, b) => a - b))
 
     await page.locator('[class*="watchCard"]', { hasText: 'E2E K-12 Watch' }).locator('button[class*="matchCount"]').click()
-    await expect(page.locator('[class*="matchReason"]', { hasText: 'K-12' }).first()).toBeVisible()
+    await expect(page.locator('[class*="matchReason"]', { hasText: subject }).first()).toBeVisible()
   })
 })

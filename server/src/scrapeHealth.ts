@@ -192,6 +192,7 @@ export function evaluateRun(monitor: RunMonitor, previous: PreviousRun | null, r
   const endpoints = new Set([...monitor.endpoints.keys(), ...Object.keys(previous?.counts ?? {})])
   for (const endpoint of endpoints) {
     const count = monitor.endpoints.get(endpoint)?.items ?? 0
+    if (ENDPOINTS[endpoint]?.variableCount) continue
     const before = previous?.counts[endpoint]
     if (count === 0 && (ENDPOINTS[endpoint]?.expectItems || (before ?? 0) > 0)) {
       problems.push({

@@ -211,6 +211,12 @@ export interface EndpointSpec {
   item: Shape
   /** True if a complete run must receive one or more items from this endpoint. */
   expectItems: boolean
+  /**
+   * True when the number of requests changes from run to run by design (a
+   * job that checks only the bills with changes). Then the health check does
+   * not compare the item count with the previous run.
+   */
+  variableCount?: boolean
 }
 
 // Keys are the endpoint names that legmtClient.ts reports.
@@ -226,8 +232,8 @@ export const ENDPOINTS: Record<string, EndpointSpec> = {
   billHearings: { item: { id: 'number', status: 'string?', committeeMeeting }, expectItems: false },
   billHearingSearch: { item: { id: 'number', billId: 'number', status: 'string?', committeeMeeting }, expectItems: false },
   executiveActions: { item: executiveAction, expectItems: false },
-  billVersionDocuments: { item: billDocument, expectItems: false },
-  billAmendmentDocuments: { item: billDocument, expectItems: false },
+  billVersionDocuments: { item: billDocument, expectItems: false, variableCount: true },
+  billAmendmentDocuments: { item: billDocument, expectItems: false, variableCount: true },
   nonStandingCommitteeMeetings: { item: nonStandingCommitteeMeeting, expectItems: false },
   committeeTabs: { item: committeeTabs, expectItems: false },
 }

@@ -11,21 +11,23 @@ import * as api from './legmtClient.js'
 import { runAlertsAfterScrape } from './alerts.js'
 import { withScrapeMonitoring } from './scrapeHealth.js'
 import { upsertCommitteeMeeting } from './scrapeBillDetails.js'
+import { sessionsToScrape } from './scrapeSessions.js'
 
-const TARGET_SESSION_ORDINALS = process.env.SCRAPE_SESSION_ORDINALS ?? '20251'
 
 async function main() {
+  // An upcoming session has no standing committees until it convenes, so
+  // the committees come from all the scraped sessions together.
+  const sessionIds = (await sessionsToScrape()).map((s) => s.id)
   const { rows: committees } = await pool.query<{ id: number }>(
-    `SELECT sc.id FROM standing_committees sc JOIN sessions s ON s.id = sc.session_id WHERE s.ordinals = $1`,
-    [TARGET_SESSION_ORDINALS],
+    `SELECT sc.id FROM standing_committees sc WHERE sc.session_id = ANY($1)`,
+    [sessionIds],
   )
   if (committees.length === 0) {
-    throw new Error(`no standing committees for session ${TARGET_SESSION_ORDINALS}. Run "npm run scrape" first.`)
+    throw new Error('no standing committees for the scraped sessions. Run "npm run scrape" first.')
   }
-  const { rows: billRows } = await pool.query<{ id: number }>(
-    `SELECT b.id FROM bills b JOIN sessions s ON s.id = b.session_id WHERE s.ordinals = $1`,
-    [TARGET_SESSION_ORDINALS],
-  )
+  const { rows: billRows } = await pool.query<{ id: number }>(`SELECT b.id FROM bills b WHERE b.session_id = ANY($1)`, [
+    sessionIds,
+  ])
   const knownBills = new Set(billRows.map((b) => b.id))
 
   const seen: number[] = []

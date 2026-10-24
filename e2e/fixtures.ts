@@ -250,3 +250,43 @@ export async function showClosedBills(page: Page) {
   await toggle.waitFor()
   if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
 }
+
+// The newest session with scraped bills: the session that subject watches
+// match, and the default of the All bills page. It is 2027 when its LC
+// drafts are scraped, else 2025.
+export async function findWorkingSession(page: Page): Promise<{ id: string; ordinals: string }> {
+  const sessions = await page.evaluate(async (apiBase) => {
+    const res = await fetch(`${apiBase}/api/sessions`, { credentials: 'include' })
+    return (await res.json()) as { id: string; ordinals: string; startDate: string | null; billCount: number }[]
+  }, API_BASE)
+  const withBills = sessions.filter((s) => s.billCount > 0).sort((a, b) => b.ordinals.localeCompare(a.ordinals))
+  if (!withBills[0]) throw new Error('no session with any bills found')
+  return withBills[0]
+}
+
+// Tracks a bill of the working session (see findWorkingSession), with the
+// first of its bills that has subject codes when `withSubjects` is set.
+export async function trackWorkingSessionBill(
+  page: Page,
+  { withSubjects = false }: { withSubjects?: boolean } = {},
+): Promise<{ billId: string; identifier: string; subjects: string[] }> {
+  const session = await findWorkingSession(page)
+  const bill = await page.evaluate(
+    async ({ apiBase, sessionId, withSubjects }) => {
+      const res = await fetch(`${apiBase}/api/sessions/${sessionId}/bills`, { credentials: 'include' })
+      const bills = (await res.json()) as { id: string; identifier: string }[]
+      for (const b of bills.slice(0, 200)) {
+        if (!withSubjects) return { ...b, subjects: [] as string[] }
+        const detail = await (await fetch(`${apiBase}/api/bills/${b.id}`, { credentials: 'include' })).json()
+        if (detail.subjects?.length > 0) return { ...b, subjects: detail.subjects as string[] }
+      }
+      return null
+    },
+    { apiBase: API_BASE, sessionId: session.id, withSubjects },
+  )
+  if (!bill) throw new Error(`no bill with subjects in session ${session.ordinals}`)
+  await page.goto(`/bills/${bill.id}`)
+  await page.click('button:has-text("+ Track this bill")')
+  await page.waitForSelector('button:has-text("Stop tracking")', { timeout: 10000 })
+  return { billId: bill.id, identifier: bill.identifier, subjects: bill.subjects }
+}

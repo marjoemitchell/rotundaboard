@@ -90,6 +90,25 @@ test.describe('scrape health alerts', () => {
     expect((await lastEmail(request, maintainer))?.html).toContain('draft.draftNumber')
   })
 
+  test('a job that checks a different number of bills each run (bill text) has no count errors', async ({ request }) => {
+    const job = `e2e-scrape-${uniqueSuffix()}`
+    const maintainer = `e2e-maintainer-${uniqueSuffix()}@example.dev`
+    const docs = (n: number) => Array.from({ length: n }, (_, i) => ({ id: i + 1, fileName: `HB0001_${i + 1}.pdf`, date: null, creation: null }))
+    const run = async (n: number) => {
+      const res = await request.post(`${API_BASE}/api/__test__/scrape-health/simulate`, {
+        data: { job, alertTo: maintainer, responses: [{ endpoint: 'billVersionDocuments', items: docs(n) }] },
+      })
+      expect(res.ok()).toBeTruthy()
+      return (await res.json()) as RunResult
+    }
+    await run(100)
+    const small = await run(3)
+    expect(small.status).toBe('ok')
+    const none = await run(0)
+    expect(none.status).toBe('ok')
+    expect(await lastEmail(request, maintainer)).toBeNull()
+  })
+
   test('a large drop in the item count is an error', async ({ request }) => {
     const job = `e2e-scrape-${uniqueSuffix()}`
     const maintainer = `e2e-maintainer-${uniqueSuffix()}@example.dev`

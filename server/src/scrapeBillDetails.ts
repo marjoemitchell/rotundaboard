@@ -1,11 +1,11 @@
 import { pool } from './db.js'
+import { sessionsToScrape } from './scrapeSessions.js'
 import { runAlertsAfterScrape } from './alerts.js'
 import { withScrapeMonitoring } from './scrapeHealth.js'
 import * as api from './legmtClient.js'
 import { runWithConcurrency } from './concurrency.js'
 import type { RawCommitteeMeeting } from './legmtTypes.js'
 
-const TARGET_SESSION_ORDINALS = process.env.SCRAPE_SESSION_ORDINALS ?? '20251'
 const CONCURRENCY = Number(process.env.SCRAPE_CONCURRENCY ?? 6)
 
 async function withRetries<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
@@ -131,19 +131,16 @@ async function scrapeOneBill(billId: number) {
 }
 
 async function main() {
-  const { rows: sessionRows } = await pool.query<{ id: number }>(
-    'SELECT id FROM sessions WHERE ordinals = $1',
-    [TARGET_SESSION_ORDINALS],
-  )
-  const session = sessionRows[0]
-  if (!session) {
-    throw new Error(`session ${TARGET_SESSION_ORDINALS} not found in DB — run "npm run scrape" first`)
+  const sessions = await sessionsToScrape()
+  if (sessions.length === 0) {
+    throw new Error('no sessions to scrape in the database. Run "npm run scrape" first.')
   }
+  console.log(`sessions: ${sessions.map((s) => s.ordinals).join(', ')}`)
 
   const limit = process.env.SCRAPE_LIMIT ? Number(process.env.SCRAPE_LIMIT) : null
   const { rows: bills } = await pool.query<{ id: number }>(
-    `SELECT id FROM bills WHERE session_id = $1 AND bill_number IS NOT NULL ORDER BY id${limit ? ' LIMIT ' + limit : ''}`,
-    [session.id],
+    `SELECT id FROM bills WHERE session_id = ANY($1) AND bill_number IS NOT NULL ORDER BY id${limit ? ' LIMIT ' + limit : ''}`,
+    [sessions.map((s) => s.id)],
   )
   console.log(`fetching vote/hearing/amendment/cosponsor detail for ${bills.length} introduced bills (concurrency=${CONCURRENCY})...`)
 

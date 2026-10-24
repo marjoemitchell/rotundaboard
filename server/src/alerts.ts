@@ -25,6 +25,8 @@ const SCHEDULE_LOOKBACK = "interval '1 day'"
 // Scraped meeting times are naive Montana wall-clock times (see db.ts), so
 // compare them with the current Montana time, not with now().
 const NOW_MT = "(now() AT TIME ZONE 'America/Denver')"
+// A status that is older than this is history, not news (see detectChanges).
+const OLD_STATUS_DAYS = 7
 // A hearing is active when neither the meeting nor the bill's place on its
 // agenda is canceled, and the hearing is still in the schedule.
 const HEARING_ACTIVE =
@@ -45,8 +47,12 @@ async function detectChanges(): Promise<{ newEventIds: number[]; baseline: boole
 
   const statements = [
     // A new status row: introduced, referred, heard, passed, signed, ...
+    // A status older than ${OLD_STATUS_DAYS} days is a silent baseline event:
+    // the first scrape of a new session stores the full history of each
+    // draft, and that history is not news.
     `INSERT INTO change_events (key, kind, bill_id, summary, occurred_at, baseline)
-     SELECT 'status:' || bs.id, 'bill_status', b.id, coalesce(bsc.name, 'Status updated'), bs.occurred_at, $1
+     SELECT 'status:' || bs.id, 'bill_status', b.id, coalesce(bsc.name, 'Status updated'), bs.occurred_at,
+            $1 OR bs.occurred_at < ${NOW_MT} - interval '${OLD_STATUS_DAYS} days'
      FROM bill_statuses bs
      JOIN bills b ON b.draft_id = bs.draft_id
      LEFT JOIN bill_status_codes bsc ON bsc.id = bs.bill_status_code_id
@@ -54,7 +60,7 @@ async function detectChanges(): Promise<{ newEventIds: number[]; baseline: boole
      -- faster than an insert attempt for each of the ~66,000 statuses.
      WHERE NOT EXISTS (SELECT 1 FROM change_events e WHERE e.key = 'status:' || bs.id)
      ON CONFLICT (key) DO NOTHING
-     RETURNING id`,
+     RETURNING id, baseline`,
     // An amendment alert waits for the amendment summary
     // (refreshBillTexts.ts), so that the email can tell what the amendment
     // does. It waits a maximum of ${AMENDMENT_SUMMARY_WAIT_HOURS} hours.
@@ -167,8 +173,8 @@ async function detectChanges(): Promise<{ newEventIds: number[]; baseline: boole
 
   const newEventIds: number[] = []
   for (const sql of statements) {
-    const { rows } = await pool.query<{ id: number }>(sql, [baseline])
-    if (!baseline) newEventIds.push(...rows.map((r) => r.id))
+    const { rows } = await pool.query<{ id: number; baseline?: boolean }>(sql, [baseline])
+    if (!baseline) newEventIds.push(...rows.filter((r) => !r.baseline).map((r) => r.id))
   }
   return { newEventIds, baseline }
 }

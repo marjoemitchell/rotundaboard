@@ -9,7 +9,7 @@ schema for it — request shapes were reverse-engineered from live responses.
 
 | Script | What it does | Cost |
 |---|---|---|
-| `npm run scrape` | Full pull: sessions, legislators, committees, bills for the target session | Slow — re-pulls every bill |
+| `npm run scrape` | Full pull: sessions, legislators, committees, bills for the scraped sessions | Slow: pulls every bill again |
 | `npm run scrape:details` | Per-bill detail pass (status history, votes, cosponsors, amendments) | Slow, concurrency-limited |
 | `npm run refresh-meetings` | Interim-committee meeting times/locations/agendas only, for committees already in the DB | Fast — no bill data touched |
 | `npm run refresh-hearings` | The bill hearing schedule of all standing committees in one paged search, then hearing alerts and reminders | Fast: about 8 requests for a full session |
@@ -18,6 +18,26 @@ schema for it — request shapes were reverse-engineered from live responses.
 | `npm run send-alert-digest` | Daily email digest of change alerts (immediate alerts are sent by the scrape scripts themselves) | Cheap — database only, plus one email per person |
 | `npm run summarize-hearings` | An AI summary of each finished hearing transcript: overview, topics with times, decisions and next steps | One Claude Sonnet call for each hearing |
 | `npm run transcribe-hearings` | Finds newly posted committee hearing videos, ingests their captions, and produces speaker-attributed transcripts | Discovery + captions are free; diarization is free on the self-hosted GPU (WhisperX) or ~$0.006/audio-minute on the OpenAI fallback, plus one Claude call per hearing for speaker names |
+
+## Scraped sessions
+
+`src/scrapeSessions.ts` selects the sessions that the scrapers fetch:
+
+- every session that has not ended (in progress or upcoming), and
+- the session that ended most recently.
+
+With this rule, the LC drafts of a new session arrive as soon as the
+Legislature lists the session (for example 2027 in October 2026), and the
+last session stays current while its final actions come in. `scrape`,
+`scrape:details`, `refresh-hearings`, and `refresh-bill-texts` use the same
+sessions.
+
+To scrape other sessions, set `SCRAPE_SESSION_ORDINALS` to a list of session
+ordinals, for example `20251` or `20251,20271`.
+
+The alerts treat a status that is older than 7 days as history. The first
+scrape of a session stores the full history of each draft, and that
+history sends no alert emails.
 
 ## Recommended cadence
 
