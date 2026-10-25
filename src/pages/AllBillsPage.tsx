@@ -5,12 +5,13 @@ import type { LegislativeSession, LoadState, SessionBillSummary } from '../types
 import { EmptyState } from '../components/shared/EmptyState'
 import styles from './AllBillsPage.module.css'
 
-export type BillType = 'all' | 'lc' | 'introduced'
+export type BillType = 'all' | 'lc' | 'introduced' | 'tracked'
 
 const TYPE_TABS: { id: BillType; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'lc', label: 'LC drafts' },
   { id: 'introduced', label: 'Introduced (HB / SB)' },
+  { id: 'tracked', label: 'Tracked' },
 ]
 
 // The page renders this many rows, then more on request. A session has more
@@ -23,6 +24,17 @@ const isLc = (b: SessionBillSummary) => b.identifier.startsWith('LC')
 // The bills of each session that this page loaded before. A click on that
 // session shows them at once, and the page refreshes them in the background.
 const billCache = new Map<string, SessionBillSummary[]>()
+
+// Track and stop-tracking clicks that a response can be older than. A
+// response that was requested before a click still has the old value, so
+// the page applies these over it. A response requested after the last click
+// has the correct values, and then the page clears them.
+const trackedOverrides = new Map<string, boolean>()
+let trackClicks = 0
+const withOverrides = (list: SessionBillSummary[]) =>
+  trackedOverrides.size === 0
+    ? list
+    : list.map((b) => (trackedOverrides.has(b.id) ? { ...b, isTracked: trackedOverrides.get(b.id)! } : b))
 
 /** "2025 session" from the ordinals "20251". A later session in the same year is a special session. */
 export function sessionLabel(s: LegislativeSession): string {
@@ -47,7 +59,15 @@ function storeSession(id: string) {
 }
 
 // Every bill of a session, tracked or not: /bills?session=3&type=lc&q=water.
-export function AllBillsPage() {
+export function AllBillsPage({
+  onTrackBill,
+  onUntrackBill,
+}: {
+  /** Tracks the bill. Rejects when it fails. */
+  onTrackBill: (bill: { id: string; identifier: string }) => Promise<void>
+  /** Stops tracking the bill. Rejects when it fails. */
+  onUntrackBill: (bill: { id: string; identifier: string }) => Promise<void>
+}) {
   const [search, setSearch] = useSearchParams()
   const [sessions, setSessions] = useState<LoadState<LegislativeSession[]>>({ status: 'loading' })
   const [bills, setBills] = useState<LoadState<SessionBillSummary[]>>({ status: 'loading' })
@@ -55,7 +75,7 @@ export function AllBillsPage() {
   const [failed, setFailed] = useState(false)
   const [shown, setShown] = useState(PAGE_SIZE)
 
-  const type = (['lc', 'introduced'].includes(search.get('type') ?? '') ? search.get('type') : 'all') as BillType
+  const type = (['lc', 'introduced', 'tracked'].includes(search.get('type') ?? '') ? search.get('type') : 'all') as BillType
   const query = search.get('q') ?? ''
 
   useEffect(() => {
@@ -92,13 +112,16 @@ export function AllBillsPage() {
     const toState = (data: SessionBillSummary[]): LoadState<SessionBillSummary[]> =>
       data.length === 0 ? { status: 'empty' } : { status: 'ready', data }
     const cached = billCache.get(id)
-    setBills(cached ? toState(cached) : { status: 'loading' })
+    setBills(cached ? toState(withOverrides(cached)) : { status: 'loading' })
     setFailed(false)
+    const clicksAtRequest = trackClicks
     client
       .getSessionBills(id, controller.signal)
       .then((data) => {
-        billCache.set(id, data)
-        if (loadedFor.current === id) setBills(toState(data))
+        if (trackClicks === clicksAtRequest) trackedOverrides.clear()
+        const fresh = withOverrides(data)
+        billCache.set(id, fresh)
+        if (loadedFor.current === id) setBills(toState(fresh))
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted || loadedFor.current !== id) return
@@ -130,10 +153,37 @@ export function AllBillsPage() {
     loadSession(id)
   }
 
+  // Track or stop tracking from the list. The row changes at once, and goes
+  // back when the request fails.
+  const [pending, setPending] = useState<Set<string>>(new Set())
+  const setTracked = (id: string, isTracked: boolean) => {
+    trackClicks += 1
+    trackedOverrides.set(id, isTracked)
+    const apply = (list: SessionBillSummary[]) => list.map((b) => (b.id === id ? { ...b, isTracked } : b))
+    setBills((state) => (state.status === 'ready' ? { status: 'ready', data: apply(state.data) } : state))
+    for (const [key, list] of billCache) billCache.set(key, apply(list))
+  }
+  const toggleTracked = async (bill: SessionBillSummary) => {
+    const next = !bill.isTracked
+    setPending((p) => new Set(p).add(bill.id))
+    setTracked(bill.id, next)
+    try {
+      await (next ? onTrackBill(bill) : onUntrackBill(bill))
+    } catch {
+      setTracked(bill.id, !next)
+    } finally {
+      setPending((p) => {
+        const copy = new Set(p)
+        copy.delete(bill.id)
+        return copy
+      })
+    }
+  }
+
   const counts = useMemo(() => {
     const list = bills.status === 'ready' ? bills.data : []
     const lc = list.filter(isLc).length
-    return { all: list.length, lc, introduced: list.length - lc }
+    return { all: list.length, lc, introduced: list.length - lc, tracked: list.filter((b) => b.isTracked).length }
   }, [bills])
 
   const filtered = useMemo(() => {
@@ -141,7 +191,7 @@ export function AllBillsPage() {
     const q = query.trim().toLowerCase()
     return bills.data.filter(
       (b) =>
-        (type === 'all' || (type === 'lc') === isLc(b)) &&
+        (type === 'all' || (type === 'tracked' ? b.isTracked : (type === 'lc') === isLc(b))) &&
         (!q ||
           b.identifier.toLowerCase().includes(q) ||
           b.title.toLowerCase().includes(q) ||
@@ -216,6 +266,10 @@ export function AllBillsPage() {
                 </div>
               </div>
 
+              {type === 'tracked' && filtered.length === 0 && !query && (
+                <EmptyState message="Your team tracks no bills in this session. Use Track on a bill to add it." />
+              )}
+
               <div className={styles.table}>
                 <div className={styles.grid} role="table" aria-label="Bills">
                   <div className={styles.headerRow} role="row">
@@ -234,26 +288,39 @@ export function AllBillsPage() {
                     <div className={styles.headerCell} role="columnheader" />
                   </div>
                   {filtered.slice(0, shown).map((b) => (
-                    <Link key={b.id} to={`/bills/${b.id}`} className={styles.row} role="row">
-                      <div className={styles.cell} role="cell">
-                        <span className={styles.identifier}>{b.identifier}</span>
+                    // The link opens the bill. The Track button is next to the
+                    // link, not in it: a button in a link is not valid HTML.
+                    <div key={b.id} className={styles.rowWrap} role="presentation">
+                      <Link to={`/bills/${b.id}`} className={styles.row} role="row">
+                        <div className={`${styles.cell} ${styles.cellId}`} role="cell">
+                          <span className={styles.identifier}>{b.identifier}</span>
+                        </div>
+                        <div className={`${styles.cell} ${styles.cellTitle}`} role="cell">
+                          <span className={styles.titleCell}>{b.title}</span>
+                        </div>
+                        <div className={`${styles.cell} ${styles.cellSub}`} role="cell">
+                          {b.sponsor}
+                          {b.party ? ` (${b.party})` : ''}
+                        </div>
+                        <div className={`${styles.cell} ${styles.cellSub}`} role="cell">
+                          <span className={styles.statusCell} title={b.status}>
+                            {b.status}
+                          </span>
+                        </div>
+                      </Link>
+                      <div className={`${styles.cell} ${styles.cellTrack}`}>
+                        <button
+                          className={`${styles.trackButton} ${b.isTracked ? styles.trackButtonOn : ''}`}
+                          aria-pressed={b.isTracked}
+                          aria-label={b.isTracked ? `Stop tracking ${b.identifier}` : `Track ${b.identifier}`}
+                          title={b.isTracked ? 'Stop tracking' : 'Track this bill'}
+                          disabled={pending.has(b.id)}
+                          onClick={() => toggleTracked(b)}
+                        >
+                          {b.isTracked ? '✓ Tracked' : 'Track'}
+                        </button>
                       </div>
-                      <div className={styles.cell} role="cell">
-                        <span className={styles.titleCell}>{b.title}</span>
-                      </div>
-                      <div className={styles.cell} role="cell">
-                        {b.sponsor}
-                        {b.party ? ` (${b.party})` : ''}
-                      </div>
-                      <div className={styles.cell} role="cell">
-                        <span className={styles.statusCell} title={b.status}>
-                          {b.status}
-                        </span>
-                      </div>
-                      <div className={styles.cell} role="cell">
-                        {b.isTracked && <span className={styles.trackedBadge}>Tracked</span>}
-                      </div>
-                    </Link>
+                    </div>
                   ))}
                 </div>
               </div>

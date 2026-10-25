@@ -49,7 +49,7 @@
      absorbing it, so short titles don't leave a stray gap before Sponsor
      starts. Status is now single-line/truncated (see .statusCell) instead
      of wrapping to a variable number of lines per row. */
-  grid-template-columns: 100px minmax(200px, 1.4fr) minmax(120px, 1fr) 170px 70px;
+  grid-template-columns: 100px minmax(200px, 1.4fr) minmax(120px, 1fr) 170px 104px;
 }
 
 .headerRow {
@@ -85,7 +85,11 @@
   font-size: 16px;
 }
 
-.row:hover .cell {
+.rowWrap {
+  display: contents;
+}
+
+.rowWrap:hover .cell {
   background: var(--soft);
 }
 
@@ -209,7 +213,7 @@
 }
 
 /* Phone width: each bill is a small card, with no column header and no
-   sideways scroll. Cell order: number, title, sponsor, status, tracked. */
+   sideways scroll. The number and the Track button are on the first line. */
 @media (max-width: 600px) {
   .table {
     max-height: none;
@@ -220,41 +224,66 @@
   .headerRow {
     display: none;
   }
-  .row {
+  .rowWrap {
     display: grid;
     grid-template-columns: 1fr auto;
+    align-items: center;
     padding: 10px 12px;
     border-bottom: 1px solid var(--rule);
     background: var(--card);
   }
-  .row .cell {
+  .rowWrap .cell {
     padding: 0;
     border-bottom: none;
     background: none;
   }
-  .row:hover .cell {
+  .rowWrap:hover .cell {
     background: none;
   }
-  .row .cell:nth-child(1) {
+  .cellId {
     grid-column: 1;
+    grid-row: 1;
   }
-  .row .cell:nth-child(5) {
+  .cellTrack {
     grid-column: 2;
     grid-row: 1;
     justify-content: flex-end;
   }
-  .row .cell:nth-child(2),
-  .row .cell:nth-child(3),
-  .row .cell:nth-child(4) {
+  .cellTitle,
+  .cellSub {
     grid-column: 1 / -1;
     font-size: 15px;
   }
-  .row .cell:nth-child(2) .titleCell {
+  .cellTitle .titleCell {
     white-space: normal;
   }
-  .row .cell:nth-child(3),
-  .row .cell:nth-child(4) {
+  .cellSub {
     color: var(--muted);
     font-size: 14px;
   }
+}
+
+.trackButton {
+  padding: 3px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+  white-space: nowrap;
+}
+
+.trackButton:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.trackButtonOn {
+  color: var(--support-fg);
+  background: var(--support-bg);
+  border-color: var(--support-bg);
+}
+
+.trackButton:disabled {
+  opacity: 0.6;
 }
