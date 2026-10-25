@@ -370,7 +370,35 @@ export function AuthenticatedApp() {
             />
             <Route path="/bills/:id/compare" element={<BillComparePage />} />
             <Route path="/sessions" element={<SessionsPage />} />
-            <Route path="/bills" element={<AllBillsPage />} />
+            <Route
+              path="/bills"
+              element={
+                <AllBillsPage
+                  onTrackBill={async (bill) => {
+                    try {
+                      await client.trackBill(bill.id)
+                    } catch (err) {
+                      setNotice(err instanceof Error ? err.message : `Could not track ${bill.identifier}.`)
+                      throw err
+                    }
+                    setNotice(`Tracking ${bill.identifier}.`)
+                    data.refetchBills()
+                    data.refetchTeamBoard()
+                  }}
+                  onUntrackBill={async (bill) => {
+                    try {
+                      await client.untrackBill(bill.id)
+                    } catch (err) {
+                      setNotice(err instanceof Error ? err.message : `Could not stop tracking ${bill.identifier}.`)
+                      throw err
+                    }
+                    setNotice(`Stopped tracking ${bill.identifier}.`)
+                    data.refetchBills()
+                    data.refetchTeamBoard()
+                  }}
+                />
+              }
+            />
             <Route path="/sessions/:sessionId" element={<SessionBillsRedirect />} />
             <Route path="/notes" element={<NotesPage />} />
             <Route path="/watches" element={<SubjectWatchesPage />} />

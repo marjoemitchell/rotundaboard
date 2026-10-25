@@ -45,9 +45,12 @@ test.describe('Dashboard and All bills navigation', () => {
     await expect(rows).toHaveCount(100)
     await expect(page.getByRole('button', { name: /^Show more/ })).toBeVisible()
 
-    // Search finds a tracked bill, with its badge.
+    // Search finds a tracked bill, and its Track button shows "Tracked".
     await page.getByPlaceholder('Search by bill number, title, or sponsor').fill(introduced.identifier)
-    await expect(rows.filter({ hasText: introduced.identifier }).first()).toContainText('Tracked')
+    await expect(page.getByRole('button', { name: `Stop tracking ${introduced.identifier}`, exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
 
     await nav.getByRole('button', { name: 'LC drafts' }).click()
     await expect(page).toHaveURL(/type=lc/)
@@ -185,6 +188,42 @@ test.describe('Dashboard and All bills navigation', () => {
     await page.unroute(`**/api/sessions/${sessionId}/bills`)
     await alert.getByRole('button', { name: 'Try again' }).click()
     await expect(page.getByRole('table', { name: 'Bills' }).locator('a[role="row"]').first()).toBeVisible()
+  })
+
+  test('Track on a row tracks the bill, the Tracked tab lists it, and Stop tracking removes it', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const sessionId = await findSessionIdWithBills(page)
+    await page.goto(`/bills?session=${sessionId}`)
+    const rows = page.getByRole('table', { name: 'Bills' }).locator('a[role="row"]')
+    const typeTabs = page.getByRole('group', { name: 'Bill type' })
+    await expect(typeTabs.getByRole('button', { name: /^Tracked/ })).toHaveText('Tracked0')
+
+    const identifier = (await rows.first().locator('[class*="identifier"]').textContent())!.trim()
+    const trackButton = page.getByRole('button', { name: `Track ${identifier}`, exact: true })
+    await expect(trackButton).toHaveAttribute('aria-pressed', 'false')
+    await trackButton.click()
+    await expect(page.getByText(`Tracking ${identifier}.`)).toBeVisible()
+    const stopButton = page.getByRole('button', { name: `Stop tracking ${identifier}`, exact: true })
+    await expect(stopButton).toHaveAttribute('aria-pressed', 'true')
+    // The page stays: a click on Track does not open the bill.
+    await expect(page).toHaveURL(new RegExp(`/bills\\?session=${sessionId}`))
+
+    // The Tracked tab lists only the tracked bill.
+    await typeTabs.getByRole('button', { name: /^Tracked/ }).click()
+    await expect(typeTabs.getByRole('button', { name: /^Tracked/ })).toHaveText('Tracked1')
+    await expect(rows).toHaveCount(1)
+    await expect(rows.first()).toContainText(identifier)
+
+    // The bill page agrees.
+    await rows.first().click()
+    await expect(page.getByRole('button', { name: 'Stop tracking' })).toBeVisible()
+    await page.goBack()
+
+    // Stop tracking from the list: the Tracked tab is empty.
+    await page.getByRole('button', { name: `Stop tracking ${identifier}`, exact: true }).click()
+    await expect(page.getByText(`Stopped tracking ${identifier}.`)).toBeVisible()
+    await expect(rows).toHaveCount(0)
+    await expect(page.getByText('Your team tracks no bills in this session.')).toBeVisible()
   })
 
   test('an old session bills link opens All bills for that session', async ({ page }) => {
