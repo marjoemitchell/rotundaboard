@@ -1,5 +1,5 @@
 .page {
-  max-width: 820px;
+  max-width: var(--page-wide);
 }
 
 .title {
