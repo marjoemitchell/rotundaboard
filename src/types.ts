@@ -148,6 +148,11 @@ export interface AiSummary {
   text: string
   model: string | null
   generatedAt: string | null
+  /** 'text': from the bill text of one version. 'metadata': from the title, subject, sponsor, and status. */
+  source: 'text' | 'metadata'
+  /** The version that the summary is from ("Introduced", "Version 2", "Enrolled"), or null. */
+  versionLabel: string | null
+  versionPostedAt: string | null
 }
 
 export interface BillDetail extends Bill {

@@ -270,3 +270,21 @@ export async function committeeMeetingFixture(input: {
   )
   return { committeeId: String(rows[0].id), committee: rows[0].name, meetingId }
 }
+
+// A bill summary with a given source, for a fixture bill (negative id: the
+// cleanup removes the bill, and the summary with it).
+export async function billSummaryFixture(input: {
+  billId: number
+  summary: string
+  source: 'text' | 'metadata'
+  versionKey?: string
+}): Promise<void> {
+  if (input.billId >= 0) throw new Error('use a fixture bill (negative id)')
+  await pool.query(
+    `INSERT INTO bill_summaries (bill_id, summary, model, source, version_key, version_posted_at)
+     VALUES ($1, $2, 'e2e-fixture', $3, $4, CASE WHEN $4::text IS NOT NULL THEN timestamptz '2025-03-19 12:00:00-06' END)
+     ON CONFLICT (bill_id) DO UPDATE SET summary = $2, source = $3, version_key = $4,
+       version_posted_at = CASE WHEN $4::text IS NOT NULL THEN timestamptz '2025-03-19 12:00:00-06' END`,
+    [input.billId, input.summary, input.source, input.versionKey ?? null],
+  )
+}

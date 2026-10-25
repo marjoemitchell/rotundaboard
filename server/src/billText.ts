@@ -331,6 +331,20 @@ export async function extractBillText(pdfBytes: Uint8Array): Promise<Paragraph[]
   return paragraphs.map((para) => para.map(([text, mark]) => [text.replace(/\s+/g, ' '), mark] as Run))
 }
 
+/**
+ * The text of the paragraphs with the marks as tags: struck text (removed
+ * from current law) in <s>...</s>, underlined text (new law) in <u>...</u>.
+ */
+export function markedText(paragraphs: Paragraph[]): string {
+  return paragraphs
+    .map((p) =>
+      p
+        .map(([text, mark]) => (mark & 1 ? `<s>${text}</s>` : mark & 2 ? `<u>${text}</u>` : text))
+        .join(''),
+    )
+    .join('\n\n')
+}
+
 /** The plain text of the paragraphs, with no marks. */
 export function plainText(paragraphs: Paragraph[]): string {
   return paragraphs.map((p) => p.map((r) => r[0]).join('')).join('\n\n')

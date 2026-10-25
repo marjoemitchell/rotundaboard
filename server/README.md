@@ -14,7 +14,7 @@ schema for it — request shapes were reverse-engineered from live responses.
 | `npm run refresh-meetings` | Interim-committee meeting times/locations/agendas only, for committees already in the DB | Fast — no bill data touched |
 | `npm run refresh-hearings` | The bill hearing schedule of all standing committees in one paged search, then hearing alerts and reminders | Fast: about 8 requests for a full session |
 | `npm run refresh-bill-texts` | The text of bill versions and amendments (PDF files from the document store), and an AI summary of each amendment | About 3 seconds for each bill. A run checks at most 300 bills (`--limit=N`). One Claude Haiku call for each new amendment |
-| `npm run generate-summaries` | AI-generated bill summaries | Only needs to run after new bills appear |
+| `npm run generate-summaries` | AI bill summaries: from the newest stored bill text, or from the title, subject, sponsor, and status when a bill has no text yet. A bill gets a new summary when a newer version arrives | One Claude Haiku batch request for each new bill or version |
 | `npm run send-alert-digest` | Daily email digest of change alerts (immediate alerts are sent by the scrape scripts themselves) | Cheap — database only, plus one email per person |
 | `npm run summarize-hearings` | An AI summary of each finished hearing transcript: overview, topics with times, decisions and next steps | One Claude Sonnet call for each hearing |
 | `npm run transcribe-hearings` | Finds newly posted committee hearing videos, ingests their captions, and produces speaker-attributed transcripts | Discovery + captions are free; diarization is free on the self-hosted GPU (WhisperX) or ~$0.006/audio-minute on the OpenAI fallback, plus one Claude call per hearing for speaker names |
