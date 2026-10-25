@@ -5,7 +5,15 @@ const API_BASE = 'http://localhost:4000'
 
 type MapData = {
   counties: { fips: string; name: string; house: number[]; senate: number[] }[]
-  members: { id: string; name: string; chamber: 'house' | 'senate'; district: number; email: string | null; trackedSponsored: number }[]
+  members: {
+    id: string
+    name: string
+    chamber: 'house' | 'senate'
+    district: number
+    email: string | null
+    homeCounty: string | null
+    trackedSponsored: number
+  }[]
 }
 
 async function mapData(page: Page): Promise<MapData> {
@@ -127,19 +135,46 @@ test.describe('district link on a legislator page', () => {
     await expect(note).toContainText(`Senate District ${number}`)
     await expect(note).toContainText(member.name)
     await expect(note).toContainText(`Covers parts of ${names.length} counties`)
-    await expect(panel(page)).toContainText(`${names[0]} County`)
+    // The member's home county is pinned when it is in the district, else the
+    // county with the largest part of the district.
+    const pinnedName = member.homeCounty && names.includes(member.homeCounty) ? member.homeCounty : names[0]
+    await expect(panel(page).getByRole('heading', { level: 2 })).toHaveText(`${pinnedName} County`)
     await expect(page.getByRole('group', { name: 'Chamber' }).getByRole('button', { name: 'Senate' })).toHaveAttribute('aria-pressed', 'true')
     await expect(panel(page).locator('li[aria-current="true"]')).toContainText(member.name)
     await expect(page.locator('path[data-in-district]')).toHaveCount(names.length)
 
     // Another county of the district.
-    await note.getByRole('button', { name: names[1], exact: true }).click()
-    await expect(panel(page)).toContainText(`${names[1]} County`)
+    const other = names.find((n) => n !== pinnedName)!
+    await note.getByRole('button', { name: other, exact: true }).click()
+    await expect(panel(page).getByRole('heading', { level: 2 })).toHaveText(`${other} County`)
     await expect(panel(page).locator('li[aria-current="true"]')).toContainText(member.name)
 
     // Clear removes the district.
     await note.getByRole('button', { name: 'Clear ×' }).click()
     await expect(page).toHaveURL(/\/legislators$/)
     await expect(page.locator('path[data-in-district]')).toHaveCount(0)
+  })
+})
+
+test.describe('legislator contact', () => {
+  test('a legislator page has email and phone links and the home town', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const data = await mapData(page)
+    // A current member with a phone number in the profile data.
+    let found: { id: string; email: string; phone: string; city: string; homeCounty: string | null } | null = null
+    for (const m of data.members.slice(0, 40)) {
+      const detail = await (await page.request.get(`${API_BASE}/api/legislators/${m.id}`)).json()
+      if (detail.phone && detail.email && detail.city) {
+        found = { id: m.id, email: detail.email, phone: detail.phone, city: detail.city, homeCounty: detail.homeCounty }
+        break
+      }
+    }
+    test.skip(!found, 'no legislator with contact data (run "npm run scrape")')
+
+    await page.goto(`/legislators/${found!.id}`)
+    const contact = page.getByRole('list', { name: 'Contact' })
+    await expect(contact.getByRole('link', { name: found!.email })).toHaveAttribute('href', `mailto:${found!.email}`)
+    await expect(contact.getByRole('link', { name: found!.phone })).toHaveAttribute('href', `tel:${found!.phone.replace(/[^\d+]/g, '')}`)
+    await expect(contact).toContainText(found!.homeCounty ? `${found!.city}, ${found!.homeCounty} County` : found!.city)
   })
 })

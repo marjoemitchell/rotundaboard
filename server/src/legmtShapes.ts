@@ -236,4 +236,8 @@ export const ENDPOINTS: Record<string, EndpointSpec> = {
   billAmendmentDocuments: { item: billDocument, expectItems: false, variableCount: true },
   nonStandingCommitteeMeetings: { item: nonStandingCommitteeMeeting, expectItems: false },
   committeeTabs: { item: committeeTabs, expectItems: false },
+  legislatorProfiles: {
+    item: { lawsId: 'number', emailAddress: 'string?', phoneNumber: 'string?', city: 'string?', county: 'string?' },
+    expectItems: true,
+  },
 }

@@ -313,6 +313,10 @@ export interface LegislatorDetail {
   district: string | null
   /** The district number (1 to 100), or null. */
   districtNumber: number | null
+  phone: string | null
+  city: string | null
+  /** The county where the legislator lives. */
+  homeCounty: string | null
   email: string | null
   legislatureOrdinal: number | null
   sponsoredBills: LegislatorBillLine[]
@@ -636,6 +640,8 @@ export interface MapMember {
   district: number
   party: string | null
   email: string | null
+  /** The county where the member lives, or null. */
+  homeCounty: string | null
   committees: string[]
   /** Tracked bills of the workspace that this member sponsors. */
   trackedSponsored: number

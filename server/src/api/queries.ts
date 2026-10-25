@@ -1193,11 +1193,14 @@ export async function getLegislatorDetail(legislatorId: number) {
     district: string | null
     district_number: number | null
     email_address: string | null
+    phone_number: string | null
+    city: string | null
+    home_county: string | null
     legislature_ordinal: number | null
   }>(
     `SELECT l.id, l.first_name, l.last_name, l.chamber, pp.code AS party, dist.name AS district,
             dist.number AS district_number,
-            l.email_address, leg.ordinal AS legislature_ordinal
+            l.email_address, l.phone_number, l.city, l.home_county, leg.ordinal AS legislature_ordinal
      FROM legislators l
      LEFT JOIN political_parties pp ON pp.id = l.political_party_id
      LEFT JOIN districts dist ON dist.id = l.district_id
@@ -1280,6 +1283,9 @@ export async function getLegislatorDetail(legislatorId: number) {
     // 1 to 100 for a real district. The source data also has placeholder districts.
     districtNumber: core.district_number != null && core.district_number <= 100 ? core.district_number : null,
     email: core.email_address,
+    phone: core.phone_number,
+    city: core.city,
+    homeCounty: core.home_county,
     legislatureOrdinal: core.legislature_ordinal,
     sponsoredBills: sponsoredRows.rows.map((r) => billLine(r)),
     cosponsoredBills: cosponsoredRows.rows.map((r) => billLine(r)),
@@ -2010,6 +2016,7 @@ export async function getLegislatorMap(workspaceId: number) {
     district: number
     party: string | null
     email: string | null
+    home_county: string | null
     committees: string[] | null
     tracked: string
   }>(
@@ -2030,7 +2037,7 @@ export async function getLegislatorMap(workspaceId: number) {
        ORDER BY d.chamber, d.number, (l.legislature_id = (SELECT legislature_id FROM serving)) DESC, l.start_date DESC NULLS LAST
      )
      SELECT c.id, c.first_name, c.last_name, upper(c.district_chamber) AS chamber, c.district_number AS district,
-            pp.code AS party, c.email_address AS email,
+            pp.code AS party, c.email_address AS email, c.home_county,
             -- The standing committees only: not the Committee of the Whole or the
             -- conference committees of single bills. Without the "(H)" or "(S)" prefix.
             (SELECT array_agg(DISTINCT regexp_replace(sc.name, '^\\([HS]\\)\\s*', '') ORDER BY regexp_replace(sc.name, '^\\([HS]\\)\\s*', ''))
@@ -2057,6 +2064,7 @@ export async function getLegislatorMap(workspaceId: number) {
       district: r.district,
       party: r.party,
       email: r.email,
+      homeCounty: r.home_county,
       committees: r.committees ?? [],
       trackedSponsored: Number(r.tracked),
     })),

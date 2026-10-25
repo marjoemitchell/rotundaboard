@@ -31,7 +31,13 @@ current members of the House and Senate districts that cover part of it.
   file header tells how to run it. Run it again after Montana redistricts.
 - The data also lists the counties of each district, the county with the
   largest part of the district's area first. The district link on a
-  legislator page (`/legislators?district=senate-9`) pins that county.
+  legislator page (`/legislators?district=senate-9`) pins the member's home
+  county when it is in the district, else that first county.
+- The phone number, city, and home county of each legislator come from the
+  profiles on the legmt.gov WordPress site
+  (`/wp-json/legmt/v1/people/legislators`, matched by `lawsId`). `scrape`
+  loads them after the legislators. The bearbeta API has these fields, but
+  they are empty there.
 - `GET /api/legislators/map` adds the current member of each district: a
   term that has started and not ended. When two terms are current (a member
   and the nominee for the next legislature), the serving legislature comes
