@@ -193,6 +193,40 @@
   color: var(--muted);
 }
 
+/* The links to the recordings of a meeting. */
+.recordings {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.recording {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 2px 0;
+  font-size: 16px;
+}
+
+.recordingLink {
+  font-weight: 500;
+  color: var(--accent, #b9723d);
+}
+
+.recordingLink::before {
+  content: '▶ ';
+  font-size: 12px;
+}
+
+.recordingMeta {
+  color: var(--muted);
+}
+
+.recordingSource {
+  color: var(--muted);
+}
+
 .agendaToggle {
   flex-shrink: 0;
   font-size: 16px;

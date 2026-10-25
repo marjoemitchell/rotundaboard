@@ -1635,7 +1635,7 @@ export async function getNonStandingCommitteeDetail(committeeId: number, workspa
   const core = coreRows[0]
   if (!core) return null
 
-  const [{ rows: memberRows }, { rows: meetingRows }, { rows: materialsRows }] = await Promise.all([
+  const [{ rows: memberRows }, { rows: meetingRows }, { rows: materialsRows }, { rows: recordingRows }] = await Promise.all([
     pool.query<{
       legislator_id: number | null
       first_name: string | null
@@ -1672,7 +1672,32 @@ export async function getNonStandingCommitteeDetail(committeeId: number, workspa
        WHERE committee_id = $1 AND tab_title = 'Meeting Materials'`,
       [committeeId],
     ),
+    // The recordings of the meetings. A recording without a meeting id goes
+    // to the meeting of the committee on the same day, the nearest in time.
+    pool.query<RecordingRow & { matched_meeting_id: number | null }>(
+      `SELECT ${RECORDING_COLUMNS},
+              coalesce(r.meeting_id, (
+                SELECT sm.id FROM non_standing_committee_meetings sm
+                WHERE sm.non_standing_committee_id = r.committee_id
+                  AND sm.meeting_time::date = r.recorded_at::date
+                ORDER BY abs(extract(epoch FROM sm.meeting_time - r.recorded_at))
+                LIMIT 1
+              )) AS matched_meeting_id
+       FROM hearing_recordings r
+       ${RECORDING_JOINS}
+       WHERE r.committee_id = $2
+       ORDER BY r.recorded_at`,
+      [workspaceId, committeeId],
+    ),
   ])
+
+  const recordingsByMeeting = new Map<number, ReturnType<typeof recordingSummary>[]>()
+  for (const r of recordingRows) {
+    if (r.matched_meeting_id == null) continue
+    const list = recordingsByMeeting.get(r.matched_meeting_id) ?? []
+    list.push(recordingSummary(r))
+    recordingsByMeeting.set(r.matched_meeting_id, list)
+  }
 
   return {
     id: String(core.id),
@@ -1698,6 +1723,7 @@ export async function getNonStandingCommitteeDetail(committeeId: number, workspa
         .slice()
         .sort((a, b) => a.orderNumber - b.orderNumber)
         .map((a) => ({ id: a.id, title: a.title, description: a.description })),
+      recordings: recordingsByMeeting.get(r.id) ?? [],
     })),
   }
 }

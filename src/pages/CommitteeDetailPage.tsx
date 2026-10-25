@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import * as client from '../data/client'
 import type { CommitteeMeeting, LoadState, NonStandingCommitteeDetail } from '../types'
-import { formatDate, formatTime } from '../lib/format'
+import { formatDate, formatDuration, formatTime } from '../lib/format'
+import { transcriptStatusLabel } from '../lib/hearings'
 import { EmptyState } from '../components/shared/EmptyState'
 import styles from './CommitteeDetailPage.module.css'
 
@@ -27,6 +28,25 @@ function MeetingRow({ meeting }: { meeting: CommitteeMeeting }) {
           <span className={styles.agendaToggle}>{expanded ? 'Hide agenda' : `${meeting.agendaItems.length} agenda items`}</span>
         )}
       </button>
+      {meeting.recordings.length > 0 && (
+        <ul className={styles.recordings} aria-label="Recordings">
+          {meeting.recordings.map((r) => (
+            <li key={r.id} className={styles.recording}>
+              <Link to={`/hearings/recordings/${r.id}`} className={styles.recordingLink}>
+                {meeting.recordings.length > 1 ? `Recording, ${formatTime(r.datetime)}` : 'Recording'}
+              </Link>
+              <span className={styles.recordingMeta}>
+                {[r.durationSeconds > 0 ? formatDuration(r.durationSeconds) : null, transcriptStatusLabel(r)]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+              <a href={r.sourceUrl} target="_blank" rel="noreferrer" className={styles.recordingSource}>
+                Official video ↗
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
       {expanded && meeting.agendaItems.length > 0 && (
         <ol className={styles.agendaList}>
           {meeting.agendaItems.map((a) => (

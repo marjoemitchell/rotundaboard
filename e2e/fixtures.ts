@@ -235,6 +235,8 @@ export async function createHearingFixture(
       topics: { title: string; summary: string; startSeconds: number | null }[]
       actions: { text: string; startSeconds: number | null }[]
     }
+    // The interim committee meeting of the recording.
+    meetingId?: number
   },
 ): Promise<{ id: string; committee: string }> {
   const res = await request.post(`${API_BASE}/api/__test__/hearing-fixture`, { data: { suffix: uniqueSuffix(), ...input } })
