@@ -1,4 +1,10 @@
 :root {
+  /* Page widths. A page uses the width that its content needs:
+     wide for tables and lists, medium for detail pages with two columns,
+     reading for long lines of text. The map page has no limit. */
+  --page-wide: 1600px;
+  --page-medium: 1280px;
+  --page-reading: 960px;
   --ink: #0f2547;
   --ink-2: #2b3f5c;
   --muted: #5c6b80;
