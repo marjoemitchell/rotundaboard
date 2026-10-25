@@ -433,3 +433,9 @@
   padding-right: 8px;
   background: var(--support-bg);
 }
+
+.districtHome {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--muted);
+}

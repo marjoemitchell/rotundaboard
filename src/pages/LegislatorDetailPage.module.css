@@ -158,3 +158,31 @@
 .districtLink:hover {
   color: var(--accent);
 }
+
+.contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.contact a {
+  color: var(--teal);
+}
+
+.contact a:hover {
+  color: var(--accent);
+}
+
+.contactLabel {
+  margin-right: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}

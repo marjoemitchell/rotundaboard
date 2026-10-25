@@ -75,6 +75,29 @@ export function LegislatorDetailPage() {
           )}
           {l.legislatureOrdinal ? ` · ${l.legislatureOrdinal}th Legislature` : ''}
         </p>
+        {(l.email || l.phone || l.city) && (
+          <ul className={styles.contact} aria-label="Contact">
+            {l.email && (
+              <li>
+                <span className={styles.contactLabel}>Email</span>
+                <a href={`mailto:${l.email}`}>{l.email}</a>
+              </li>
+            )}
+            {l.phone && (
+              <li>
+                <span className={styles.contactLabel}>Phone</span>
+                <a href={`tel:${l.phone.replace(/[^\d+]/g, '')}`}>{l.phone}</a>
+              </li>
+            )}
+            {l.city && (
+              <li>
+                <span className={styles.contactLabel}>Home</span>
+                {l.city}
+                {l.homeCounty ? `, ${l.homeCounty} County` : ''}
+              </li>
+            )}
+          </ul>
+        )}
       </div>
 
       <div className={styles.grid}>

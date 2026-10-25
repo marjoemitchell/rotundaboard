@@ -318,3 +318,14 @@ export interface RawDocument {
   creation: string | null
   folderId: number | null
 }
+
+// A legislator profile from the legmt.gov WordPress site. The bearbeta API
+// has empty contact fields, and these profiles have the values. lawsId is
+// the bearbeta legislator id.
+export interface RawLegislatorProfile {
+  lawsId: number
+  emailAddress: string | null
+  phoneNumber: string | null
+  city: string | null
+  county: string | null
+}

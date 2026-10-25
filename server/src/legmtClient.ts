@@ -9,6 +9,7 @@ import type {
   RawCommitteeMeetingBillHearing,
   RawCommitteeTabsResponse,
   RawDocument,
+  RawLegislatorProfile,
   RawExecutiveAction,
   RawLegislator,
   RawNonStandingCommittee,
@@ -124,6 +125,15 @@ export async function* iterateBillsForSession(sessionId: number) {
     if (result.content.length < PAGE_SIZE) break
     page += 1
   }
+}
+
+/** The legislator profiles with contact data (all in one response). */
+export function getLegislatorProfiles(): Promise<RawLegislatorProfile[]> {
+  return monitored(
+    'legislatorProfiles',
+    () => getJson<{ content: RawLegislatorProfile[] }>(`${WP_BASE}/wp-json/legmt/v1/people/legislators`),
+    (r) => r.content,
+  ).then((r) => r.content)
 }
 
 export function getCommitteeTabs(lawsId: number): Promise<RawCommitteeTabsResponse> {

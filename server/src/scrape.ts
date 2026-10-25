@@ -244,6 +244,23 @@ async function upsertLegislatorsAndDeps(legislature_id: number) {
     )
   }
 
+  // Contact data from the WordPress profiles. A failure here is not a reason
+  // to stop the scrape: the health check counts the failed request.
+  try {
+    const profiles = await api.getLegislatorProfiles()
+    for (const p of profiles) {
+      await pool.query(
+        `UPDATE legislators
+         SET phone_number = $2, city = $3, home_county = $4, email_address = coalesce(email_address, $5)
+         WHERE id = $1`,
+        [p.lawsId, p.phoneNumber || null, p.city || null, p.county || null, p.emailAddress || null],
+      )
+    }
+    console.log(`updated contact data from ${profiles.length} legislator profiles`)
+  } catch (err) {
+    console.error('legislator profiles failed:', err instanceof Error ? err.message : err)
+  }
+
   return legislature_id
 }
 

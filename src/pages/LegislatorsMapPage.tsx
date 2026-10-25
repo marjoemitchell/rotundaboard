@@ -112,15 +112,20 @@ export function LegislatorsMapPage() {
     [map, district?.chamber, district?.number],
   )
   const districtMember = district ? byDistrict.get(`${district.chamber}:${district.number}`) ?? null : null
-  // When the map data arrives: the district's chamber, and its main county pinned.
+  // When the map data arrives: the district's chamber, and a county pinned:
+  // the member's home county when it is in the district, else the county
+  // with the largest part of the district.
   const appliedDistrict = useRef<string | null>(null)
   useEffect(() => {
     const key = district ? `${district.chamber}-${district.number}` : null
     if (!key || !map || appliedDistrict.current === key || districtFips.length === 0) return
     appliedDistrict.current = key
     setChamber(district!.chamber)
-    setPinned(districtFips[0])
-  }, [map, district, districtFips])
+    const home = districtMember?.homeCounty
+      ? districtFips.find((f) => countyByFips.get(f)?.name === districtMember.homeCounty)
+      : undefined
+    setPinned(home ?? districtFips[0])
+  }, [map, district, districtFips, districtMember, countyByFips])
   const clearDistrict = () => {
     const next = new URLSearchParams(search)
     next.delete('district')
@@ -327,6 +332,7 @@ function DistrictNote({
       {member && (
         <div className={styles.districtMember}>
           {member.chamber === 'house' ? 'Rep.' : 'Sen.'} {member.name}
+          {member.homeCounty && <span className={styles.districtHome}> · lives in {member.homeCounty} County</span>}
         </div>
       )}
       <div className={styles.districtCounties}>
