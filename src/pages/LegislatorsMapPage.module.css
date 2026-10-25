@@ -385,3 +385,51 @@
     max-width: none;
   }
 }
+
+/* The counties of the district from a legislator page link. */
+.inDistrict {
+  stroke: var(--accent);
+  stroke-width: 1.6;
+}
+
+.districtNote {
+  padding: 12px 18px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+
+.districtMember {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.districtCounties {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.countyLink {
+  padding: 0;
+  font: inherit;
+  color: var(--teal);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.countyLink[aria-pressed='true'] {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.memberHighlight {
+  margin: 0 -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+  background: var(--support-bg);
+}

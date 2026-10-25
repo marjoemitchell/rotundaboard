@@ -1191,10 +1191,12 @@ export async function getLegislatorDetail(legislatorId: number) {
     chamber: string | null
     party: string | null
     district: string | null
+    district_number: number | null
     email_address: string | null
     legislature_ordinal: number | null
   }>(
     `SELECT l.id, l.first_name, l.last_name, l.chamber, pp.code AS party, dist.name AS district,
+            dist.number AS district_number,
             l.email_address, leg.ordinal AS legislature_ordinal
      FROM legislators l
      LEFT JOIN political_parties pp ON pp.id = l.political_party_id
@@ -1275,6 +1277,8 @@ export async function getLegislatorDetail(legislatorId: number) {
     chamber: core.chamber ? (core.chamber.toLowerCase() as 'house' | 'senate') : null,
     party: core.party,
     district: core.district,
+    // 1 to 100 for a real district. The source data also has placeholder districts.
+    districtNumber: core.district_number != null && core.district_number <= 100 ? core.district_number : null,
     email: core.email_address,
     legislatureOrdinal: core.legislature_ordinal,
     sponsoredBills: sponsoredRows.rows.map((r) => billLine(r)),
@@ -1991,7 +1995,11 @@ export async function getSuggestedBills(workspaceId: number, limit: number) {
 // and the current member of each district.
 const countyDistricts = JSON.parse(
   readFileSync(new URL('../data/montanaCountyDistricts.json', import.meta.url), 'utf8'),
-) as { counties: { fips: string; name: string; house: number[]; senate: number[] }[] }
+) as {
+  counties: { fips: string; name: string; house: number[]; senate: number[] }[]
+  /** The counties of each district, the county with the largest part first. */
+  districts: { house: Record<string, string[]>; senate: Record<string, string[]> }
+}
 
 export async function getLegislatorMap(workspaceId: number) {
   const { rows } = await pool.query<{
@@ -2040,6 +2048,7 @@ export async function getLegislatorMap(workspaceId: number) {
   )
   return {
     counties: countyDistricts.counties,
+    districts: countyDistricts.districts,
     members: rows.map((r) => ({
       id: String(r.id),
       name: legislatorLabel(r.first_name, r.last_name),

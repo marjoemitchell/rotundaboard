@@ -11,7 +11,8 @@
 //   node scripts/buildCountyDistricts.mjs <dir>
 //
 // Outputs:
-//   src/data/montanaCountyDistricts.json   the House and Senate districts in each county
+//   src/data/montanaCountyDistricts.json   the House and Senate districts in each county, and
+//                                           the counties of each district (largest part first)
 //   ../public/maps/montana-counties.json   the county shapes and the state outline (GeoJSON)
 //
 // A district is in a county when the county has 2% or more of the district's
@@ -47,6 +48,8 @@ async function districts(name, field) {
 
 const result = counties.map((c) => ({ fips: String(c.id), name: c.properties.name, house: [], senate: [] }))
 const byFips = new Map(result.map((r) => [r.fips, r]))
+// The counties of each district, with the share of the district's area.
+const districtCounties = { house: {}, senate: {} }
 for (const [chamber, list] of [
   ['house', await districts('tl_2024_30_sldl', 'SLDLST')],
   ['senate', await districts('tl_2024_30_sldu', 'SLDUST')],
@@ -59,7 +62,10 @@ for (const [chamber, list] of [
       const overlap = turf.intersect(turf.featureCollection([d.geom, c]))
       if (!overlap) continue
       const a = turf.area(overlap)
-      if (a / districtArea >= DISTRICT_SHARE || a / turf.area(c) >= COUNTY_SHARE) byFips.get(String(c.id))[chamber].push(d.number)
+      if (a / districtArea >= DISTRICT_SHARE || a / turf.area(c) >= COUNTY_SHARE) {
+        byFips.get(String(c.id))[chamber].push(d.number)
+        ;(districtCounties[chamber][d.number] ??= []).push({ fips: String(c.id), share: a / districtArea })
+      }
     }
   }
 }
@@ -68,9 +74,16 @@ for (const r of result) {
   r.senate.sort((a, b) => a - b)
 }
 result.sort((a, b) => a.name.localeCompare(b.name))
+// For each district: its counties, the county with the largest part first.
+const countiesOfDistrict = { house: {}, senate: {} }
+for (const chamber of ['house', 'senate']) {
+  for (const [number, list] of Object.entries(districtCounties[chamber])) {
+    countiesOfDistrict[chamber][number] = list.sort((a, b) => b.share - a.share).map((x) => x.fips)
+  }
+}
 writeFileSync(
   path.join(here, '../src/data/montanaCountyDistricts.json'),
-  JSON.stringify({ source: 'US Census TIGER/Line 2024 SLDL/SLDU, us-atlas 3.0.1 counties', counties: result }, null, 1) + '\n',
+  JSON.stringify({ source: 'US Census TIGER/Line 2024 SLDL/SLDU, us-atlas 3.0.1 counties', counties: result, districts: countiesOfDistrict }, null, 1) + '\n',
 )
 
 // The map shapes: the counties and the state outline, with 4 decimal places.
