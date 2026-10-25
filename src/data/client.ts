@@ -16,6 +16,7 @@ import type {
   BillComparison,
   BillDetail,
   FilterOptions,
+  LegislatorMap,
   SuggestedBills,
   UpcomingMeetings,
   Brief,
@@ -260,6 +261,10 @@ export function getSessions(): Promise<LegislativeSession[]> {
 
 export function getSessionBills(sessionId: string, signal?: AbortSignal): Promise<SessionBillSummary[]> {
   return getJson(`/api/sessions/${sessionId}/bills`, signal)
+}
+
+export function getLegislatorMap(): Promise<LegislatorMap> {
+  return getJson('/api/legislators/map')
 }
 
 export function getLegislators(): Promise<LegislatorSummary[]> {

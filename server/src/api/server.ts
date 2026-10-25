@@ -379,6 +379,8 @@ route('/api/saved-views', (req) => queries.getSavedViews(req.auth!.workspaceId))
 route('/api/nav-counts', (req) => queries.getNavCounts(req.auth!.workspaceId))
 route('/api/sessions', (req) => queries.getSessions(req.auth!.workspaceId))
 route('/api/legislators', () => queries.getLegislators())
+// Before /api/legislators/:id, so that "map" is not taken as an id.
+route('/api/legislators/map', (req) => queries.getLegislatorMap(req.auth!.workspaceId))
 route('/api/notes', (req) => queries.getNotes(req.auth!.workspaceId))
 route('/api/subject-codes', () => queries.getSubjectCodes())
 route('/api/tags', (req) => queries.getTags(req.auth!.workspaceId))

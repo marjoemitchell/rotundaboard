@@ -3,7 +3,10 @@ import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill } from './f
 test.describe('legislators', () => {
   test('browsing the legislators list, searching, and viewing a detail page works', async ({ page }) => {
     await signUpFreshWorkspace(page)
+    // /legislators is the county map. The list is a second view.
     await page.goto('/legislators')
+    await page.getByRole('navigation', { name: 'Legislators view' }).getByRole('link', { name: 'List' }).click()
+    await expect(page).toHaveURL(/\/legislators\/list$/)
     await expect(page.locator('a[role="row"]').first()).toBeVisible()
 
     const totalText = await page.locator('[class*="resultCount"]').textContent()
@@ -16,7 +19,7 @@ test.describe('legislators', () => {
     await expect(page.locator('[class*="resultCount"]')).toHaveText(totalText ?? '')
 
     await page.locator('a[role="row"]').first().click()
-    await page.waitForURL(/\/legislators\/.+/)
+    await page.waitForURL(/\/legislators\/\d+/)
     await expect(page.locator('h1', { hasText: firstName })).toBeVisible()
   })
 })

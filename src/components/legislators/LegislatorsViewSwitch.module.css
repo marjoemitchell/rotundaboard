@@ -1,0 +1,26 @@
+.switch {
+  display: inline-flex;
+  border: 1px solid var(--border-2);
+  background: var(--card);
+}
+
+.switch a {
+  padding: 6px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.switch a + a {
+  border-left: 1px solid var(--border-2);
+}
+
+.switch a:hover {
+  background: var(--soft);
+}
+
+.switch a.on {
+  color: #ffffff;
+  background: var(--ink);
+}

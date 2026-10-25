@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import * as client from '../data/client'
 import type { LegislatorSummary, LoadState } from '../types'
 import { EmptyState } from '../components/shared/EmptyState'
+import { LegislatorsViewSwitch } from '../components/legislators/LegislatorsViewSwitch'
 import styles from './LegislatorsPage.module.css'
 
 export function LegislatorsPage() {
@@ -27,8 +28,13 @@ export function LegislatorsPage() {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>Legislators</h1>
-      <p className={styles.subhead}>Every legislator we have data for, with sponsorship and voting history.</p>
+      <div className={styles.headRow}>
+        <div>
+          <h1 className={styles.title}>Legislators</h1>
+          <p className={styles.subhead}>Every legislator we have data for, with sponsorship and voting history.</p>
+        </div>
+        <LegislatorsViewSwitch current="list" />
+      </div>
 
       {legislators.status === 'loading' && <div className="skeleton" style={{ height: 300, marginTop: 16 }} />}
       {legislators.status === 'empty' && <EmptyState message="No legislators found." />}
