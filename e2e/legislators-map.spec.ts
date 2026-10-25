@@ -178,3 +178,25 @@ test.describe('legislator contact', () => {
     await expect(contact).toContainText(found!.homeCounty ? `${found!.city}, ${found!.homeCounty} County` : found!.city)
   })
 })
+
+test.describe('system accounts in the legislator data', () => {
+  test('the map and the list show the real member, not a "Service ZZ-User" account in the same seat', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const before = await mapData(page)
+    const member = before.members.find((m) => m.chamber === 'senate' && m.district === 1)!
+    expect(member).toBeTruthy()
+    const res = await page.request.post(`${API_BASE}/api/__test__/placeholder-legislator`, { data: { senateDistrict: 1 } })
+    expect(res.ok()).toBeTruthy()
+
+    await page.goto('/legislators?district=senate-1')
+    const note = panel(page).getByLabel('District')
+    await expect(note).toContainText('Senate District 1')
+    await expect(note).toContainText(member.name)
+    await expect(panel(page)).not.toContainText('ZZ-User')
+
+    await page.goto('/legislators/list')
+    const rows = page.getByRole('table', { name: 'Legislators' }).getByRole('row')
+    await expect(rows.filter({ hasText: member.name }).first()).toBeVisible()
+    await expect(rows.filter({ hasText: 'ZZ-User' })).toHaveCount(0)
+  })
+})

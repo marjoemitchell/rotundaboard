@@ -288,3 +288,25 @@ export async function billSummaryFixture(input: {
     [input.billId, input.summary, input.source, input.versionKey ?? null],
   )
 }
+
+// A system account in a real Senate seat, like "Service ZZ-User" in the
+// Legislature's data. The term started after the term of the real member,
+// so without the filter the map shows the account. A negative id marks the
+// fixture for e2eCleanup.ts.
+export async function placeholderLegislatorFixture(input: { senateDistrict: number }): Promise<{ id: string }> {
+  const { rows: districts } = await pool.query<{ id: number }>(
+    `SELECT id FROM districts WHERE chamber ILIKE 'senate' AND number = $1`,
+    [input.senateDistrict],
+  )
+  if (!districts[0]) throw new Error(`no Senate district ${input.senateDistrict}`)
+  const { rows: serving } = await pool.query<{ legislature_id: number }>(
+    'SELECT legislature_id FROM sessions WHERE start_date <= now() ORDER BY start_date DESC LIMIT 1',
+  )
+  const id = -(Math.floor(Math.random() * 1_000_000_000) + 1)
+  await pool.query(
+    `INSERT INTO legislators (id, first_name, last_name, chamber, legislature_id, district_id, start_date, end_date, email_address)
+     VALUES ($1, 'Service', 'ZZ-User', 'SENATE', $2, $3, now() - interval '1 day', now() + interval '1 year', 'service.zz-user@legmt.gov')`,
+    [id, serving[0]?.legislature_id ?? null, districts[0].id],
+  )
+  return { id: String(id) }
+}

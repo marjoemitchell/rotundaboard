@@ -269,7 +269,9 @@ export async function getNavCounts(workspaceId: number) {
   `,
     [workspaceId],
   )
-  const { rows: legislatorRows } = await pool.query<{ n: string }>('SELECT count(*) AS n FROM legislators')
+  const { rows: legislatorRows } = await pool.query<{ n: string }>(
+    `SELECT count(*) AS n FROM legislators l WHERE ${realLegislatorSql('l')}`,
+  )
   const { rows: hearingRows } = await pool.query<{ n: string }>(
     `SELECT count(*) AS n FROM non_standing_committee_meetings WHERE meeting_time >= now()`,
   )
@@ -685,6 +687,14 @@ function bucketVote(v: string | null): 'yes' | 'no' | 'other' {
   if (upper.startsWith('YES')) return 'yes'
   if (upper.startsWith('NO')) return 'no'
   return 'other'
+}
+
+// The Legislature's data has system accounts in real seats, for example
+// "Service ZZ-User" in Senate District 5. These accounts have a last name that
+// starts with "ZZ" or an email address that starts with "service.". This filter
+// removes them from the legislator list, the map, and the counts.
+function realLegislatorSql(alias: string): string {
+  return `NOT (coalesce(${alias}.last_name, '') ILIKE 'zz%' OR coalesce(${alias}.email_address, '') ILIKE 'service.%')`
 }
 
 function legislatorLabel(first: string | null, last: string | null): string {
@@ -1183,6 +1193,7 @@ export async function getLegislators() {
     LEFT JOIN districts dist ON dist.id = l.district_id
     LEFT JOIN legislatures leg ON leg.id = l.legislature_id
     LEFT JOIN bills b ON b.sponsor_id = l.id
+    WHERE ${realLegislatorSql('l')}
     GROUP BY l.id, l.first_name, l.last_name, l.chamber, pp.code, dist.name, leg.ordinal
     ORDER BY l.last_name NULLS LAST, l.first_name NULLS LAST
   `)
@@ -2047,6 +2058,7 @@ export async function getLegislatorMap(workspaceId: number) {
        FROM legislators l
        JOIN districts d ON d.id = l.district_id
        WHERE d.number BETWEEN 1 AND 100
+         AND ${realLegislatorSql('l')}
          AND (l.start_date IS NULL OR l.start_date <= now())
          AND (l.end_date IS NULL OR l.end_date >= now())
        ORDER BY d.chamber, d.number, (l.legislature_id = (SELECT legislature_id FROM serving)) DESC, l.start_date DESC NULLS LAST
