@@ -253,6 +253,8 @@ export interface CommitteeMeeting {
   publicParticipation: boolean | null
   status: string | null
   agendaItems: CommitteeAgendaItem[]
+  /** The hearing recordings of the meeting, oldest first. A long meeting can have two recordings. */
+  recordings: HearingSummary[]
 }
 
 export interface NonStandingCommitteeDetail {

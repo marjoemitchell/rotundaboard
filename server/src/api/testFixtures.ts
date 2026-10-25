@@ -13,6 +13,8 @@ export interface HearingFixtureInput {
   segments: { start: number; end: number; speakerLabel?: string | null; text: string }[]
   /** An AI summary, as summarizeHearings.ts stores it. */
   aiSummary?: unknown
+  /** The interim committee meeting of the recording. */
+  meetingId?: number
 }
 
 export async function createHearingFixture(input: HearingFixtureInput): Promise<{ id: string; committee: string }> {
@@ -35,10 +37,10 @@ export async function createHearingFixture(input: HearingFixtureInput): Promise<
     // bcrypt shares, stalling signups/logins across the parallel suite.
     const { rows } = await client.query<{ id: number }>(
       `INSERT INTO hearing_recordings
-         (nomad_item_id, committee_id, title, committee_name, recorded_at, duration_seconds, hls_url,
+         (nomad_item_id, committee_id, meeting_id, title, committee_name, recorded_at, duration_seconds, hls_url,
           audio_playlist_url, transcript_status, transcript_source, waveform,
           ai_summary, ai_summary_model, ai_summarized_at)
-       VALUES ($1, $2, $3, $4, (now() AT TIME ZONE 'America/Denver')::timestamp(0), $5,
+       VALUES ($1, $2, $10, $3, $4, (now() AT TIME ZONE 'America/Denver')::timestamp(0), $5,
                'http://127.0.0.1:9/e2e/hls/master.m3u8', 'http://127.0.0.1:9/e2e/hls/audio.m3u8', $6, $7, $8,
                $9::jsonb, CASE WHEN $9::jsonb IS NOT NULL THEN 'e2e-fixture' END,
                CASE WHEN $9::jsonb IS NOT NULL THEN now() END)
@@ -53,6 +55,7 @@ export async function createHearingFixture(input: HearingFixtureInput): Promise<
         status === 'ready' ? 'diarized' : 'captions',
         JSON.stringify(status === 'ready' ? Array.from({ length: 40 }, (_, i) => Math.round(Math.abs(Math.sin(i / 3)) * 100) / 100) : []),
         input.aiSummary ? JSON.stringify(input.aiSummary) : null,
+        input.meetingId ?? null,
       ],
     )
     const id = rows[0].id

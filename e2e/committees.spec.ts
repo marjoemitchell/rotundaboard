@@ -1,4 +1,6 @@
-import { test, expect, signUpFreshWorkspace } from './fixtures'
+import { test, expect, signUpFreshWorkspace, createHearingFixture, uniqueSuffix } from './fixtures'
+
+const API_BASE = 'http://localhost:4000'
 
 test.describe('interim committees', () => {
   test('following a committee from the list page shows it followed, and searching filters the list', async ({ page }) => {
@@ -76,5 +78,50 @@ test.describe('interim committees', () => {
     const materialsLink = page.locator('[class*="materials"] a').first()
     await expect(materialsLink).toBeVisible()
     await expect(materialsLink).toHaveAttribute('href', /^https:\/\//)
+  })
+})
+
+test.describe('meeting recordings', () => {
+  test('a past meeting with a recording links to the recording page and to the official video', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const room = `Room E2E ${uniqueSuffix()}`
+    const res = await page.request.post(`${API_BASE}/api/__test__/committee-meeting`, {
+      data: { daysFromNow: -2, location: room, agenda: ['Agency reports'] },
+    })
+    expect(res.ok()).toBeTruthy()
+    const meeting = (await res.json()) as { committeeId: string; meetingId: number }
+    const recording = await createHearingFixture(page.request, {
+      meetingId: meeting.meetingId,
+      durationSeconds: 5400,
+      segments: [{ start: 0, end: 5, text: 'The committee will come to order.' }],
+    })
+
+    await page.goto(`/committees/${meeting.committeeId}`)
+    const row = page.locator('[class*="meetingRow"]').filter({ hasText: room })
+    await expect(row).toContainText('Past')
+    const recordings = row.getByRole('list', { name: 'Recordings' })
+    await expect(recordings).toContainText('1h 30m')
+    await expect(recordings.getByRole('link', { name: 'Official video ↗' })).toHaveAttribute(
+      'href',
+      /^https:\/\/streaming-video\.legmt\.gov\/browse\/item\//,
+    )
+
+    await recordings.getByRole('link', { name: 'Recording' }).click()
+    await expect(page).toHaveURL(new RegExp(`/hearings/recordings/${recording.id}$`))
+    await expect(page.getByText('The committee will come to order.')).toBeVisible()
+  })
+
+  test('a meeting without a recording shows no recording link', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const room = `Room E2E ${uniqueSuffix()}`
+    const res = await page.request.post(`${API_BASE}/api/__test__/committee-meeting`, {
+      data: { daysFromNow: -3, location: room },
+    })
+    const meeting = (await res.json()) as { committeeId: string }
+
+    await page.goto(`/committees/${meeting.committeeId}`)
+    const row = page.locator('[class*="meetingRow"]').filter({ hasText: room })
+    await expect(row).toContainText('Past')
+    await expect(row.getByRole('list', { name: 'Recordings' })).toHaveCount(0)
   })
 })
