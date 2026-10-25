@@ -21,6 +21,7 @@ import {
   billTextFixture,
   committeeMeetingFixture,
   openDraftsFixture,
+  placeholderLegislatorFixture,
   createHearingFixture,
   createScrapeRunFixture,
   createStatusChangeFixture,
@@ -167,6 +168,14 @@ if (process.env.NODE_ENV !== 'production') {
       res.json(await openDraftsFixture(req.body as Parameters<typeof openDraftsFixture>[0]))
     } catch (err) {
       handleError(res, 'POST /api/__test__/open-drafts', err)
+    }
+  })
+
+  app.post('/api/__test__/placeholder-legislator', async (req, res) => {
+    try {
+      res.json(await placeholderLegislatorFixture(req.body as Parameters<typeof placeholderLegislatorFixture>[0]))
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/placeholder-legislator', err)
     }
   })
 
