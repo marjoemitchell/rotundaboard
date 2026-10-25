@@ -56,7 +56,23 @@ export function LegislatorDetailPage() {
           <span className={styles.partyTag} style={{ color: partyColor(l.party) }}>
             {l.party ?? '—'}
           </span>
-          {l.district ? ` · ${l.district}` : ''}
+          {l.district && l.chamber && l.districtNumber ? (
+            <>
+              {' · '}
+              {/* Opens the county map with this district's county pinned. */}
+              <Link
+                to={`/legislators?district=${l.chamber}-${l.districtNumber}`}
+                className={styles.districtLink}
+                title="Show this district on the county map"
+              >
+                {l.district}
+              </Link>
+            </>
+          ) : l.district ? (
+            ` · ${l.district}`
+          ) : (
+            ''
+          )}
           {l.legislatureOrdinal ? ` · ${l.legislatureOrdinal}th Legislature` : ''}
         </p>
       </div>

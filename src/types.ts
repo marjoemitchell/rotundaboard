@@ -311,6 +311,8 @@ export interface LegislatorDetail {
   chamber: Chamber | null
   party: string | null
   district: string | null
+  /** The district number (1 to 100), or null. */
+  districtNumber: number | null
   email: string | null
   legislatureOrdinal: number | null
   sponsoredBills: LegislatorBillLine[]
@@ -641,5 +643,7 @@ export interface MapMember {
 
 export interface LegislatorMap {
   counties: MapCounty[]
+  /** The counties (fips) of each district, the county with the largest part first. */
+  districts: { house: Record<string, string[]>; senate: Record<string, string[]> }
   members: MapMember[]
 }

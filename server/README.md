@@ -29,6 +29,9 @@ current members of the House and Senate districts that cover part of it.
 - `scripts/buildCountyDistricts.mjs` makes both files from the US Census
   district boundaries (TIGER/Line 2024) and the us-atlas county shapes. The
   file header tells how to run it. Run it again after Montana redistricts.
+- The data also lists the counties of each district, the county with the
+  largest part of the district's area first. The district link on a
+  legislator page (`/legislators?district=senate-9`) pins that county.
 - `GET /api/legislators/map` adds the current member of each district: a
   term that has started and not ended. When two terms are current (a member
   and the nominee for the next legislature), the serving legislature comes

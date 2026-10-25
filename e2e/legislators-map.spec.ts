@@ -109,3 +109,37 @@ test.describe('legislators map', () => {
     await expect(page.locator('path[data-county]')).toHaveCount(56)
   })
 })
+
+test.describe('district link on a legislator page', () => {
+  test('the district opens the map with its main county pinned and its member marked', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const data = (await mapData(page)) as MapData & { districts: { house: Record<string, string[]>; senate: Record<string, string[]> } }
+    // A Senate district with more than one county.
+    const [number, fipsList] = Object.entries(data.districts.senate).find(([, list]) => list.length > 1)!
+    const member = data.members.find((m) => m.chamber === 'senate' && m.district === Number(number))!
+    const names = fipsList.map((f) => data.counties.find((c) => c.fips === f)!.name)
+
+    await page.goto(`/legislators/${member.id}`)
+    await page.getByRole('link', { name: new RegExp(`SENATE DISTRICT ${number}$`, 'i') }).click()
+    await expect(page).toHaveURL(new RegExp(`/legislators\\?district=senate-${number}$`))
+
+    const note = panel(page).getByLabel('District')
+    await expect(note).toContainText(`Senate District ${number}`)
+    await expect(note).toContainText(member.name)
+    await expect(note).toContainText(`Covers parts of ${names.length} counties`)
+    await expect(panel(page)).toContainText(`${names[0]} County`)
+    await expect(page.getByRole('group', { name: 'Chamber' }).getByRole('button', { name: 'Senate' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(panel(page).locator('li[aria-current="true"]')).toContainText(member.name)
+    await expect(page.locator('path[data-in-district]')).toHaveCount(names.length)
+
+    // Another county of the district.
+    await note.getByRole('button', { name: names[1], exact: true }).click()
+    await expect(panel(page)).toContainText(`${names[1]} County`)
+    await expect(panel(page).locator('li[aria-current="true"]')).toContainText(member.name)
+
+    // Clear removes the district.
+    await note.getByRole('button', { name: 'Clear ×' }).click()
+    await expect(page).toHaveURL(/\/legislators$/)
+    await expect(page.locator('path[data-in-district]')).toHaveCount(0)
+  })
+})

@@ -148,3 +148,13 @@
 .committeeRow:first-child {
   border-top: none;
 }
+
+.districtLink {
+  color: var(--teal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.districtLink:hover {
+  color: var(--accent);
+}

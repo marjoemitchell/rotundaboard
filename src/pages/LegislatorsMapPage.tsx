@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { geoConicConformal, geoPath } from 'd3-geo'
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import * as client from '../data/client'
@@ -59,6 +59,11 @@ export function LegislatorsMapPage() {
   const [pinned, setPinned] = useState<string | null>(null)
   const [tip, setTip] = useState<{ x: number; y: number } | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+  // ?district=senate-9 (a link from a legislator page): the counties of that
+  // district are outlined, and the county with the largest part is pinned.
+  const [search, setSearch] = useSearchParams()
+  const districtParam = /^(house|senate)-(\d{1,3})$/.exec(search.get('district') ?? '')
+  const district = districtParam ? { chamber: districtParam[1] as 'house' | 'senate', number: Number(districtParam[2]) } : null
 
   useEffect(() => {
     client
@@ -99,6 +104,28 @@ export function LegislatorsMapPage() {
   const sponsorsIn = (county: MapCounty) => {
     const { senate, house } = membersOf(county, byDistrict, chamber)
     return [...senate, ...house].filter((m) => m.trackedSponsored > 0).length
+  }
+
+  // The counties of the district in the URL, the county with the largest part first.
+  const districtFips = useMemo(
+    () => (district && map ? (map.districts[district.chamber][String(district.number)] ?? []) : []),
+    [map, district?.chamber, district?.number],
+  )
+  const districtMember = district ? byDistrict.get(`${district.chamber}:${district.number}`) ?? null : null
+  // When the map data arrives: the district's chamber, and its main county pinned.
+  const appliedDistrict = useRef<string | null>(null)
+  useEffect(() => {
+    const key = district ? `${district.chamber}-${district.number}` : null
+    if (!key || !map || appliedDistrict.current === key || districtFips.length === 0) return
+    appliedDistrict.current = key
+    setChamber(district!.chamber)
+    setPinned(districtFips[0])
+  }, [map, district, districtFips])
+  const clearDistrict = () => {
+    const next = new URLSearchParams(search)
+    next.delete('district')
+    setSearch(next, { replace: true })
+    appliedDistrict.current = null
   }
 
   const selectedFips = pinned ?? hovered
@@ -177,7 +204,8 @@ export function LegislatorsMapPage() {
               {shapes && path && map && (
                 <svg className={styles.map} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Map of the Montana counties">
                   <g>
-                    {shapes.map((s) => {
+                    {/* The district's counties last, so that no other county border covers their outline. */}
+                    {[...shapes.filter((s) => !districtFips.includes(String(s.id))), ...shapes.filter((s) => districtFips.includes(String(s.id)))].map((s) => {
                       const fips = String(s.id)
                       const county = countyByFips.get(fips)
                       const fill = county ? SHADES[Math.min(3, sponsorsIn(county))] : SHADES[0]
@@ -186,7 +214,10 @@ export function LegislatorsMapPage() {
                         <path
                           key={fips}
                           d={path(s) ?? undefined}
-                          className={`${styles.county} ${fips === hovered ? styles.hover : ''} ${fips === pinned ? styles.pinned : ''}`}
+                          className={`${styles.county} ${fips === hovered ? styles.hover : ''} ${fips === pinned ? styles.pinned : ''} ${
+                            districtFips.includes(fips) ? styles.inDistrict : ''
+                          }`}
+                          data-in-district={districtFips.includes(fips) || undefined}
                           style={{ fill: isSelected || fips === hovered ? 'var(--accent)' : fill }}
                           data-county={s.properties.name}
                           onMouseMove={(e) => onMove(e, fips)}
@@ -237,12 +268,25 @@ export function LegislatorsMapPage() {
 
           <aside className={styles.panel} aria-label="County details">
             {selected ? (
-              <CountyPanel
-                county={selected}
-                members={membersOf(selected, byDistrict, chamber)}
-                pinned={pinned != null}
-                onUnpin={() => setPinned(null)}
-              />
+              <>
+                {district && districtFips.length > 0 && (
+                  <DistrictNote
+                    label={`${district.chamber === 'house' ? 'House' : 'Senate'} District ${district.number}`}
+                    member={districtMember}
+                    counties={districtFips.map((f) => countyByFips.get(f)).filter((c): c is MapCounty => Boolean(c))}
+                    pinned={pinned}
+                    onPin={setPinned}
+                    onClear={clearDistrict}
+                  />
+                )}
+                <CountyPanel
+                  county={selected}
+                  members={membersOf(selected, byDistrict, chamber)}
+                  pinned={pinned != null}
+                  highlight={districtMember?.id ?? null}
+                  onUnpin={() => setPinned(null)}
+                />
+              </>
             ) : (
               <div className={styles.empty}>
                 <div className="eyebrow">No county selected</div>
@@ -256,15 +300,62 @@ export function LegislatorsMapPage() {
   )
 }
 
+// The district from a legislator page link: its member and its counties.
+function DistrictNote({
+  label,
+  member,
+  counties,
+  pinned,
+  onPin,
+  onClear,
+}: {
+  label: string
+  member: MapMember | null
+  counties: MapCounty[]
+  pinned: string | null
+  onPin: (fips: string) => void
+  onClear: () => void
+}) {
+  return (
+    <div className={styles.districtNote} aria-label="District">
+      <div className={styles.panelHeadRow}>
+        <span className="eyebrow">{label}</span>
+        <button className={styles.unpin} onClick={onClear}>
+          Clear ×
+        </button>
+      </div>
+      {member && (
+        <div className={styles.districtMember}>
+          {member.chamber === 'house' ? 'Rep.' : 'Sen.'} {member.name}
+        </div>
+      )}
+      <div className={styles.districtCounties}>
+        {counties.length === 1 ? 'In ' : `Covers parts of ${counties.length} counties: `}
+        {counties.map((c, i) => (
+          <span key={c.fips}>
+            {i > 0 && ', '}
+            <button className={styles.countyLink} aria-pressed={pinned === c.fips} onClick={() => onPin(c.fips)}>
+              {c.name}
+            </button>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function CountyPanel({
   county,
   members,
   pinned,
+  highlight,
   onUnpin,
 }: {
   county: MapCounty
   members: { senate: MapMember[]; house: MapMember[] }
   pinned: boolean
+  /** The member to mark: the member of the district from the URL. */
+  highlight: string | null
   onUnpin: () => void
 }) {
   const all = [...members.senate, ...members.house]
@@ -289,7 +380,7 @@ function CountyPanel({
         <div className="eyebrow">{label}</div>
         <ul className={styles.members} aria-label={`${label} members`}>
           {list.map((m) => (
-            <li key={m.id} className={styles.member}>
+            <li key={m.id} className={`${styles.member} ${m.id === highlight ? styles.memberHighlight : ''}`} aria-current={m.id === highlight || undefined}>
               <span className={styles.avatar} style={{ background: PARTY_COLORS[m.party ?? ''] ?? 'var(--muted)' }} aria-hidden="true">
                 {m.initials}
               </span>
