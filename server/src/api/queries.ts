@@ -725,6 +725,9 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     summary: string | null
     summary_model: string | null
     summary_generated_at: string | null
+    summary_source: string | null
+    summary_version_key: string | null
+    summary_version_posted_at: string | null
   }>(
     `
     SELECT
@@ -750,7 +753,10 @@ export async function getBillDetail(billId: number, workspaceId: number) {
       (tb.bill_id IS NOT NULL) AS is_tracked,
       bsum.summary,
       bsum.model AS summary_model,
-      bsum.generated_at AS summary_generated_at
+      bsum.generated_at AS summary_generated_at,
+      bsum.source AS summary_source,
+      bsum.version_key AS summary_version_key,
+      bsum.version_posted_at AS summary_version_posted_at
     FROM bills b
     JOIN drafts d ON d.id = b.draft_id
     LEFT JOIN sessions s ON s.id = d.session_id
@@ -999,7 +1005,16 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     assigneeId: core.assignee_id != null ? String(core.assignee_id) : null,
     isTracked: core.is_tracked,
     aiSummary: core.summary
-      ? { text: core.summary, model: core.summary_model, generatedAt: core.summary_generated_at }
+      ? {
+          text: core.summary,
+          model: core.summary_model,
+          generatedAt: core.summary_generated_at,
+          // 'text': from the bill text of one version. 'metadata': from the
+          // title, subject, sponsor, and status (no bill text yet).
+          source: core.summary_source as 'text' | 'metadata',
+          versionLabel: core.summary_version_key ? versionLabel(core.summary_version_key) : null,
+          versionPostedAt: core.summary_version_posted_at,
+        }
       : null,
     momentum,
     outcome,

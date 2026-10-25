@@ -17,6 +17,7 @@ import { hashToken } from '../auth/tokens.js'
 import { getLastEmailTo } from '../auth/email.js'
 import {
   ageHearingAlertFixture,
+  billSummaryFixture,
   billTextFixture,
   committeeMeetingFixture,
   openDraftsFixture,
@@ -149,6 +150,15 @@ if (process.env.NODE_ENV !== 'production') {
       res.json(await upsertBillHearingFixture(req.body as Parameters<typeof upsertBillHearingFixture>[0]))
     } catch (err) {
       handleError(res, 'POST /api/__test__/bill-hearing', err)
+    }
+  })
+
+  app.post('/api/__test__/bill-summary', async (req, res) => {
+    try {
+      await billSummaryFixture(req.body as Parameters<typeof billSummaryFixture>[0])
+      res.json({ ok: true })
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/bill-summary', err)
     }
   })
 

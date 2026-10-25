@@ -1,23 +1,34 @@
-// One-time (re-runnable) batch job: generates a short plain-language summary
-// for every bill that doesn't have one yet, using the Claude Batch API.
+// Batch job: writes a short plain-language summary of each bill with the
+// Claude Batch API.
 //
-// Important limitation: we do NOT have actual bill text (see the shelved
-// fiscal-notes/bill-text document-API work) — only metadata (title, subject,
-// sponsor, status, outcome). The prompt is written to keep the model from
-// over-claiming specifics the metadata doesn't support, but the app must
-// still show every summary next to a "verify against the official record"
-// disclaimer. Never treat this output as authoritative.
+// A bill with stored text (bill_text_versions, from refreshBillTexts.ts) gets
+// a summary of its newest version. A bill with no text yet (for example a
+// new LC draft) gets a summary of its metadata: title, subject, sponsor, and
+// status. bill_summaries.source tells which, and the app shows it next to
+// the summary. A bill gets a new summary when a newer version arrives.
 //
 // Usage:
-//   npm run generate-summaries              # only bills missing a summary
-//   npm run generate-summaries -- --force    # regenerate every bill
-//   npm run generate-summaries -- --session=20251   # limit to one session
+//   npm run generate-summaries                     # bills with no summary or a newer version
+//   npm run generate-summaries -- --force          # all bills again
+//   npm run generate-summaries -- --session=20251  # one session only
+//   npm run generate-summaries -- --limit=20       # at most 20 bills
 import 'dotenv/config'
 import Anthropic from '@anthropic-ai/sdk'
 import { pool } from './db.js'
+import { markedText, versionLabel, type Paragraph } from './billText.js'
 
-const MODEL = 'claude-haiku-4-5'
+const MODEL = 'claude-haiku-5-5'
 const MAX_TOKENS = 300
+
+// The bill text of a long bill (for example the budget, HB 2) is cut at this
+// length: about 30,000 tokens.
+const MAX_TEXT_CHARS = 120_000
+
+const TEXT_SYSTEM_PROMPT = `You summarize Montana legislative bills for policy staff at an advocacy nonprofit. You get the bill's metadata and its text.
+
+In the bill text, <s>struck text</s> is removed from current law, and <u>underlined text</u> is added to the law. Text with no tags is current law that the bill keeps, or the bill's own sections.
+
+Write a 2-3 sentence, neutral, factual summary of what the bill does: the main changes to the law, who or what they affect, and important numbers, dates, or amounts. Use only the text. If the text is cut, summarize the part you have and do not guess the rest. Do not editorialize about whether the bill is good or bad policy. Output only the summary text, no preamble.`
 
 const SYSTEM_PROMPT = `You summarize Montana legislative bills for policy staff at an advocacy nonprofit. You are given only structured metadata about a bill — its title, subject area, sponsor, chamber, and current status — never the actual bill text.
 
@@ -34,6 +45,11 @@ interface SummaryCandidate {
   chamber: string | null
   status_name: string | null
   status_occurred_at: string | null
+  /** The newest stored version of the bill text, or null. */
+  version_id: number | null
+  version_key: string | null
+  version_posted_at: string | null
+  paragraphs: Paragraph[] | null
 }
 
 async function getCandidates(
@@ -62,7 +78,8 @@ async function getCandidates(
       dist.name AS sponsor_district,
       bt.chamber,
       latest_status.status_name,
-      latest_status.occurred_at AS status_occurred_at
+      latest_status.occurred_at AS status_occurred_at,
+      v.id AS version_id, v.version_key, v.posted_at AS version_posted_at, v.paragraphs
     FROM bills b
     JOIN drafts d ON d.id = b.draft_id
     JOIN sessions s ON s.id = b.session_id
@@ -81,9 +98,18 @@ async function getCandidates(
       FROM bill_statuses bs LEFT JOIN bill_status_codes bsc ON bsc.id = bs.bill_status_code_id
       WHERE bs.draft_id = d.id ORDER BY bs.occurred_at DESC LIMIT 1
     ) latest_status ON true
-    ${force ? '' : 'LEFT JOIN bill_summaries bsum ON bsum.bill_id = b.id'}
+    -- The newest version: X (enrolled) is the last.
+    LEFT JOIN LATERAL (
+      SELECT tv.id, tv.version_key, tv.posted_at, tv.paragraphs
+      FROM bill_text_versions tv
+      WHERE tv.bill_id = b.id
+      ORDER BY CASE WHEN tv.version_key = 'X' THEN 1000 ELSE tv.version_key::int END DESC
+      LIMIT 1
+    ) v ON true
+    LEFT JOIN bill_summaries bsum ON bsum.bill_id = b.id
     WHERE 1=1
-      ${force ? '' : 'AND bsum.bill_id IS NULL'}
+      -- No summary, or a newer version than the one that was summarized.
+      ${force ? '' : 'AND (bsum.bill_id IS NULL OR (v.id IS NOT NULL AND bsum.text_version_id IS DISTINCT FROM v.id))'}
       ${sessionParamIndex ? `AND s.ordinals = $${sessionParamIndex}` : ''}
     ORDER BY b.id
     ${limitParamIndex ? `LIMIT $${limitParamIndex}` : ''}
@@ -91,6 +117,21 @@ async function getCandidates(
     params,
   )
   return rows
+}
+
+function buildTextPrompt(c: SummaryCandidate): string {
+  let text = markedText(c.paragraphs ?? [])
+  const cut = text.length > MAX_TEXT_CHARS
+  if (cut) text = text.slice(0, MAX_TEXT_CHARS)
+  return [
+    buildPrompt(c),
+    `Version: ${versionLabel(c.version_key!)}`,
+    '',
+    cut ? 'Bill text (cut: the bill is longer than this):' : 'Bill text:',
+    '<bill_text>',
+    text,
+    '</bill_text>',
+  ].join('\n')
 }
 
 function buildPrompt(c: SummaryCandidate): string {
@@ -114,7 +155,12 @@ async function main() {
   const limit = limitArg ? Number(limitArg.split('=')[1]) : null
 
   const candidates = await getCandidates(force, sessionOrdinals, limit)
-  console.log(`${candidates.length} bills need summaries${force ? ' (forced regeneration)' : ''}`)
+  const fromText = candidates.filter((c) => c.version_id).length
+  console.log(
+    `${candidates.length} bills need summaries${force ? ' (forced regeneration)' : ''}: ` +
+      `${fromText} from bill text, ${candidates.length - fromText} from metadata`,
+  )
+  const byId = new Map(candidates.map((c) => [c.bill_id, c]))
   if (candidates.length === 0) {
     await pool.end()
     return
@@ -135,8 +181,8 @@ async function main() {
       params: {
         model: MODEL,
         max_tokens: MAX_TOKENS,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: buildPrompt(c) }],
+        system: c.version_id ? TEXT_SYSTEM_PROMPT : SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: c.version_id ? buildTextPrompt(c) : buildPrompt(c) }],
       },
     })),
   })
@@ -163,10 +209,13 @@ async function main() {
         failed += 1
         continue
       }
+      const c = byId.get(billId)
       await pool.query(
-        `INSERT INTO bill_summaries (bill_id, summary, model) VALUES ($1, $2, $3)
-         ON CONFLICT (bill_id) DO UPDATE SET summary = $2, model = $3, generated_at = now()`,
-        [billId, summary, MODEL],
+        `INSERT INTO bill_summaries (bill_id, summary, model, source, text_version_id, version_key, version_posted_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (bill_id) DO UPDATE SET summary = $2, model = $3, generated_at = now(),
+           source = $4, text_version_id = $5, version_key = $6, version_posted_at = $7`,
+        [billId, summary, MODEL, c?.version_id ? 'text' : 'metadata', c?.version_id ?? null, c?.version_key ?? null, c?.version_posted_at ?? null],
       )
       saved += 1
     } else {

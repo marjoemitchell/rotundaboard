@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { aiSummaryNote } from '../lib/aiSummary'
 import type { TransitionEvent } from 'react'
 import * as client from '../data/client'
 import type { AiSummary, Bill, LoadState, Position, TeamMember } from '../types'
@@ -120,9 +121,7 @@ export function BillDetailDrawer({
               )}
             </div>
             <p className={styles.aiSummaryText}>{aiSummary.data.text}</p>
-            <p className={styles.aiSummaryDisclaimer}>
-              Generated from bill metadata only — not the full bill text. Verify against the official record.
-            </p>
+            <p className={styles.aiSummaryDisclaimer}>{aiSummaryNote(aiSummary.data)}</p>
           </div>
         )}
 
