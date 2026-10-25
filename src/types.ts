@@ -262,6 +262,8 @@ export interface NonStandingCommitteeDetail {
   name: string
   committeeType: string | null
   isFollowed: boolean
+  /** The archive search for the committee: all of its archived meeting videos. */
+  archiveUrl: string
   meetingMaterialsHtml: string | null
   members: CommitteeMember[]
   meetings: CommitteeMeeting[]
@@ -421,6 +423,9 @@ export interface HearingSummary {
   isFollowed: boolean
   // True when one or more speakers have a name, not only "Speaker N".
   speakersNamed: boolean
+  // False when the recording is older than the full transcript window. Such
+  // a recording keeps the captions of the archive only.
+  fullTranscript: boolean
   // The recording's page on the Legislature's own video archive.
   sourceUrl: string
 }

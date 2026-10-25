@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import * as client from '../data/client'
 import type { Hearing, HearingAiSummary, LoadState } from '../types'
 import { formatClock, formatDate, formatDuration, formatTime } from '../lib/format'
-import { clipToNote, transcriptStatusLabel } from '../lib/hearings'
+import { clipToNote, RECORDINGS_POLICY, transcriptStatusLabel } from '../lib/hearings'
 import { useHearingPlayer } from '../hooks/useHearingPlayer'
 import { EmptyState } from '../components/shared/EmptyState'
 import { HearingPlayerBar } from '../components/shared/HearingPlayerBar'
@@ -136,15 +136,23 @@ function Transcript({ hearing }: { hearing: Hearing }) {
 
       {hearing.transcriptSource === 'captions' && (
         <p className={styles.captionNotice}>
-          These are the Legislature’s live captions: incomplete, unpunctuated, and without speaker names. A full,
-          speaker-attributed transcript replaces them once processing finishes.
+          These are the Legislature’s live captions: incomplete, unpunctuated, and without speaker names.{' '}
+          {hearing.fullTranscript
+            ? 'A full, speaker-attributed transcript replaces them once processing finishes.'
+            : `This meeting is older than ${RECORDINGS_POLICY.fullTranscriptDays} days, so it keeps the captions only.`}
         </p>
       )}
 
       {hearing.aiSummary && <AiSummaryCard summary={hearing.aiSummary} onSeek={(t) => seek(t, { play: true })} />}
 
       {hearing.transcript.length === 0 ? (
-        <EmptyState message="The transcript for this hearing is still being prepared. Check back soon." />
+        <EmptyState
+          message={
+            hearing.fullTranscript
+              ? 'The transcript for this hearing is still being prepared. Check back soon.'
+              : `This meeting is older than ${RECORDINGS_POLICY.fullTranscriptDays} days and the Legislature posted no captions for it, so it has no transcript. The video is on the Legislature's site.`
+          }
+        />
       ) : (
         <>
           <div className={styles.toolbar}>

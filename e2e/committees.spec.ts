@@ -111,17 +111,62 @@ test.describe('meeting recordings', () => {
     await expect(page.getByText('The committee will come to order.')).toBeVisible()
   })
 
-  test('a meeting without a recording shows no recording link', async ({ page }) => {
+  test('a past meeting without a recording links to the videos of the committee on the Legislature\'s site', async ({ page }) => {
     await signUpFreshWorkspace(page)
     const room = `Room E2E ${uniqueSuffix()}`
     const res = await page.request.post(`${API_BASE}/api/__test__/committee-meeting`, {
       data: { daysFromNow: -3, location: room },
     })
-    const meeting = (await res.json()) as { committeeId: string }
+    const meeting = (await res.json()) as { committeeId: string; committee: string }
 
     await page.goto(`/committees/${meeting.committeeId}`)
     const row = page.locator('[class*="meetingRow"]').filter({ hasText: room })
     await expect(row).toContainText('Past')
     await expect(row.getByRole('list', { name: 'Recordings' })).toHaveCount(0)
+    const archiveSearch = `https://streaming-video.legmt.gov/search/${encodeURIComponent(meeting.committee)}`
+    await expect(row.getByRole('link', { name: "Find the video on the Legislature's site ↗" })).toHaveAttribute('href', archiveSearch)
+
+    // The note tells the user which recordings we keep.
+    await page.getByText('How we keep recordings').click()
+    await expect(page.getByText('Meetings from the last 60 days get a full transcript')).toBeVisible()
+    await expect(page.getByText("Older meetings have the Legislature's captions only")).toBeVisible()
+    await expect(page.getByRole('link', { name: 'All videos of this committee ↗' })).toHaveAttribute('href', archiveSearch)
+  })
+
+  test('an old recording with captions only does not say that a transcript is in progress', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    const room = `Room E2E ${uniqueSuffix()}`
+    const res = await page.request.post(`${API_BASE}/api/__test__/committee-meeting`, {
+      data: { daysFromNow: -120, location: room },
+    })
+    const meeting = (await res.json()) as { committeeId: string; meetingId: number }
+    const recording = await createHearingFixture(page.request, {
+      meetingId: meeting.meetingId,
+      recordedDaysAgo: 120,
+      status: 'processing',
+      segments: [{ start: 0, end: 5, text: 'call the meeting to order' }],
+    })
+
+    await page.goto(`/committees/${meeting.committeeId}`)
+    const recordings = page.locator('[class*="meetingRow"]').filter({ hasText: room }).getByRole('list', { name: 'Recordings' })
+    await expect(recordings).toContainText('Captions only')
+    await expect(recordings).not.toContainText('in progress')
+
+    await recordings.getByRole('link', { name: 'Recording' }).click()
+    await expect(page).toHaveURL(new RegExp(`/hearings/recordings/${recording.id}$`))
+    await expect(page.getByText('This meeting is older than 60 days, so it keeps the captions only.')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Watch on the Legislature’s archive ↗' })).toHaveAttribute(
+      'href',
+      /^https:\/\/streaming-video\.legmt\.gov\/browse\/item\//,
+    )
+  })
+
+  test('the Hearings page explains how we keep recordings', async ({ page }) => {
+    await signUpFreshWorkspace(page)
+    await createHearingFixture(page.request, { segments: [{ start: 0, end: 5, text: 'Good morning.' }] })
+    await page.goto('/hearings')
+    const section = page.getByRole('region', { name: 'Recent recordings' })
+    await section.getByText('How we keep recordings').click()
+    await expect(section.getByText('The original video always stays on the Legislature\'s site.')).toBeVisible()
   })
 })

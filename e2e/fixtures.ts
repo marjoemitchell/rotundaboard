@@ -237,6 +237,8 @@ export async function createHearingFixture(
     }
     // The interim committee meeting of the recording.
     meetingId?: number
+    // How many days ago the meeting was recorded. The default is now.
+    recordedDaysAgo?: number
   },
 ): Promise<{ id: string; committee: string }> {
   const res = await request.post(`${API_BASE}/api/__test__/hearing-fixture`, { data: { suffix: uniqueSuffix(), ...input } })
