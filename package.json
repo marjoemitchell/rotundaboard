@@ -15,6 +15,7 @@
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.1.0",
     "@fontsource/ibm-plex-sans": "^5.1.0",
+    "d3-geo": "^3.1.1",
     "hls.js": "^1.7.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -22,6 +23,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "@types/d3-geo": "^3.1.1",
+    "@types/geojson": "^7946.0.16",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",

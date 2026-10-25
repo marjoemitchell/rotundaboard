@@ -13,6 +13,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { BillDetailPage } from './pages/BillDetailPage'
 import { SessionsPage } from './pages/SessionsPage'
 import { AllBillsPage, SessionBillsRedirect } from './pages/AllBillsPage'
+import { LegislatorsMapPage } from './pages/LegislatorsMapPage'
 import { LegislatorsPage } from './pages/LegislatorsPage'
 import { LegislatorDetailPage } from './pages/LegislatorDetailPage'
 import { NotesPage } from './pages/NotesPage'
@@ -417,7 +418,8 @@ export function AuthenticatedApp() {
               }
             />
             <Route path="/testimony" element={<TestimonyPage />} />
-            <Route path="/legislators" element={<LegislatorsPage />} />
+            <Route path="/legislators" element={<LegislatorsMapPage />} />
+            <Route path="/legislators/list" element={<LegislatorsPage />} />
             <Route path="/legislators/:id" element={<LegislatorDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/hearings" element={<HearingsPage />} />

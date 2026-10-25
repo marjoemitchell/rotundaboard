@@ -19,6 +19,21 @@ schema for it — request shapes were reverse-engineered from live responses.
 | `npm run summarize-hearings` | An AI summary of each finished hearing transcript: overview, topics with times, decisions and next steps | One Claude Sonnet call for each hearing |
 | `npm run transcribe-hearings` | Finds newly posted committee hearing videos, ingests their captions, and produces speaker-attributed transcripts | Discovery + captions are free; diarization is free on the self-hosted GPU (WhisperX) or ~$0.006/audio-minute on the OpenAI fallback, plus one Claude call per hearing for speaker names |
 
+## Legislators map data
+
+The legislators page (`/legislators`) is a county map. Each county lists the
+current members of the House and Senate districts that cover part of it.
+
+- `src/data/montanaCountyDistricts.json` has the districts of each county.
+  `public/maps/montana-counties.json` has the county shapes for the map.
+- `scripts/buildCountyDistricts.mjs` makes both files from the US Census
+  district boundaries (TIGER/Line 2024) and the us-atlas county shapes. The
+  file header tells how to run it. Run it again after Montana redistricts.
+- `GET /api/legislators/map` adds the current member of each district: a
+  term that has started and not ended. When two terms are current (a member
+  and the nominee for the next legislature), the serving legislature comes
+  first.
+
 ## Scraped sessions
 
 `src/scrapeSessions.ts` selects the sessions that the scrapers fetch:

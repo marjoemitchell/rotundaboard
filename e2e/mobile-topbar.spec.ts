@@ -78,7 +78,7 @@ test.describe('mobile TopBar', () => {
 
 test.describe('mobile layout', () => {
   // Pages that must fit a phone screen with no sideways scroll.
-  const PAGES = ['/', '/bills', '/hearings', '/legislators', '/watches', '/committees', '/notes', '/testimony', '/settings', '/sessions']
+  const PAGES = ['/', '/bills', '/hearings', '/legislators', '/legislators/list', '/watches', '/committees', '/notes', '/testimony', '/settings', '/sessions']
 
   test('every main page fits a phone screen, with no sideways scroll', async ({ page }) => {
     test.slow()
@@ -112,7 +112,7 @@ test.describe('mobile layout', () => {
     // The status is in the card, on the screen, not in a column off to the side.
     await expect(billRow.locator('[class*="statusCell"]')).toBeInViewport({ ratio: 1 })
 
-    await page.goto('/legislators')
+    await page.goto('/legislators/list')
     const legislatorRow = page.locator('a[role="row"]').first()
     await expect(legislatorRow).toBeVisible()
     await expect(legislatorRow.locator('[role="cell"]').nth(3)).toBeInViewport({ ratio: 1 })

@@ -616,3 +616,30 @@ export interface SuggestedBills {
   hasWatches: boolean
   bills: SuggestedBill[]
 }
+
+/** A county on the legislators map, with the districts that cover part of it. */
+export interface MapCounty {
+  fips: string
+  name: string
+  house: number[]
+  senate: number[]
+}
+
+/** The current member of one district. */
+export interface MapMember {
+  id: string
+  name: string
+  initials: string
+  chamber: 'house' | 'senate'
+  district: number
+  party: string | null
+  email: string | null
+  committees: string[]
+  /** Tracked bills of the workspace that this member sponsors. */
+  trackedSponsored: number
+}
+
+export interface LegislatorMap {
+  counties: MapCounty[]
+  members: MapMember[]
+}

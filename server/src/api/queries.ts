@@ -11,6 +11,7 @@
 // saved_views, activity_log) takes a workspaceId and scopes its query by it —
 // without that, a valid session in one workspace could read a row belonging
 // to another just by knowing its numeric id.
+import { readFileSync } from 'node:fs'
 import { pool } from '../db.js'
 import { versionLabel, versionOrder } from '../billText.js'
 import type { HearingAiSummary } from '../summarizeHearings.js'
@@ -1981,6 +1982,74 @@ export async function getSuggestedBills(workspaceId: number, limit: number) {
       title: r.short_title,
       requester: r.requester,
       subject: r.subject,
+    })),
+  }
+}
+
+// The legislators map: the counties with their districts
+// (src/data/montanaCountyDistricts.json, made by scripts/buildCountyDistricts.mjs)
+// and the current member of each district.
+const countyDistricts = JSON.parse(
+  readFileSync(new URL('../data/montanaCountyDistricts.json', import.meta.url), 'utf8'),
+) as { counties: { fips: string; name: string; house: number[]; senate: number[] }[] }
+
+export async function getLegislatorMap(workspaceId: number) {
+  const { rows } = await pool.query<{
+    id: number
+    first_name: string | null
+    last_name: string | null
+    chamber: string
+    district: number
+    party: string | null
+    email: string | null
+    committees: string[] | null
+    tracked: string
+  }>(
+    `WITH serving AS (
+       -- The legislature of the latest session that has started.
+       SELECT legislature_id FROM sessions WHERE start_date <= now() ORDER BY start_date DESC LIMIT 1
+     ),
+     current AS (
+       -- The current member of each district: a term that has started and
+       -- not ended. When two terms are current (a member and the nominee for
+       -- the next legislature), the serving legislature comes first.
+       SELECT DISTINCT ON (d.chamber, d.number) l.*, d.chamber AS district_chamber, d.number AS district_number
+       FROM legislators l
+       JOIN districts d ON d.id = l.district_id
+       WHERE d.number BETWEEN 1 AND 100
+         AND (l.start_date IS NULL OR l.start_date <= now())
+         AND (l.end_date IS NULL OR l.end_date >= now())
+       ORDER BY d.chamber, d.number, (l.legislature_id = (SELECT legislature_id FROM serving)) DESC, l.start_date DESC NULLS LAST
+     )
+     SELECT c.id, c.first_name, c.last_name, upper(c.district_chamber) AS chamber, c.district_number AS district,
+            pp.code AS party, c.email_address AS email,
+            -- The standing committees only: not the Committee of the Whole or the
+            -- conference committees of single bills. Without the "(H)" or "(S)" prefix.
+            (SELECT array_agg(DISTINCT regexp_replace(sc.name, '^\\([HS]\\)\\s*', '') ORDER BY regexp_replace(sc.name, '^\\([HS]\\)\\s*', ''))
+             FROM committee_memberships cm JOIN standing_committees sc ON sc.id = cm.committee_id
+             WHERE cm.legislator_id = c.id
+               AND sc.name NOT ILIKE '%Committee of the Whole%'
+               AND sc.name NOT ILIKE '%Conference Committee%'
+               AND sc.session_id = (SELECT session_id FROM standing_committees GROUP BY session_id ORDER BY session_id DESC LIMIT 1)
+            ) AS committees,
+            (SELECT count(*) FROM tracked_bills tb JOIN bills b ON b.id = tb.bill_id
+             WHERE tb.workspace_id = $1 AND b.sponsor_id = c.id) AS tracked
+     FROM current c
+     LEFT JOIN political_parties pp ON pp.id = c.political_party_id`,
+    [workspaceId],
+  )
+  return {
+    counties: countyDistricts.counties,
+    members: rows.map((r) => ({
+      id: String(r.id),
+      name: legislatorLabel(r.first_name, r.last_name),
+      initials: `${(r.first_name ?? '').charAt(0)}${(r.last_name ?? '').charAt(0)}`.toUpperCase(),
+      chamber: r.chamber === 'SENATE' ? ('senate' as const) : ('house' as const),
+      district: r.district,
+      party: r.party,
+      email: r.email,
+      committees: r.committees ?? [],
+      trackedSponsored: Number(r.tracked),
     })),
   }
 }
