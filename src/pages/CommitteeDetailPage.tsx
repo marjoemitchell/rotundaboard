@@ -5,9 +5,12 @@ import type { CommitteeMeeting, LoadState, NonStandingCommitteeDetail } from '..
 import { formatDate, formatDuration, formatTime } from '../lib/format'
 import { transcriptStatusLabel } from '../lib/hearings'
 import { EmptyState } from '../components/shared/EmptyState'
+import { RecordingsNote } from '../components/shared/RecordingsNote'
 import styles from './CommitteeDetailPage.module.css'
 
-function MeetingRow({ meeting }: { meeting: CommitteeMeeting }) {
+// archiveUrl: the archive search for the committee. A past meeting without a
+// stored recording links there, so the user can find the original video.
+function MeetingRow({ meeting, archiveUrl }: { meeting: CommitteeMeeting; archiveUrl?: string }) {
   const [expanded, setExpanded] = useState(false)
   const isPast = meeting.meetingTime ? new Date(meeting.meetingTime).getTime() < Date.now() : false
 
@@ -46,6 +49,13 @@ function MeetingRow({ meeting }: { meeting: CommitteeMeeting }) {
             </li>
           ))}
         </ul>
+      )}
+      {meeting.recordings.length === 0 && isPast && archiveUrl && (
+        <div className={styles.recording}>
+          <a href={archiveUrl} target="_blank" rel="noreferrer" className={styles.recordingSource}>
+            Find the video on the Legislature's site ↗
+          </a>
+        </div>
       )}
       {expanded && meeting.agendaItems.length > 0 && (
         <ol className={styles.agendaList}>
@@ -163,8 +173,9 @@ export function CommitteeDetailPage() {
           {past.length > 0 && (
             <section className={styles.section}>
               <div className="eyebrow">Past meetings</div>
+              <RecordingsNote archiveUrl={committee.archiveUrl} />
               {past.map((m) => (
-                <MeetingRow key={m.id} meeting={m} />
+                <MeetingRow key={m.id} meeting={m} archiveUrl={committee.archiveUrl} />
               ))}
             </section>
           )}

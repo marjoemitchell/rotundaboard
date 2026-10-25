@@ -16,6 +16,7 @@ import { pool } from '../db.js'
 import { versionLabel, versionOrder } from '../billText.js'
 import type { HearingAiSummary } from '../summarizeHearings.js'
 import { computeMomentum, determineOutcome, isProgressStopped, type StatusPoint } from '../momentum.js'
+import { FULL_TRANSCRIPT_DAYS, windowStart } from '../recordingWindows.js'
 
 function formatIdentifier(billTypeCode: string | null, billNumber: number | null, draftNumber: string): string {
   if (billTypeCode && billNumber != null) return `${billTypeCode} ${billNumber}`
@@ -455,6 +456,13 @@ async function getNextInterimMeetings(workspaceId: number) {
 // Recorded hearings (see server/src/transcribeHearings.ts for the pipeline).
 
 const NOMAD_ITEM_PAGE = 'https://streaming-video.legmt.gov/browse/item/'
+// The search page of the archive. A search for the committee name lists all
+// the archived videos of the committee.
+const NOMAD_SEARCH_PAGE = 'https://streaming-video.legmt.gov/search/'
+
+function archiveSearchUrl(committeeName: string): string {
+  return `${NOMAD_SEARCH_PAGE}${encodeURIComponent(committeeName)}`
+}
 
 interface RecordingRow {
   id: number
@@ -496,6 +504,8 @@ function recordingSummary(r: RecordingRow) {
     transcriptSource: r.transcript_source,
     isFollowed: r.is_followed,
     speakersNamed: r.speakers_named,
+    // False for a recording older than the full transcript window: it keeps the captions only.
+    fullTranscript: r.recorded_at >= windowStart(FULL_TRANSCRIPT_DAYS),
     sourceUrl: `${NOMAD_ITEM_PAGE}${r.nomad_item_id}?videoPlayback=true`,
   }
 }
@@ -1704,6 +1714,7 @@ export async function getNonStandingCommitteeDetail(committeeId: number, workspa
     name: core.name,
     committeeType: core.committee_type,
     isFollowed: core.is_followed,
+    archiveUrl: archiveSearchUrl(core.name),
     meetingMaterialsHtml: materialsRows[0]?.content_html ?? null,
     members: memberRows.map((r) => ({
       legislatorId: r.legislator_id != null ? String(r.legislator_id) : null,

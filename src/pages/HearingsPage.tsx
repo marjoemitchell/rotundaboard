@@ -4,6 +4,7 @@ import * as client from '../data/client'
 import type { HearingSummary, LoadState, UpcomingHearing } from '../types'
 import { formatDate, formatDuration, formatTime } from '../lib/format'
 import { transcriptStatusLabel } from '../lib/hearings'
+import { RecordingsNote } from '../components/shared/RecordingsNote'
 import { EmptyState } from '../components/shared/EmptyState'
 import styles from './HearingsPage.module.css'
 
@@ -59,6 +60,7 @@ export function HearingsPage() {
       {filteredRecordings.length > 0 && (
         <section className={styles.section} aria-label="Recent recordings">
           <h2 className={styles.sectionTitle}>Recent recordings</h2>
+          <RecordingsNote />
           <div className={styles.list}>
             {(showAllRecordings ? filteredRecordings : filteredRecordings.slice(0, RECORDINGS_PREVIEW)).map((r) => (
               <Link

@@ -2,8 +2,9 @@
 //
 //   1. Discover — searches the Legislature's Nomad Media video archive for
 //      every interim committee we know about, and records any meeting video
-//      that has been posted (an archive item with an HLS stream) since
-//      --since. Matched to our scraped non_standing_committee_meetings row by
+//      that has been posted (an archive item with an HLS stream) in the last
+//      FIND_RECORDINGS_DAYS (see recordingWindows.ts), or since --since.
+//      Matched to our scraped non_standing_committee_meetings row by
 //      committee + date where possible.
 //   2. Captions — for newly posted recordings, ingests the archive's own
 //      live-caption .vtt right away so the hearing is searchable/seekable
@@ -14,7 +15,9 @@
 //      GPU service or OpenAI), names the speakers (identifySpeakers.ts),
 //      and replaces the caption segments (transcript_status 'ready').
 //      Bounded to --limit recordings per run; ANTHROPIC_API_KEY is needed
-//      for speaker names (without it, speakers stay "Speaker N").
+//      for speaker names (without it, speakers stay "Speaker N"). Only the
+//      recordings of the last FULL_TRANSCRIPT_DAYS, or since --since, get
+//      this step. Older recordings keep the captions.
 //
 // Deployment: the primary runner is a GPU box (TRANSCRIBE_BACKEND=whisperx,
 // see deploy/unraid/), which records a heartbeat each healthy run. The
@@ -24,7 +27,7 @@
 //
 // Usage:
 //   npm run transcribe-hearings                         # normal run
-//   npm run transcribe-hearings -- --since=2026-01-01   # backfill further back
+//   npm run transcribe-hearings -- --since=2026-01-01   # find and fully transcribe since a date
 //   npm run transcribe-hearings -- --limit=1            # diarize at most 1 hearing
 //   npm run transcribe-hearings -- --recording=<nomad item id>   # (re)process one
 //   npm run transcribe-hearings -- --captions-only      # skip diarization
@@ -38,6 +41,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { PoolClient } from 'pg'
 import { pool } from './db.js'
+import { FIND_RECORDINGS_DAYS, FULL_TRANSCRIPT_DAYS, windowStart } from './recordingWindows.js'
 import { runWithConcurrency } from './concurrency.js'
 import * as nomad from './nomadClient.js'
 import { computeWaveform, probeDurationSeconds } from './hearingAudio.js'
@@ -45,9 +49,6 @@ import { backendUnavailableReason, diarizeAudio, transcribeBackend, type Diarize
 import { identifySpeakers, type RosterEntry } from './identifySpeakers.js'
 import { attributeSpeakers, mergeSpeakerTurns, speakerCountHint, transcriptionPrompt, type SpeakerRow } from './speakerAttribution.js'
 
-// The archive can lag a meeting by weeks, so the default window is wide —
-// but bounded, so a fresh deploy doesn't pay to diarize years of backlog.
-const DEFAULT_WINDOW_DAYS = 60
 const DEFAULT_DIARIZE_LIMIT = 4
 const MAX_ATTEMPTS = 3
 const WHISPERX_HEARTBEAT = 'whisperx-transcriber'
@@ -74,7 +75,7 @@ function normalizeName(s: string): string {
 
 // ---------------------------------------------------------------- discover
 
-async function discoverRecordings(since: string): Promise<number> {
+async function discoverRecordings(since: string, fullTranscriptSince: string): Promise<number> {
   const { rows: committees } = await pool.query<{ id: number; code: string | null; name: string }>(
     'SELECT id, code, name FROM non_standing_committees WHERE name IS NOT NULL',
   )
@@ -85,9 +86,13 @@ async function discoverRecordings(since: string): Promise<number> {
   // Once diarized, a recording's URLs are pinned — the transcript's
   // timestamps belong to that exact stream, and the processed version isn't
   // guaranteed to be trimmed identically.
+  // A recording older than the full transcript window is settled too. It
+  // gets no full transcript, so the job does not check it again on each run.
   const { rows: knownRows } = await pool.query<{ nomad_item_id: string; settled: boolean }>(
-    `SELECT nomad_item_id, (transcript_source = 'diarized' OR caption_url IS NOT NULL) AS settled
+    `SELECT nomad_item_id,
+            (transcript_source = 'diarized' OR caption_url IS NOT NULL OR recorded_at < $1) AS settled
      FROM hearing_recordings`,
+    [fullTranscriptSince],
   )
   const settled = new Set(knownRows.filter((r) => r.settled).map((r) => r.nomad_item_id))
   const known = new Set(knownRows.map((r) => r.nomad_item_id))
@@ -423,9 +428,10 @@ async function main() {
   const args = process.argv.slice(2)
   const arg = (name: string) => args.find((a) => a.startsWith(`--${name}=`))?.split('=')[1]
   const sinceArg = arg('since')
-  const since = sinceArg
-    ? `${sinceArg}T00:00:00`
-    : new Date(Date.now() - DEFAULT_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10) + 'T00:00:00'
+  // Two windows: the job finds and captions recordings in the long window,
+  // and fully transcribes recordings in the short window. --since sets both.
+  const findSince = sinceArg ? `${sinceArg}T00:00:00` : windowStart(FIND_RECORDINGS_DAYS)
+  const since = sinceArg ? `${sinceArg}T00:00:00` : windowStart(FULL_TRANSCRIPT_DAYS)
   const limit = Number(arg('limit') ?? DEFAULT_DIARIZE_LIMIT)
   const onlyRecording = arg('recording')
   const captionsOnly = args.includes('--captions-only')
@@ -445,19 +451,20 @@ async function main() {
   }
 
   if (!onlyRecording) {
-    console.log(`discovering archived meetings since ${since.slice(0, 10)}...`)
-    console.log(`${await discoverRecordings(since)} new recording(s) found.`)
+    console.log(`discovering archived meetings since ${findSince.slice(0, 10)}...`)
+    console.log(`${await discoverRecordings(findSince, since)} new recording(s) found.`)
   }
 
   const scope = onlyRecording
     ? { sql: 'nomad_item_id = $1', params: [onlyRecording] as unknown[] }
     : { sql: 'recorded_at >= $1', params: [since] as unknown[] }
+  const captionScope = onlyRecording ? scope : { sql: 'recorded_at >= $1', params: [findSince] as unknown[] }
 
   const { rows: needCaptions } = await pool.query<RecordingRow>(
     `SELECT * FROM hearing_recordings
-     WHERE ${scope.sql} AND transcript_source IS NULL AND caption_url IS NOT NULL
+     WHERE ${captionScope.sql} AND transcript_source IS NULL AND caption_url IS NOT NULL
      ORDER BY recorded_at DESC`,
-    scope.params,
+    captionScope.params,
   )
   for (const rec of needCaptions) {
     try {
