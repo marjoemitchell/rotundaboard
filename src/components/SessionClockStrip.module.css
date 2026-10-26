@@ -39,6 +39,13 @@
   white-space: nowrap;
 }
 
+/* A second line of context. It wraps, so no part of it is cut off. */
+.detail {
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
 .skeletonValue {
   height: 25px;
   width: 60%;

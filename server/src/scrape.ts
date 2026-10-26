@@ -403,6 +403,50 @@ export async function upsertCommitteeMaterials(committeeIds: number[]) {
   console.log(`fetched committee materials: ${tabsWritten} tabs across ${committeesWithContent} committees`)
 }
 
+// The deadline categories and the legislative calendar of each target
+// session. The Legislature changes the calendar during a session, so the
+// scrape replaces the calendar of each session on each run.
+export async function upsertDeadlines(sessionIds: number[]) {
+  const codes = await api.getDeadlineCodes()
+  for (const c of codes) {
+    await pool.query(
+      `INSERT INTO deadline_codes (id, code, description, transmit_offset_day, return_offset_day)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO UPDATE SET code = $2, description = $3, transmit_offset_day = $4, return_offset_day = $5`,
+      [c.id, c.code, c.description, c.transmitOffsetDay, c.returnOffsetDay],
+    )
+  }
+  let dayCount = 0
+  for (const sessionId of sessionIds) {
+    const days = await api.getLegislativeCalendarDays(sessionId)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      // Remove the days that the Legislature removed, and any e2e fixture days.
+      await client.query('DELETE FROM legislative_calendar_days WHERE session_id = $1 AND NOT (id = ANY($2))', [
+        sessionId,
+        days.map((d) => d.id),
+      ])
+      for (const d of days) {
+        await client.query(
+          `INSERT INTO legislative_calendar_days (id, session_id, calendar_day, calendar_date)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (id) DO UPDATE SET session_id = $2, calendar_day = $3, calendar_date = $4`,
+          [d.id, sessionId, d.calendarDay, d.calendarDate],
+        )
+      }
+      await client.query('COMMIT')
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+    dayCount += days.length
+  }
+  console.log(`fetched ${codes.length} deadline codes and ${dayCount} legislative calendar days`)
+}
+
 async function main() {
   const sessions = await api.getSessions()
   const wanted = selectSessionOrdinals(sessions.map((s) => ({ ordinals: s.ordinals, sineDieDate: s.sineDieDate })))
@@ -441,6 +485,8 @@ async function main() {
       ],
     )
   }
+
+  await upsertDeadlines(targets.map((t) => t.id))
 
   // The legislator and standing committee endpoints return all sessions, so
   // they run one time. The interim committees are per legislature.

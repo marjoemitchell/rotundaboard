@@ -166,6 +166,8 @@ export interface BillDetail extends Bill {
   hearings: BillHearingRecord[]
   amendments: Amendment[]
   textVersions: BillTextVersion[]
+  /** Null for an LC draft. A draft gets a deadline category when it is introduced. */
+  deadline: BillDeadline | null
 }
 
 export interface LegislativeSession {
@@ -390,8 +392,27 @@ export interface SessionCalendar {
   draftRequestDeadline: string | null
   hearingsNext30Days: number
   hearingCommittees: string[]
+  /** Days to the next transmittal deadline of the session that has not ended. */
   daysToTransmittal: number | null
+  /** The date of the next transmittal deadline, "YYYY-MM-DD". */
   transmittalDate: string | null
+  /** The bills of the next transmittal deadline, for example "General bills". */
+  transmittalLabel: string | null
+  /** The transmittal deadlines after the next one. */
+  laterTransmittals: { label: string; date: string }[]
+  /** True when all the transmittal deadlines of the session are in the past. */
+  transmittalsPassed: boolean
+}
+
+/** A deadline category of bills and its dates in the session of the bill. */
+export interface BillDeadline {
+  code: string
+  label: string
+  transmittalDay: number | null
+  /** "YYYY-MM-DD", or null when the session calendar has no date for the day. */
+  transmittalDate: string | null
+  returnDay: number | null
+  returnDate: string | null
 }
 
 export interface TranscriptSegment {

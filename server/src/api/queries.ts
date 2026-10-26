@@ -314,6 +314,97 @@ const NOW_MT = `(now() AT TIME ZONE 'America/Denver')`
 // The dashboard strip. The counts are for this workspace only: the LC drafts
 // that it tracks for the next session, and the meetings of the committees
 // that it follows.
+// Bill deadlines. The Legislature sets each deadline as a legislative day
+// (deadline_codes) and plans the date of each day (legislative_calendar_days).
+
+const DEADLINE_LABELS: Record<string, string> = {
+  GE: 'General bills',
+  RE: 'Revenue bills',
+  AP: 'Appropriation bills',
+  RP: 'Referendum proposals',
+  RR: 'Revenue estimating resolution',
+  IS: 'Interim study resolutions',
+  AD: 'No deadline',
+}
+
+// The transmittal deadlines that the dashboard counts down to, in order.
+const DASHBOARD_TRANSMITTAL_CODES = ['GE', 'RE', 'AP']
+
+export interface SessionDeadline {
+  code: string
+  label: string
+  transmittalDay: number | null
+  transmittalDate: string | null
+  returnDay: number | null
+  returnDate: string | null
+}
+
+/** The deadlines of each deadline code in a session. A date is null when the calendar has no date for the day. */
+async function sessionDeadlines(sessionId: number): Promise<SessionDeadline[]> {
+  const { rows } = await pool.query<{
+    code: string
+    description: string
+    transmit_offset_day: number | null
+    return_offset_day: number | null
+    transmittal_date: string | null
+    return_date: string | null
+  }>(
+    `SELECT dc.code, dc.description, dc.transmit_offset_day, dc.return_offset_day,
+            t.calendar_date::text AS transmittal_date, r.calendar_date::text AS return_date
+     FROM deadline_codes dc
+     LEFT JOIN legislative_calendar_days t ON t.session_id = $1 AND t.calendar_day = dc.transmit_offset_day
+     LEFT JOIN legislative_calendar_days r ON r.session_id = $1 AND r.calendar_day = dc.return_offset_day
+     ORDER BY dc.transmit_offset_day NULLS LAST, dc.id`,
+    [sessionId],
+  )
+  return rows.map((r) => ({
+    code: r.code,
+    label: DEADLINE_LABELS[r.code] ?? r.description,
+    transmittalDay: r.transmit_offset_day,
+    transmittalDate: r.transmittal_date,
+    returnDay: r.return_offset_day,
+    returnDate: r.return_date,
+  }))
+}
+
+/** Today in Montana, "YYYY-MM-DD". */
+async function todayMt(): Promise<string> {
+  const { rows } = await pool.query<{ today: string }>(`SELECT ${NOW_MT}::date::text AS today`)
+  return rows[0].today
+}
+
+function daysBetween(fromDate: string, toDate: string): number {
+  return Math.round((Date.parse(`${toDate}T00:00:00Z`) - Date.parse(`${fromDate}T00:00:00Z`)) / 86_400_000)
+}
+
+// The transmittal countdown of the dashboard: the session that has not
+// ended (the newest one), and the next of its transmittal deadlines.
+async function transmittalCountdown() {
+  const { rows } = await pool.query<{ id: number }>(
+    `SELECT s.id FROM sessions s
+     WHERE s.sine_die_date IS NULL OR s.sine_die_date >= ${NOW_MT}
+     ORDER BY s.start_date DESC NULLS LAST
+     LIMIT 1`,
+  )
+  const empty = { daysToTransmittal: null, transmittalDate: null, transmittalLabel: null, laterTransmittals: [], transmittalsPassed: false }
+  if (!rows[0]) return empty
+  const today = await todayMt()
+  const deadlines = (await sessionDeadlines(rows[0].id))
+    .filter((d) => DASHBOARD_TRANSMITTAL_CODES.includes(d.code) && d.transmittalDate)
+    .sort((a, b) => a.transmittalDate!.localeCompare(b.transmittalDate!))
+  if (deadlines.length === 0) return empty
+  const upcoming = deadlines.filter((d) => d.transmittalDate! >= today)
+  if (upcoming.length === 0) return { ...empty, transmittalsPassed: true }
+  const [next, ...later] = upcoming
+  return {
+    daysToTransmittal: daysBetween(today, next.transmittalDate!),
+    transmittalDate: next.transmittalDate,
+    transmittalLabel: next.label,
+    laterTransmittals: later.map((d) => ({ label: d.label, date: d.transmittalDate! })),
+    transmittalsPassed: false,
+  }
+}
+
 export async function getSessionCalendar(workspaceId: number) {
   const { rows: sessionRows } = await pool.query<{
     id: number
@@ -367,8 +458,7 @@ export async function getSessionCalendar(workspaceId: number) {
     draftRequestDeadline: null,
     hearingsNext30Days: Number(hearingRows[0]?.n ?? 0),
     hearingCommittees: (hearingRows[0]?.committees ?? []).slice(0, 4),
-    daysToTransmittal: null,
-    transmittalDate: null,
+    ...(await transmittalCountdown()),
   }
 }
 
@@ -748,9 +838,13 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     summary_source: string | null
     summary_version_key: string | null
     summary_version_posted_at: string | null
+    session_id: number
+    deadline_code: string | null
   }>(
     `
     SELECT
+      d.session_id,
+      dc.code AS deadline_code,
       b.id AS bill_id,
       bt.code AS bill_type_code,
       bt.chamber,
@@ -783,6 +877,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     LEFT JOIN tracked_bills tb ON tb.bill_id = b.id AND tb.workspace_id = $2
     LEFT JOIN bill_summaries bsum ON bsum.bill_id = b.id
     LEFT JOIN bill_types bt ON bt.id = b.bill_type_id
+    LEFT JOIN deadline_codes dc ON dc.id = b.deadline_code_id
     LEFT JOIN legislators sp ON sp.id = b.sponsor_id
     LEFT JOIN districts dist ON dist.id = sp.district_id
     LEFT JOIN political_parties pp ON pp.id = sp.political_party_id
@@ -1005,6 +1100,11 @@ export async function getBillDetail(billId: number, workspaceId: number) {
   }
 
   const sponsorName = core.sponsor_first_name || core.sponsor_last_name ? legislatorLabel(core.sponsor_first_name, core.sponsor_last_name) : ''
+  // The transmittal and return deadlines of the deadline category of the bill.
+  // An LC draft has no category until it is introduced.
+  const deadline = core.deadline_code
+    ? ((await sessionDeadlines(core.session_id)).find((d) => d.code === core.deadline_code) ?? null)
+    : null
 
   return {
     id: String(core.bill_id),
@@ -1024,6 +1124,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
     position: core.position as 'support' | 'oppose' | 'watch' | 'neutral' | null,
     assigneeId: core.assignee_id != null ? String(core.assignee_id) : null,
     isTracked: core.is_tracked,
+    deadline,
     aiSummary: core.summary
       ? {
           text: core.summary,

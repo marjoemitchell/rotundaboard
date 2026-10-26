@@ -22,6 +22,7 @@ import {
   committeeMeetingFixture,
   openDraftsFixture,
   placeholderLegislatorFixture,
+  sessionDeadlinesFixture,
   createHearingFixture,
   createScrapeRunFixture,
   createStatusChangeFixture,
@@ -168,6 +169,14 @@ if (process.env.NODE_ENV !== 'production') {
       res.json(await openDraftsFixture(req.body as Parameters<typeof openDraftsFixture>[0]))
     } catch (err) {
       handleError(res, 'POST /api/__test__/open-drafts', err)
+    }
+  })
+
+  app.post('/api/__test__/session-deadlines', async (_req, res) => {
+    try {
+      res.json(await sessionDeadlinesFixture())
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/session-deadlines', err)
     }
   })
 

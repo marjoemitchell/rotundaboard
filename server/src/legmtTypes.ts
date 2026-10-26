@@ -21,6 +21,20 @@ export interface RawSession {
   legislature: RawLegislature
 }
 
+export interface RawDeadlineCode {
+  id: number
+  code: string
+  description: string
+  transmitOffsetDay: number | null
+  returnOffsetDay: number | null
+}
+
+export interface RawLegislativeCalendarDay {
+  id: number
+  calendarDay: number
+  calendarDate: string
+}
+
 export interface RawPoliticalParty {
   id: number
   code: string
