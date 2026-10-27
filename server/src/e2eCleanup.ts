@@ -81,6 +81,8 @@ async function main() {
   await pool.query('DELETE FROM drafts WHERE id < 0')
   // Interim committee meeting fixtures.
   await pool.query('DELETE FROM non_standing_committee_meetings WHERE id < 0')
+  // Legislative calendar fixtures.
+  await pool.query('DELETE FROM legislative_calendar_days WHERE id < 0')
   // Placeholder legislator fixtures.
   await pool.query('DELETE FROM legislators WHERE id < 0')
 

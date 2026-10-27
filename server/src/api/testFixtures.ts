@@ -226,6 +226,8 @@ export async function openDraftsFixture(input: {
   titlePrefix?: string
   /** How old the newest draft is, in minutes. Older drafts are not in the newest suggestions. */
   ageMinutes?: number
+  /** The deadline category of the bills, for example "GE". */
+  deadlineCode?: string
 }): Promise<{
   bills: { billId: string; identifier: string; title: string }[]
   subjectCode: string
@@ -246,7 +248,11 @@ export async function openDraftsFixture(input: {
        VALUES ($1, $2, $3, now() - make_interval(mins => $4), $5, 'AGENCY')`,
       [id, sessions[0].id, `LC${number}`, (input.ageMinutes ?? 0) + i, title],
     )
-    await pool.query('INSERT INTO bills (id, session_id, draft_id, bill_number) VALUES ($1, $2, $1, NULL)', [id, sessions[0].id])
+    await pool.query(
+      `INSERT INTO bills (id, session_id, draft_id, bill_number, deadline_code_id)
+       VALUES ($1, $2, $1, NULL, (SELECT id FROM deadline_codes WHERE code = $3))`,
+      [id, sessions[0].id, input.deadlineCode ?? null],
+    )
     if (subjects[0]) {
       await pool.query('INSERT INTO draft_subjects (draft_id, subject_code_id, is_primary) VALUES ($1, $2, true)', [id, subjects[0].id])
     }
@@ -315,4 +321,71 @@ export async function placeholderLegislatorFixture(input: { senateDistrict: numb
     [id, serving[0]?.legislature_id ?? null, districts[0].id],
   )
   return { id: String(id) }
+}
+
+// The deadline codes and the legislative calendar for the bill deadlines.
+// The scrape stores the real ones. For a test database without them, this
+// adds the general, revenue, and appropriation codes and the days of their
+// deadlines (negative ids). It does not change the rows that exist. It
+// returns the stored deadlines, so the test can compare the page with them.
+export async function sessionDeadlinesFixture(): Promise<{
+  sessionId: number
+  today: string
+  deadlines: { code: string; transmitDay: number; transmitDate: string; returnDay: number; returnDate: string }[]
+}> {
+  const { rows: sessions } = await pool.query<{ id: number }>(
+    `SELECT id FROM sessions
+     WHERE sine_die_date IS NULL OR sine_die_date >= (now() AT TIME ZONE 'America/Denver')
+     ORDER BY start_date DESC NULLS LAST LIMIT 1`,
+  )
+  if (!sessions[0]) throw new Error('no session that has not ended')
+  const sessionId = sessions[0].id
+  const codes = [
+    { id: 3, code: 'GE', description: 'General Bills', transmit: 48, ret: 73 },
+    { id: 5, code: 'RE', description: 'Revenue Bills', transmit: 67, ret: 82 },
+    { id: 2, code: 'AP', description: 'Appropriation Bills', transmit: 69, ret: 82 },
+  ]
+  for (const c of codes) {
+    await pool.query(
+      `INSERT INTO deadline_codes (id, code, description, transmit_offset_day, return_offset_day)
+       VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
+      [c.id, c.code, c.description, c.transmit, c.ret],
+    )
+  }
+  // A day that the calendar does not have gets a date in the future: day N is N days from now.
+  for (const day of [48, 67, 69, 73, 82]) {
+    await pool.query(
+      `INSERT INTO legislative_calendar_days (id, session_id, calendar_day, calendar_date)
+       VALUES ($1, $2, $3, ((now() AT TIME ZONE 'America/Denver')::date + $3::int))
+       ON CONFLICT DO NOTHING`,
+      [-(sessionId * 1000 + day), sessionId, day],
+    )
+  }
+  const { rows } = await pool.query<{
+    code: string
+    transmit_day: number
+    transmit_date: string
+    return_day: number
+    return_date: string
+  }>(
+    `SELECT dc.code, dc.transmit_offset_day AS transmit_day, t.calendar_date::text AS transmit_date,
+            dc.return_offset_day AS return_day, r.calendar_date::text AS return_date
+     FROM deadline_codes dc
+     JOIN legislative_calendar_days t ON t.session_id = $1 AND t.calendar_day = dc.transmit_offset_day
+     JOIN legislative_calendar_days r ON r.session_id = $1 AND r.calendar_day = dc.return_offset_day
+     WHERE dc.code IN ('GE', 'RE', 'AP')`,
+    [sessionId],
+  )
+  const { rows: today } = await pool.query<{ d: string }>(`SELECT (now() AT TIME ZONE 'America/Denver')::date::text AS d`)
+  return {
+    sessionId,
+    today: today[0].d,
+    deadlines: rows.map((r) => ({
+      code: r.code,
+      transmitDay: r.transmit_day,
+      transmitDate: r.transmit_date,
+      returnDay: r.return_day,
+      returnDate: r.return_date,
+    })),
+  }
 }

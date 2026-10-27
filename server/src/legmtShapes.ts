@@ -222,6 +222,14 @@ export interface EndpointSpec {
 // Keys are the endpoint names that legmtClient.ts reports.
 export const ENDPOINTS: Record<string, EndpointSpec> = {
   sessions: { item: session, expectItems: true },
+  deadlineCodes: {
+    item: { id: 'number', code: 'string', description: 'string', transmitOffsetDay: 'number?', returnOffsetDay: 'number?' },
+    expectItems: true,
+  },
+  legislativeCalendarDays: {
+    item: { id: 'number', calendarDay: 'number', calendarDate: 'string' },
+    expectItems: false,
+  },
   legislators: { item: legislator, expectItems: true },
   standingCommittees: { item: standingCommittee, expectItems: true },
   nonStandingCommittees: { item: nonStandingCommittee, expectItems: true },

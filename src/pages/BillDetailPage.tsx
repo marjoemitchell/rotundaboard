@@ -16,7 +16,7 @@ import type {
   Testimony,
   TestimonyStatus,
 } from '../types'
-import { formatDate, formatSignedDelta, formatTime } from '../lib/format'
+import { formatCalendarDate, formatDate, formatSignedDelta, formatTime } from '../lib/format'
 import { InitialsSquare } from '../components/shared/InitialsSquare'
 import { PositionChip } from '../components/shared/PositionChip'
 import { Sparkline } from '../components/shared/Sparkline'
@@ -707,6 +707,8 @@ export function BillDetailPage({
             )}
           </section>
 
+          <DeadlinesSection bill={bill} />
+
           {bill.cosponsors.length > 0 && (
             <section className={styles.section}>
               <div className="eyebrow">Cosponsors ({bill.cosponsors.length})</div>
@@ -748,6 +750,46 @@ export function BillDetailPage({
         </div>
       </div>
     </div>
+  )
+}
+
+// The transmittal and return deadlines of the deadline category of the bill.
+// The Legislature sets each deadline as a legislative day. The session
+// calendar gives the date of the day.
+function DeadlinesSection({ bill }: { bill: BillDetail }) {
+  const d = bill.deadline
+  // "AD" (no deadline) uses day 90, the last day of the session. It has no deadline to show.
+  if (!d || d.code === 'AD' || (d.transmittalDay == null && d.returnDay == null)) return null
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Denver' })
+  const value = (date: string | null) => {
+    if (!date) return 'Date not set yet'
+    return (
+      <>
+        {formatCalendarDate(date)}
+        {date < today && <span className={styles.rowLabel}> · passed</span>}
+      </>
+    )
+  }
+  return (
+    <section className={styles.section} aria-label="Deadlines">
+      <div className="eyebrow">Deadlines</div>
+      <div className={styles.row}>
+        <span className={styles.rowLabel}>Category</span>
+        <span className={styles.rowValue}>{d.label}</span>
+      </div>
+      <div className={styles.row}>
+        <span className={styles.rowLabel}>Transmittal</span>
+        <span className={styles.rowValue}>{value(d.transmittalDate)}</span>
+      </div>
+      <div className={styles.row}>
+        <span className={styles.rowLabel}>Return</span>
+        <span className={styles.rowValue}>{value(d.returnDate)}</span>
+      </div>
+      <p className={styles.deadlineNote}>
+        Legislative day {d.transmittalDay ?? '—'} and day {d.returnDay ?? '—'}. The Legislature can move these dates
+        during the session.
+      </p>
+    </section>
   )
 }
 

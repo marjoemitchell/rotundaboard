@@ -8,6 +8,8 @@ import type {
   RawBillHearingSearchPage,
   RawCommitteeMeetingBillHearing,
   RawCommitteeTabsResponse,
+  RawDeadlineCode,
+  RawLegislativeCalendarDay,
   RawDocument,
   RawLegislatorProfile,
   RawExecutiveAction,
@@ -71,6 +73,19 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 
 export function getSessions(): Promise<RawSession[]> {
   return getList('sessions', `${BASE}/legislators/v1/sessions`)
+}
+
+/** The deadline categories of bills, with the transmittal and return days. */
+export function getDeadlineCodes(): Promise<RawDeadlineCode[]> {
+  return getList('deadlineCodes', `${BASE}/legislators/v1/deadlineCodes`)
+}
+
+/** The date of each legislative day of a session. Empty until the Legislature plans the session. */
+export function getLegislativeCalendarDays(sessionId: number): Promise<RawLegislativeCalendarDay[]> {
+  return getList(
+    'legislativeCalendarDays',
+    `${BASE}/legislators/v1/legislativeCalendarDays/findBySessionId?sessionId=${sessionId}`,
+  )
 }
 
 export function getLegislators(): Promise<RawLegislator[]> {

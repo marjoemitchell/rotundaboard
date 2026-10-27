@@ -689,3 +689,10 @@
     width: 100%;
   }
 }
+
+/* The legislative days of the deadlines, under the deadline rows. */
+.deadlineNote {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}

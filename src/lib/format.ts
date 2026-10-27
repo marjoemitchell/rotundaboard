@@ -3,6 +3,21 @@ export function formatDate(iso: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+/**
+ * Formats a date without a time, "YYYY-MM-DD" (for example a legislative
+ * calendar day). The date is read as a local date, so it does not move to
+ * the day before in a time zone west of UTC.
+ */
+export function formatCalendarDate(day: string, options: { weekday?: boolean; year?: boolean } = {}): string {
+  const [y, m, d] = day.slice(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+    weekday: options.weekday ? 'short' : undefined,
+    month: 'short',
+    day: 'numeric',
+    year: options.year === false ? undefined : 'numeric',
+  })
+}
+
 export function formatDateShort(iso: string): string {
   const date = new Date(iso)
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })

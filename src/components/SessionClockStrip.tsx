@@ -1,5 +1,5 @@
 import type { LoadState, SessionCalendar } from '../types'
-import { formatDate, formatOrdinal } from '../lib/format'
+import { formatCalendarDate, formatDate, formatOrdinal } from '../lib/format'
 import styles from './SessionClockStrip.module.css'
 
 function Cell({
@@ -7,11 +7,14 @@ function Cell({
   value,
   unit,
   context,
+  detail,
 }: {
   label: string
   value: number | null
   unit: string
   context: string
+  /** A second line of context, for example the later deadlines. */
+  detail?: string
 }) {
   return (
     <div className={styles.cell}>
@@ -21,6 +24,7 @@ function Cell({
         {value !== null && <span className={styles.unit}>{unit}</span>}
       </div>
       <div className={styles.context}>{context}</div>
+      {detail && <div className={styles.detail}>{detail}</div>}
     </div>
   )
 }
@@ -38,6 +42,21 @@ function SkeletonCell({ label }: { label: string }) {
 /** Joins the parts that have text with " · ". An empty part gets no separator. */
 function joinParts(parts: (string | null)[]): string {
   return parts.filter((p): p is string => Boolean(p)).join(' · ')
+}
+
+// The next transmittal deadline.
+function transmittalContext(c: SessionCalendar): string {
+  if (c.transmittalsPassed) return 'All transmittal deadlines have passed'
+  if (!c.transmittalDate || !c.transmittalLabel) return 'Date not set yet'
+  return `${c.transmittalLabel} · ${formatCalendarDate(c.transmittalDate, { weekday: true })}`
+}
+
+// The later transmittal deadlines, with a short date, on a second line.
+function laterTransmittals(c: SessionCalendar): string | undefined {
+  if (c.laterTransmittals.length === 0) return undefined
+  return `Then ${c.laterTransmittals
+    .map((d) => `${d.label.replace(/ bills$/, '').toLowerCase()} ${formatCalendarDate(d.date, { year: false })}`)
+    .join(', ')}`
 }
 
 export function SessionClockStrip({ calendar }: { calendar: LoadState<SessionCalendar> }) {
@@ -97,7 +116,8 @@ export function SessionClockStrip({ calendar }: { calendar: LoadState<SessionCal
         label="Days to transmittal"
         value={c.daysToTransmittal}
         unit={c.daysToTransmittal === 1 ? 'day' : 'days'}
-        context={c.transmittalDate ? `General bills · ${formatDate(c.transmittalDate)}` : 'Date not set yet'}
+        context={transmittalContext(c)}
+        detail={laterTransmittals(c)}
       />
     </div>
   )
