@@ -34,8 +34,8 @@ test.describe('command palette', () => {
     const palette = page.locator('[aria-label="Command palette"]')
 
     await page.goto('/')
-    await page.click('button:has-text("Jump to a bill, hearing, or legislator")')
-    await page.fill('input[placeholder="Jump to a bill, hearing, or legislator…"]', identifier)
+    await page.click('button:has-text("Search bills, legislators, committees, and hearings")')
+    await page.fill('input[placeholder="Search bills, legislators, committees, and hearings…"]', identifier)
     // A bare substring search for e.g. "SB 1" also matches "SB 10", "SB 11"...
     // so click the option whose identifier text is an exact match.
     await palette.getByText(identifier, { exact: true }).click()
@@ -43,8 +43,8 @@ test.describe('command palette', () => {
     await expect(page.locator('[aria-label*="details"]')).toBeVisible()
     await page.keyboard.press('Escape')
 
-    await page.click('button:has-text("Jump to a bill, hearing, or legislator")')
-    await page.fill('input[placeholder="Jump to a bill, hearing, or legislator…"]', 'Notes')
+    await page.click('button:has-text("Search bills, legislators, committees, and hearings")')
+    await page.fill('input[placeholder="Search bills, legislators, committees, and hearings…"]', 'Notes')
     await palette.getByText('Notes', { exact: true }).click()
     await page.waitForURL(/\/notes/)
   })
@@ -52,7 +52,7 @@ test.describe('command palette', () => {
   test('Escape closes the command palette', async ({ page }) => {
     await signUpFreshWorkspace(page)
     const palette = page.locator('[aria-label="Command palette"]')
-    await page.click('button:has-text("Jump to a bill, hearing, or legislator")')
+    await page.click('button:has-text("Search bills, legislators, committees, and hearings")')
     await expect(palette).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(palette).not.toBeVisible()

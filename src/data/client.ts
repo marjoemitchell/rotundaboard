@@ -38,6 +38,7 @@ import type {
   Note,
   Position,
   SavedView,
+  SearchResults,
   SessionBillSummary,
   SubjectWatchBillMatch,
   SessionCalendar,
@@ -436,4 +437,9 @@ export function setAlertSourceEnabled(type: AlertSourceType, id: string | null, 
 
 export function getDataFreshness(): Promise<DataFreshness> {
   return getJson('/api/data-freshness')
+}
+
+/** The search of the command palette: bills, legislators, interim committees, and hearing recordings. */
+export function search(query: string, signal?: AbortSignal): Promise<SearchResults> {
+  return getJson(`/api/search?q=${encodeURIComponent(query)}`, signal)
 }

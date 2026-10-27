@@ -399,6 +399,7 @@ route('/api/suggested-bills', (req) =>
   queries.getSuggestedBills(req.auth!.workspaceId, Math.min(Math.max(Number(req.query.limit) || 5, 1), 10)),
 )
 route('/api/hearings', (req) => queries.getRecordedHearings(req.auth!.workspaceId))
+route('/api/search', (req) => queries.search(req.auth!.workspaceId, String(req.query.q ?? '')))
 route('/api/hearings/schedule', (req) => queries.getUpcomingHearings(req.auth!.workspaceId))
 route('/api/team-board', (req) => queries.getTeamBoard(req.auth!.workspaceId))
 route('/api/workspace-members', (req) => queries.getWorkspaceMembers(req.auth!.workspaceId))
