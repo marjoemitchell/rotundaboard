@@ -434,6 +434,10 @@ export function AuthenticatedApp() {
           onClose={() => setPaletteOpen(false)}
           onSelectBill={handleSelectBill}
           onNavigate={handleNavigate}
+          onGo={(path) => {
+            setMobileNavOpen(false)
+            navigate(path)
+          }}
         />
       )}
 

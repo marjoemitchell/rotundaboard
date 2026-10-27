@@ -686,3 +686,11 @@ export interface LegislatorMap {
   districts: { house: Record<string, string[]>; senate: Record<string, string[]> }
   members: MapMember[]
 }
+
+/** The results of the command palette search (GET /api/search). */
+export interface SearchResults {
+  bills: { id: string; identifier: string; title: string; session: string; isTracked: boolean }[]
+  legislators: { id: string; name: string; detail: string }[]
+  committees: { id: string; name: string; detail: string }[]
+  hearings: { id: string; committee: string; recordedAt: string }[]
+}

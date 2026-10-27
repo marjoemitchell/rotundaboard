@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { LoadState, TeamMember } from '../types'
 import { InitialsSquare, OverflowSquare } from './shared/InitialsSquare'
+import { PALETTE_PLACEHOLDER } from './CommandPalette'
 import styles from './TopBar.module.css'
 
 const VISIBLE_AVATARS = 4
@@ -34,7 +35,7 @@ export function TopBar({
       </div>
       <div className={styles.spacer} />
       <button className={styles.palette} onClick={onOpenPalette} aria-haspopup="dialog">
-        <span className={styles.paletteText}>Jump to a bill, hearing, or legislator…</span>
+        <span className={styles.paletteText}>{PALETTE_PLACEHOLDER}</span>
         <span className={styles.paletteHint}>⌘K</span>
       </button>
       <div className={styles.avatars}>

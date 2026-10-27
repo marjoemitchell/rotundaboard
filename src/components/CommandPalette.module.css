@@ -92,3 +92,10 @@
   color: var(--faint);
   font-size: 16px;
 }
+
+/* "Searching…" and the error, above the results. */
+.status {
+  padding: 6px 8px;
+  color: var(--faint);
+  font-size: 15px;
+}

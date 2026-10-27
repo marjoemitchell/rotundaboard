@@ -2235,3 +2235,100 @@ export async function getLegislatorMap(workspaceId: number) {
     })),
   }
 }
+
+// ---------------------------------------------------------------- search
+
+const SEARCH_LIMIT = 6
+
+// "HB 2", "hb2", "LC 82", "lc0082": a bill type or "LC" and a number.
+const IDENTIFIER_QUERY = /^\s*([a-z]{2})\s*0*(\d{1,4})\s*$/i
+
+/**
+ * The search of the command palette: bills and LC drafts of all sessions,
+ * current legislators, interim committees, and hearing recordings.
+ */
+export async function search(workspaceId: number, rawQuery: string) {
+  const q = rawQuery.trim().slice(0, 100)
+  if (q.length < 2) return { bills: [], legislators: [], committees: [], hearings: [] }
+  const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+  const id = IDENTIFIER_QUERY.exec(q)
+  const prefix = id ? id[1].toUpperCase() : null
+  const number = id ? Number(id[2]) : null
+
+  const [billRows, legislatorRows, committeeRows, hearingRows] = await Promise.all([
+    pool.query<{
+      id: number
+      bill_type_code: string | null
+      bill_number: number | null
+      draft_number: string
+      short_title: string
+      ordinals: string
+      is_tracked: boolean
+    }>(
+      // An identifier match comes first, then the newest session.
+      `SELECT b.id, bt.code AS bill_type_code, b.bill_number, d.draft_number, d.short_title, s.ordinals,
+              (tb.bill_id IS NOT NULL) AS is_tracked
+       FROM bills b
+       JOIN drafts d ON d.id = b.draft_id
+       JOIN sessions s ON s.id = b.session_id
+       LEFT JOIN bill_types bt ON bt.id = b.bill_type_id
+       LEFT JOIN tracked_bills tb ON tb.bill_id = b.id AND tb.workspace_id = $1
+       WHERE d.short_title ILIKE $2
+          OR ($3::text = 'LC' AND (CASE WHEN d.draft_number ~ '^LC[0-9]+$' THEN substring(d.draft_number FROM 3)::int END) = $4)
+          OR (bt.code = $3 AND b.bill_number = $4)
+       ORDER BY coalesce((bt.code = $3 AND b.bill_number = $4)
+                 OR ($3::text = 'LC' AND (CASE WHEN d.draft_number ~ '^LC[0-9]+$' THEN substring(d.draft_number FROM 3)::int END) = $4), false) DESC,
+                s.start_date DESC NULLS LAST, b.bill_number NULLS LAST, d.draft_number
+       LIMIT ${SEARCH_LIMIT}`,
+      [workspaceId, like, prefix, number],
+    ),
+    pool.query<{ id: number; first_name: string | null; last_name: string | null; chamber: string | null; district: string | null; party: string | null }>(
+      // The newest record of each person, by name or district ("House District 28").
+      `SELECT DISTINCT ON (l.first_name, l.last_name) l.id, l.first_name, l.last_name, l.chamber,
+              dist.name AS district, pp.code AS party
+       FROM legislators l
+       LEFT JOIN districts dist ON dist.id = l.district_id
+       LEFT JOIN political_parties pp ON pp.id = l.political_party_id
+       WHERE ${realLegislatorSql('l')}
+         AND (trim(coalesce(l.first_name, '') || ' ' || coalesce(l.last_name, '')) ILIKE $1 OR dist.name ILIKE $1)
+       ORDER BY l.first_name, l.last_name, l.legislature_id DESC
+       LIMIT ${SEARCH_LIMIT}`,
+      [like],
+    ),
+    pool.query<{ id: number; name: string; committee_type: string | null }>(
+      // The committees of the newest legislature only, so a committee shows one time.
+      `SELECT nsc.id, nsc.name, nsc.committee_type
+       FROM non_standing_committees nsc
+       WHERE nsc.name ILIKE $1
+         AND nsc.legislature_id = (SELECT max(legislature_id) FROM non_standing_committees)
+       ORDER BY nsc.name
+       LIMIT ${SEARCH_LIMIT}`,
+      [like],
+    ),
+    pool.query<{ id: number; committee_name: string; recorded_at: string }>(
+      `SELECT r.id, r.committee_name, r.recorded_at
+       FROM hearing_recordings r
+       WHERE r.committee_name ILIKE $1 OR r.title ILIKE $1
+       ORDER BY r.recorded_at DESC
+       LIMIT ${SEARCH_LIMIT}`,
+      [like],
+    ),
+  ])
+
+  return {
+    bills: billRows.rows.map((r) => ({
+      id: String(r.id),
+      identifier: formatIdentifier(r.bill_type_code, r.bill_number, r.draft_number),
+      title: r.short_title,
+      session: r.ordinals.slice(0, 4),
+      isTracked: r.is_tracked,
+    })),
+    legislators: legislatorRows.rows.map((r) => ({
+      id: String(r.id),
+      name: legislatorLabel(r.first_name, r.last_name),
+      detail: [r.district, r.party].filter(Boolean).join(' · '),
+    })),
+    committees: committeeRows.rows.map((r) => ({ id: String(r.id), name: r.name, detail: r.committee_type ?? '' })),
+    hearings: hearingRows.rows.map((r) => ({ id: String(r.id), committee: r.committee_name, recordedAt: r.recorded_at })),
+  }
+}
