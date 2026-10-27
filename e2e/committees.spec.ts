@@ -68,6 +68,8 @@ test.describe('interim committees', () => {
       await page.goto('/committees')
       await rowLinks.nth(i).click()
       await page.waitForURL(/\/committees\/.+/)
+      // isVisible() does not wait. Wait for the page to load before the check.
+      await expect(page.locator('.eyebrow', { hasText: /^Members/ })).toBeVisible()
       if (await page.locator('.eyebrow', { hasText: 'Meeting materials' }).isVisible()) {
         found = true
         break
