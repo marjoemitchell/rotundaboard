@@ -238,10 +238,21 @@ export async function openDraftsFixture(input: {
   if (!sessions[0]) throw new Error('no open session to attach draft fixtures to')
   const { rows: subjects } = await pool.query<{ id: number; code: string }>('SELECT id, code FROM subject_codes ORDER BY id LIMIT 1')
   const base = Math.floor(Math.random() * 100_000_000) + 1
+  // Use LC numbers that no other draft of the session has. Two drafts with the
+  // same number make the "Track LC ..." buttons of the tests ambiguous.
+  const { rows: used } = await pool.query<{ draft_number: string }>(
+    `SELECT draft_number FROM drafts WHERE session_id = $1 AND draft_number LIKE 'LC9%'`,
+    [sessions[0].id],
+  )
+  const usedNumbers = new Set(used.map((r) => r.draft_number))
+  let next = base % 1000
   const bills: { billId: string; identifier: string; title: string }[] = []
   for (let i = 0; i < input.count; i++) {
     const id = -(base * 10 + i)
-    const number = String(9000 + ((base + i) % 1000)).padStart(4, '0')
+    if (usedNumbers.size >= 1000) throw new Error('no free LC9xxx numbers: run npm run test:e2e:cleanup')
+    while (usedNumbers.has(`LC${9000 + next}`)) next = (next + 1) % 1000
+    const number = String(9000 + next)
+    usedNumbers.add(`LC${number}`)
     const title = `${input.titlePrefix ?? 'E2E draft'} ${base}-${i}`
     await pool.query(
       `INSERT INTO drafts (id, session_id, draft_number, drafted_at, short_title, requester_type)

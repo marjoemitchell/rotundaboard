@@ -15,7 +15,10 @@ test.describe('command palette search', () => {
   test('the search finds a bill that the team does not track, and opens its page', async ({ page }) => {
     await signUpFreshWorkspace(page)
     const title = `E2E search draft ${uniqueSuffix()}`
-    const res = await page.request.post(`${API_BASE}/api/__test__/open-drafts`, { data: { count: 1, titlePrefix: title } })
+    // A draft from yesterday. A new draft goes into the dashboard suggestions of the other tests.
+    const res = await page.request.post(`${API_BASE}/api/__test__/open-drafts`, {
+      data: { count: 1, titlePrefix: title, ageMinutes: 1440 },
+    })
     const [bill] = (await res.json()).bills as { billId: string; identifier: string; title: string }[]
 
     await page.goto('/')

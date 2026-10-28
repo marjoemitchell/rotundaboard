@@ -58,7 +58,7 @@ test.describe('session deadlines', () => {
     await signUpFreshWorkspace(page)
     const data = await sessionDeadlines(page.request)
     const general = data.deadlines.find((d) => d.code === 'GE')!
-    const res = await page.request.post(`${API_BASE}/api/__test__/open-drafts`, { data: { count: 1, deadlineCode: 'GE' } })
+    const res = await page.request.post(`${API_BASE}/api/__test__/open-drafts`, { data: { count: 1, deadlineCode: 'GE', ageMinutes: 1440 } })
     expect(res.ok()).toBeTruthy()
     const [bill] = (await res.json()).bills as { billId: string }[]
 
@@ -74,7 +74,7 @@ test.describe('session deadlines', () => {
   test('an LC draft without a deadline category shows no deadlines', async ({ page }) => {
     await signUpFreshWorkspace(page)
     await sessionDeadlines(page.request)
-    const res = await page.request.post(`${API_BASE}/api/__test__/open-drafts`, { data: { count: 1 } })
+    const res = await page.request.post(`${API_BASE}/api/__test__/open-drafts`, { data: { count: 1, ageMinutes: 1440 } })
     const [bill] = (await res.json()).bills as { billId: string; title: string }[]
 
     await page.goto(`/bills/${bill.billId}`)

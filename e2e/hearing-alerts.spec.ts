@@ -123,10 +123,12 @@ test.describe('hearing alerts', () => {
     // Reminders off: the next hearing gets the announcement, not the reminder.
     await page.goto('/settings')
     const section = page.getByRole('region', { name: 'Email alerts' })
-    await section.getByRole('checkbox', { name: 'Remind me about 24 hours before a hearing' }).uncheck()
+    const reminders = section.getByRole('group', { name: 'Remind me before a hearing' })
+    await expect(reminders.getByRole('checkbox', { name: '1 day before' })).toBeChecked()
+    await reminders.getByRole('checkbox', { name: '1 day before' }).uncheck()
     await expect(section.getByRole('status')).toHaveText('Saved')
     await page.reload()
-    await expect(section.getByRole('checkbox', { name: 'Remind me about 24 hours before a hearing' })).not.toBeChecked()
+    await expect(reminders.getByRole('checkbox', { name: '1 day before' })).not.toBeChecked()
 
     const next = fixtureIds()
     await setHearing(page.request, { billId, ...next, hoursFromNow: 22 })
@@ -134,6 +136,72 @@ test.describe('hearing alerts', () => {
     const announcement = await lastEmail(page.request, user.email)
     expect(announcement?.subject).toMatch(/^Hearing scheduled:/)
     await page.request.post(`${API_BASE}/api/__test__/age-hearing-alert`, { data: { hearingId: next.hearingId, hours: 7 } })
+    await runAlerts(page.request)
+    expect((await lastEmail(page.request, user.email))?.sentAt).toBe(announcement?.sentAt)
+  })
+
+  test('a person can choose reminders 2 days and 2 hours before a hearing instead of 1 day', async ({ page }) => {
+    const user = await signUpFreshWorkspace(page)
+    const { billId } = await trackFirstAvailableBill(page, { index: HEARING_BILL })
+
+    await page.goto('/settings')
+    const section = page.getByRole('region', { name: 'Email alerts' })
+    const reminders = section.getByRole('group', { name: 'Remind me before a hearing' })
+    await reminders.getByRole('checkbox', { name: '2 days before' }).check()
+    await expect(section.getByRole('status')).toHaveText('Saved')
+    await reminders.getByRole('checkbox', { name: '2 hours before' }).check()
+    await expect(section.getByRole('status')).toHaveText('Saved')
+    await reminders.getByRole('checkbox', { name: '1 day before' }).uncheck()
+    await expect(section.getByRole('status')).toHaveText('Saved')
+    await page.reload()
+    await expect(reminders.getByRole('checkbox', { name: '2 days before' })).toBeChecked()
+    await expect(reminders.getByRole('checkbox', { name: '1 day before' })).not.toBeChecked()
+    await expect(reminders.getByRole('checkbox', { name: '2 hours before' })).toBeChecked()
+
+    // A hearing in 47 hours, announced 7 hours ago: the 2-day reminder is due.
+    const twoDays = fixtureIds()
+    await setHearing(page.request, { billId, ...twoDays, hoursFromNow: 47 })
+    await runAlerts(page.request)
+    await page.request.post(`${API_BASE}/api/__test__/age-hearing-alert`, { data: { hearingId: twoDays.hearingId, hours: 7 } })
+    await runAlerts(page.request)
+    expect((await lastEmail(page.request, user.email))?.subject).toMatch(/^Hearing reminder:/)
+
+    // A hearing in 20 hours: the 1-day reminder is off, so no email.
+    const oneDay = fixtureIds()
+    await setHearing(page.request, { billId, ...oneDay, hoursFromNow: 20 })
+    await runAlerts(page.request)
+    const announcement = await lastEmail(page.request, user.email)
+    expect(announcement?.subject).toMatch(/^Hearing scheduled:/)
+    await page.request.post(`${API_BASE}/api/__test__/age-hearing-alert`, { data: { hearingId: oneDay.hearingId, hours: 7 } })
+    await runAlerts(page.request)
+    expect((await lastEmail(page.request, user.email))?.sentAt).toBe(announcement?.sentAt)
+
+    // A hearing in 2.5 hours, announced 7 hours ago: the 2-hour reminder is due.
+    const twoHours = fixtureIds()
+    await setHearing(page.request, { billId, ...twoHours, hoursFromNow: 2.5 })
+    await runAlerts(page.request)
+    await page.request.post(`${API_BASE}/api/__test__/age-hearing-alert`, { data: { hearingId: twoHours.hearingId, hours: 7 } })
+    await runAlerts(page.request)
+    const reminder = await lastEmail(page.request, user.email)
+    expect(reminder?.subject).toMatch(/^Hearing reminder:/)
+
+    // Each reminder goes out one time only.
+    await runAlerts(page.request)
+    expect((await lastEmail(page.request, user.email))?.sentAt).toBe(reminder?.sentAt)
+  })
+
+  test('a hearing that was announced after the time of the reminder gets no reminder', async ({ page }) => {
+    const user = await signUpFreshWorkspace(page)
+    const { billId } = await trackFirstAvailableBill(page, { index: HEARING_BILL })
+
+    // A hearing in 10 hours, announced 8 hours ago: 18 hours before the
+    // hearing, which is after the time of the 1-day reminder.
+    const ids = fixtureIds()
+    await setHearing(page.request, { billId, ...ids, hoursFromNow: 10 })
+    await runAlerts(page.request)
+    const announcement = await lastEmail(page.request, user.email)
+    expect(announcement?.subject).toMatch(/^Hearing scheduled:/)
+    await page.request.post(`${API_BASE}/api/__test__/age-hearing-alert`, { data: { hearingId: ids.hearingId, hours: 8 } })
     await runAlerts(page.request)
     expect((await lastEmail(page.request, user.email))?.sentAt).toBe(announcement?.sentAt)
   })

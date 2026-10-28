@@ -588,8 +588,9 @@ export interface AlertSource {
 
 export interface NotificationPreferences {
   delivery: AlertDelivery
-  // A reminder about 24 hours before each hearing.
-  hearingReminders: boolean
+  // The lead times of the hearing reminders, in hours before each hearing.
+  // An empty list means no reminders.
+  hearingReminderHours: number[]
   trackedBills: boolean
   subjectWatches: AlertSource[]
   followedCommittees: AlertSource[]

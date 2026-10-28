@@ -10,6 +10,14 @@ const DELIVERY_OPTIONS: { value: AlertDelivery; label: string; hint: string }[] 
   { value: 'off', label: 'Off', hint: 'No alert emails.' },
 ]
 
+// The lead times of the hearing reminders. The server accepts the same values
+// (REMINDER_LEAD_HOURS in server/src/alerts.ts).
+const REMINDER_OPTIONS: { hours: number; label: string }[] = [
+  { hours: 48, label: '2 days before' },
+  { hours: 24, label: '1 day before' },
+  { hours: 2, label: '2 hours before' },
+]
+
 // Email alerts for the signed-in user: how they're delivered, and which of
 // the workspace's tracked bills / subject watches / followed committees
 // they come from. Every change saves immediately.
@@ -54,7 +62,7 @@ export function AlertSettings({ email }: { email: string }) {
 
   if (prefs.status === 'loading') return <div className="skeleton" style={{ height: 160, marginTop: 12 }} />
   if (prefs.status === 'empty') return <p className={styles.hint}>Alert settings couldn’t be loaded.</p>
-  const { delivery, hearingReminders, trackedBills, subjectWatches, followedCommittees } = prefs.data
+  const { delivery, hearingReminderHours, trackedBills, subjectWatches, followedCommittees } = prefs.data
   const off = delivery === 'off'
 
   const toggle = (type: AlertSourceType, id: string | null, enabled: boolean) =>
@@ -122,21 +130,29 @@ export function AlertSettings({ email }: { email: string }) {
           Hearing alerts go out right away, also when you choose the daily digest. They include a link to draft
           testimony.
         </p>
-        <label className={styles.checkRow}>
-          <input
-            type="checkbox"
-            checked={hearingReminders}
-            disabled={off || saving}
-            onChange={(e) => {
-              const enabled = e.target.checked
-              save(
-                (p) => ({ ...p, hearingReminders: enabled }),
-                () => client.setHearingReminders(enabled),
-              )
-            }}
-          />
-          Remind me about 24 hours before a hearing
-        </label>
+        <div className={styles.groupLabel} id="hearing-reminders-label">
+          Remind me before a hearing
+        </div>
+        <div role="group" aria-labelledby="hearing-reminders-label">
+          {REMINDER_OPTIONS.map((o) => (
+            <label key={o.hours} className={styles.checkRow}>
+              <input
+                type="checkbox"
+                checked={hearingReminderHours.includes(o.hours)}
+                disabled={off || saving}
+                onChange={(e) => {
+                  const enabled = e.target.checked
+                  const hours = hearingReminderHours.filter((h) => h !== o.hours).concat(enabled ? [o.hours] : [])
+                  save(
+                    (p) => ({ ...p, hearingReminderHours: hours }),
+                    () => client.setHearingReminderHours(hours),
+                  )
+                }}
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
       </fieldset>
 
       <fieldset className={`${styles.fieldset} ${off ? styles.dimmed : ''}`} aria-label="Alert sources">
