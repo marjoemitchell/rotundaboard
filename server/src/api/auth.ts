@@ -8,6 +8,7 @@ import { escapeHtml } from '../emailLayout.js'
 import { deriveInitials, pickColor } from '../auth/userDisplay.js'
 import { clearSessionCookie, destroyAllSessionsForUser, destroySession, issueSession, SESSION_COOKIE_NAME } from './authMiddleware.js'
 import { MutationError } from './mutations.js'
+import { getWorkspacePlan, newWorkspacePlan, requireMemberRoom } from '../plans.js'
 
 export const authRouter = Router()
 
@@ -63,6 +64,7 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
       )
       if (rows.length === 0) throw new MutationError(400, 'this invite is invalid or has expired')
       invite = rows[0]
+      await requireMemberRoom(invite.workspace_id, { accepting: true })
     }
 
     const passwordHash = await hashPassword(password)
@@ -87,8 +89,8 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
         await client.query('UPDATE workspace_invites SET accepted_at = now() WHERE id = $1', [invite.id])
       } else {
         const workspaceResult = await client.query<{ id: number }>(
-          'INSERT INTO workspaces (name) VALUES ($1) RETURNING id',
-          [workspaceName!.trim()],
+          'INSERT INTO workspaces (name, plan) VALUES ($1, $2) RETURNING id',
+          [workspaceName!.trim(), newWorkspacePlan()],
         )
         workspaceId = workspaceResult.rows[0].id
         await client.query('INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)', [
@@ -233,9 +235,10 @@ authRouter.get('/me', async (req: Request, res: Response) => {
 
     const workspaces = await getUserWorkspaces(user.id)
     const current = workspaces.find((w) => w.id === session.current_workspace_id) ?? workspaces[0] ?? null
+    const plan = current ? await getWorkspacePlan(current.id) : null
     res.json({
       user: { id: user.id, email: user.email, name: user.name, initials: user.initials, color: user.color },
-      currentWorkspace: current ? { id: current.id, name: current.name } : null,
+      currentWorkspace: current && plan ? { id: current.id, name: current.name, plan } : null,
       role: current?.role ?? null,
       workspaces: workspaces.map((w) => ({ id: w.id, name: w.name, role: w.role })),
     })

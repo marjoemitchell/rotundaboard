@@ -25,6 +25,8 @@ import { Tooltip } from '../components/shared/Tooltip'
 import { MOMENTUM_EXPLANATION } from '../components/shared/MomentumBar'
 import { OutcomeBadge } from '../components/shared/OutcomeBadge'
 import { RedlineParagraph, toParagraphs } from '../components/billText/Redline'
+import { UpgradeNotice } from '../components/shared/UpgradeNotice'
+import { usePlan } from '../auth/usePlan'
 import styles from './BillDetailPage.module.css'
 
 function formatDraftNumber(draftNumber: string): string {
@@ -234,6 +236,8 @@ function TestimonySection({ bill }: { bill: BillDetail }) {
   const sectionRef = useRef<HTMLElement>(null)
   const [items, setItems] = useState<LoadState<Testimony[]>>({ status: 'loading' })
   const [composing, setComposing] = useState(linkedHere)
+  const { plan, has } = usePlan()
+  const canDraft = has('testimony')
 
   // Also when the bill page is already open: then the hash changes, but this
   // component stays mounted.
@@ -302,14 +306,16 @@ function TestimonySection({ bill }: { bill: BillDetail }) {
     <section className={styles.section} id="testimony" ref={sectionRef} aria-label="Testimony">
       <div className={styles.testimonyHead}>
         <div className="eyebrow">Testimony</div>
-        {!composing && (
+        {!composing && canDraft && (
           <button className={styles.testimonyAddLink} onClick={() => setComposing(true)}>
             + Draft
           </button>
         )}
       </div>
 
-      {composing && (
+      {!canDraft && <UpgradeNotice message={`The ${plan?.label} plan does not include testimony drafts.`} />}
+
+      {composing && canDraft && (
         <div className={styles.testimonyComposer}>
           <div className={styles.testimonyComposerRow}>
             <select
@@ -419,6 +425,7 @@ function NotesSection({ billId }: { billId: string }) {
   const [notes, setNotes] = useState<LoadState<Note[]>>({ status: 'loading' })
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
+  const { plan, has } = usePlan()
 
   const load = () => {
     client
@@ -449,18 +456,22 @@ function NotesSection({ billId }: { billId: string }) {
   return (
     <section className={styles.section}>
       <div className="eyebrow">Notes</div>
-      <div className={styles.noteComposer}>
-        <textarea
-          className={styles.noteInput}
-          placeholder="Add a note about this bill…"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          rows={2}
-        />
-        <button className={styles.noteAddButton} onClick={handleAdd} disabled={saving || !draft.trim()}>
-          Add
-        </button>
-      </div>
+      {has('notes') ? (
+        <div className={styles.noteComposer}>
+          <textarea
+            className={styles.noteInput}
+            placeholder="Add a note about this bill…"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={2}
+          />
+          <button className={styles.noteAddButton} onClick={handleAdd} disabled={saving || !draft.trim()}>
+            Add
+          </button>
+        </div>
+      ) : (
+        <UpgradeNotice message={`The ${plan?.label} plan does not include notes.`} />
+      )}
       {notes.status === 'ready' && (
         <div className={styles.noteList}>
           {notes.data.map((n) => (
@@ -831,6 +842,9 @@ function AmendmentsSection({ bill }: { bill: BillDetail }) {
         <div className={styles.amendmentNote}>
           Summaries are AI-generated from the amendment text. Verify against the official record.
         </div>
+      )}
+      {bill.amendmentSummariesLocked && (
+        <UpgradeNotice message="AI summaries of these amendments are included in the paid plans." />
       )}
     </section>
   )

@@ -11,12 +11,14 @@
 //      (same subject/tag rule as the Watches page), followed committees.
 //   3. Queue — one alert_deliveries row per member, minus members whose
 //      delivery is 'off' or who muted every source that matched. The
-//      primary key makes queueing idempotent.
+//      primary key makes queueing idempotent. A workspace gets alerts only
+//      when its plan includes them (plans.ts).
 //   4. Send — each person's unsent alerts as one email: right away for
 //      'immediate', or batched by the daily digest for 'daily'.
 import { pool } from './db.js'
 import { sendLayoutEmail } from './auth/email.js'
 import { appBaseUrl, escapeHtml, type EmailContent } from './emailLayout.js'
+import { ALERT_PLAN_KEYS } from './plans.js'
 
 const ADVISORY_LOCK_KEY = 7_340_020
 // Hearings and meetings only matter while they're upcoming; a row first
@@ -226,6 +228,7 @@ async function queueDeliveries(eventIds: number[]): Promise<number> {
      FROM matches m
      JOIN change_events ce ON ce.id = m.event_id
      JOIN workspace_members wm ON wm.workspace_id = m.workspace_id
+     JOIN workspaces ws ON ws.id = m.workspace_id AND ws.plan = ANY($3)
      LEFT JOIN notification_preferences np ON np.user_id = wm.user_id
      WHERE coalesce(np.delivery, $2) <> 'off'
        AND (ce.variant IS DISTINCT FROM 'reminder' OR ce.reminder_hours = ANY(coalesce(np.hearing_reminder_hours, '{24}')))
@@ -236,7 +239,7 @@ async function queueDeliveries(eventIds: number[]): Promise<number> {
        )
      GROUP BY wm.user_id, m.workspace_id, m.event_id
      ON CONFLICT DO NOTHING`,
-    [eventIds, DEFAULT_DELIVERY],
+    [eventIds, DEFAULT_DELIVERY, ALERT_PLAN_KEYS],
   )
   return rowCount ?? 0
 }

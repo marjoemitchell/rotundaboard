@@ -8,6 +8,7 @@ import { generateToken, hashToken } from '../auth/tokens.js'
 import { sendLayoutEmail } from '../auth/email.js'
 import { escapeHtml } from '../emailLayout.js'
 import { MutationError } from './mutations.js'
+import { requireMemberRoom } from '../plans.js'
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -53,6 +54,7 @@ async function sendInviteEmail(email: string, workspaceName: string, rawToken: s
 export async function createInvite(workspaceId: number, invitedBy: number, email: string, role: string) {
   if (!email?.trim() || !EMAIL_RE.test(email.trim())) throw new MutationError(400, 'a valid email is required')
   if (!VALID_ROLES.includes(role as Role)) throw new MutationError(400, `role must be one of ${VALID_ROLES.join(', ')}`)
+  await requireMemberRoom(workspaceId, { accepting: false })
 
   const { rows: workspaceRows } = await pool.query<{ name: string }>('SELECT name FROM workspaces WHERE id = $1', [
     workspaceId,
@@ -140,6 +142,11 @@ export async function acceptInviteForExistingUser(rawToken: string, userId: numb
   if (userRows[0]?.email !== invite.email) {
     throw new MutationError(403, 'this invite was sent to a different email address')
   }
+  const { rows: memberRows } = await pool.query('SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2', [
+    invite.workspace_id,
+    userId,
+  ])
+  if (memberRows.length === 0) await requireMemberRoom(invite.workspace_id, { accepting: true })
 
   await pool.query(
     `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)

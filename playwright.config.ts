@@ -32,7 +32,10 @@ export default defineConfig({
       // /api/__test__/last-email). Do not send them through Resend: its
       // test mode refuses the e2e addresses, and a refused email counts as
       // not sent (scrapeHealth.ts sends a not-sent alert again).
-      env: { RESEND_API_KEY: '' },
+      // New workspaces get the organization plan (no limits), so that the
+      // specs of paid features need no extra step. The plan specs set the
+      // plan that they test (setWorkspacePlan in e2e/fixtures.ts).
+      env: { RESEND_API_KEY: '', NEW_WORKSPACE_PLAN: 'organization' },
       url: 'http://localhost:4000/api/health',
       reuseExistingServer: true,
       timeout: 30_000,

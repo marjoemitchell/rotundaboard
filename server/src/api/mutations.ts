@@ -12,6 +12,7 @@ import { getBrief } from './queries.js'
 import { sendLayoutEmail } from '../auth/email.js'
 import { appBaseUrl, escapeHtml } from '../emailLayout.js'
 import { REMINDER_LEAD_HOURS } from '../alerts.js'
+import { requireFeature, requireTrackingRoom } from '../plans.js'
 
 export class MutationError extends Error {
   status: number
@@ -79,6 +80,13 @@ export async function trackBill(workspaceId: number, billId: number, userId: num
   const { rows } = await pool.query('SELECT id FROM bills WHERE id = $1', [billId])
   if (rows.length === 0) throw new MutationError(404, `bill ${billId} not found`)
 
+  const { rows: tracked } = await pool.query('SELECT 1 FROM tracked_bills WHERE workspace_id = $1 AND bill_id = $2', [
+    workspaceId,
+    billId,
+  ])
+  if (tracked.length > 0) return { billId, tracked: true }
+  await requireTrackingRoom(workspaceId)
+
   const { rowCount } = await pool.query(
     'INSERT INTO tracked_bills (workspace_id, bill_id) VALUES ($1, $2) ON CONFLICT (workspace_id, bill_id) DO NOTHING',
     [workspaceId, billId],
@@ -129,6 +137,7 @@ export async function createNote(
   sourceHearing: string | null,
 ) {
   if (!body?.trim()) throw new MutationError(400, 'body is required')
+  await requireFeature(workspaceId, 'notes')
   if (billId !== null) {
     const { rows } = await pool.query('SELECT id FROM bills WHERE id = $1', [billId])
     if (rows.length === 0) throw new MutationError(404, `bill ${billId} not found`)
@@ -245,6 +254,7 @@ export async function createTestimony(
   if (position !== null && !VALID_POSITIONS.includes(position as Position)) {
     throw new MutationError(400, `position must be one of ${VALID_POSITIONS.join(', ')}, or null`)
   }
+  await requireFeature(workspaceId, 'testimony')
   const { rows } = await pool.query('SELECT id FROM bills WHERE id = $1', [billId])
   if (rows.length === 0) throw new MutationError(404, `bill ${billId} not found`)
 
@@ -321,6 +331,7 @@ const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024
 
 export async function setTestimonyAttachment(workspaceId: number, id: number, filename: string, mimeType: string, dataBase64: string) {
   await requireTestimony(workspaceId, id)
+  await requireFeature(workspaceId, 'testimony')
   if (!filename?.trim()) throw new MutationError(400, 'filename is required')
   const buffer = Buffer.from(dataBase64, 'base64')
   if (buffer.length === 0) throw new MutationError(400, 'file is empty')

@@ -165,6 +165,8 @@ export interface BillDetail extends Bill {
   cosponsors: Cosponsor[]
   hearings: BillHearingRecord[]
   amendments: Amendment[]
+  /** True when the plan hides AI amendment summaries that exist. */
+  amendmentSummariesLocked: boolean
   textVersions: BillTextVersion[]
   /** Null for an LC draft. A draft gets a deadline category when it is introduced. */
   deadline: BillDeadline | null
@@ -352,9 +354,32 @@ export interface AuthWorkspace {
   role: Role
 }
 
+// Subscription plans. server/src/plans.ts defines them.
+export type PlanKey = 'free' | 'single_user' | 'team' | 'organization'
+export type PlanFeature = 'alerts' | 'notes' | 'testimony' | 'aiSummaries'
+
+export interface Plan {
+  key: PlanKey
+  label: string
+  /** Prices in whole US dollars. Null when the plan has no price of that kind. */
+  annualPrice: number | null
+  monthlyPrice: number | null
+  sessionPassPrice: number | null
+  /** Null means no limit. */
+  trackedBillLimit: number | null
+  memberLimit: number | null
+  features: Record<PlanFeature, boolean>
+}
+
+export interface PlanCatalog {
+  plans: Plan[]
+  current: PlanKey
+  usage: { trackedBills: number; members: number; pendingInvites: number }
+}
+
 export interface AuthSession {
   user: { id: number; email: string; name: string; initials: string; color: string }
-  currentWorkspace: { id: number; name: string } | null
+  currentWorkspace: { id: number; name: string; plan: Plan } | null
   role: Role | null
   workspaces: AuthWorkspace[]
 }
@@ -457,6 +482,8 @@ export interface Hearing extends HearingSummary {
   transcript: TranscriptSegment[]
   trackedTermMentions: number
   aiSummary: HearingAiSummary | null
+  /** The first sentence of the AI summary, when the plan hides the summary. */
+  aiSummaryTeaser: string | null
 }
 
 /** An AI summary of a hearing transcript. A time is in seconds from the start. */

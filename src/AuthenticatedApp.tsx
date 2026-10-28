@@ -23,6 +23,7 @@ import { CommitteeDetailPage } from './pages/CommitteeDetailPage'
 import { TrackingBoardPage } from './pages/TrackingBoardPage'
 import { TestimonyPage } from './pages/TestimonyPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { PlansPage } from './pages/PlansPage'
 import { HearingsPage } from './pages/HearingsPage'
 import { HearingTranscriptPage } from './pages/HearingTranscriptPage'
 import { BillComparePage } from './pages/BillComparePage'
@@ -422,6 +423,7 @@ export function AuthenticatedApp() {
             <Route path="/legislators/list" element={<LegislatorsPage />} />
             <Route path="/legislators/:id" element={<LegislatorDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/plans" element={<PlansPage />} />
             <Route path="/hearings" element={<HearingsPage />} />
             <Route path="/hearings/recordings/:id" element={<HearingTranscriptPage />} />
           </Routes>

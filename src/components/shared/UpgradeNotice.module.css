@@ -1,0 +1,18 @@
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  font-size: 15px;
+  color: var(--ink-2);
+  background: var(--soft);
+  border: 1px solid var(--border-2);
+}
+
+.link {
+  font-weight: 600;
+  color: var(--teal);
+  white-space: nowrap;
+}

@@ -28,6 +28,7 @@ import type {
   HearingSummary,
   NotificationPreferences,
   InviteLookup,
+  PlanCatalog,
   LegislativeSession,
   LegislatorDetail,
   LegislatorSummary,
@@ -78,10 +79,20 @@ async function sendJson<T>(path: string, method: 'POST' | 'PUT' | 'PATCH' | 'DEL
   })
   if (!res.ok) {
     const payload = await res.json().catch(() => ({ error: res.statusText }))
+    // 402: the plan does not allow the change. The message is for the user.
+    if (res.status === 402) throw new PlanLimitError(payload.error ?? 'Your plan does not include this.')
     throw new Error(`${method} ${path} -> ${res.status}: ${payload.error ?? 'unknown error'}`)
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
+}
+
+export class PlanLimitError extends Error {}
+
+// --- Plans -----------------------------------------------------------------
+
+export function getPlans(): Promise<PlanCatalog> {
+  return getJson('/api/plans')
 }
 
 // --- Auth ------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import * as client from '../data/client'
 import { useAuth } from '../auth/AuthContext'
 import type { LoadState, Role, WorkspaceInvite, WorkspaceMemberDetail } from '../types'
@@ -8,6 +8,8 @@ import { InitialsSquare } from '../components/shared/InitialsSquare'
 import { EmptyState } from '../components/shared/EmptyState'
 import { useConfirm } from '../hooks/useConfirm'
 import { AlertSettings } from '../components/AlertSettings'
+import { UpgradeNotice } from '../components/shared/UpgradeNotice'
+import { usePlan } from '../auth/usePlan'
 import styles from './SettingsPage.module.css'
 
 function InviteForm({ onCreate }: { onCreate: (email: string, role: Role) => Promise<void> }) {
@@ -153,6 +155,7 @@ export function SettingsPage() {
   const { session, logout } = useAuth()
   const navigate = useNavigate()
   const isAdmin = session?.role === 'admin'
+  const { plan, has } = usePlan()
   const workspaceId = session?.currentWorkspace?.id ?? null
   const currentUserId = session ? String(session.user.id) : null
 
@@ -271,10 +274,23 @@ export function SettingsPage() {
         <WorkspaceSection isAdmin={isAdmin} workspaceName={session.currentWorkspace.name} onRename={handleRename} />
       )}
 
+      {plan && (
+        <section className={styles.section} aria-label="Plan">
+          <h2 className={styles.sectionTitle}>Plan</h2>
+          <p className={styles.planLine}>
+            This workspace has the <b>{plan.label}</b> plan. <Link to="/plans">See the plans</Link>
+          </p>
+        </section>
+      )}
+
       {session && (
         <section className={styles.section} aria-label="Email alerts">
           <h2 className={styles.sectionTitle}>Email alerts</h2>
-          <AlertSettings email={session.user.email} />
+          {has('alerts') ? (
+            <AlertSettings email={session.user.email} />
+          ) : (
+            <UpgradeNotice message={`The ${plan?.label} plan does not include email alerts.`} />
+          )}
         </section>
       )}
 
@@ -316,7 +332,11 @@ export function SettingsPage() {
       {isAdmin && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Invite someone</h2>
-          <InviteForm onCreate={handleCreateInvite} />
+          {plan?.memberLimit === 1 ? (
+            <UpgradeNotice message={`The ${plan.label} plan is for 1 person. A Team plan can invite more people.`} />
+          ) : (
+            <InviteForm onCreate={handleCreateInvite} />
+          )}
         </section>
       )}
 

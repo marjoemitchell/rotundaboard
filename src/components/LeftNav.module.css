@@ -159,6 +159,17 @@
   color: var(--ink);
 }
 
+.planLink {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--teal);
+  text-decoration: none;
+}
+
+.planLink:hover {
+  text-decoration: underline;
+}
+
 .accountRow {
   display: flex;
   align-items: center;

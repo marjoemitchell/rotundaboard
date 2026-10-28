@@ -12,6 +12,7 @@ import { authRouter } from './auth.js'
 import { requireAuth, requireAdmin, SESSION_COOKIE_NAME } from './authMiddleware.js'
 import * as invites from './invites.js'
 import * as workspaces from './workspaces.js'
+import * as plans from '../plans.js'
 import { pool } from '../db.js'
 import { hashToken } from '../auth/tokens.js'
 import { getLastEmailTo } from '../auth/email.js'
@@ -417,6 +418,25 @@ route('/api/subject-watches', (req) => queries.getSubjectWatches(req.auth!.works
 route('/api/committees', (req) => queries.getNonStandingCommittees(req.auth!.workspaceId))
 route('/api/followed-committees', (req) => queries.getFollowedCommittees(req.auth!.workspaceId))
 route('/api/testimony', (req) => queries.getTestimony(req.auth!.workspaceId))
+// All plans, the plan of the current workspace, and what the workspace uses now.
+route('/api/plans', async (req) => ({
+  plans: plans.PLAN_KEYS.map((key) => plans.PLANS[key]),
+  current: (await plans.getWorkspacePlan(req.auth!.workspaceId)).key,
+  usage: await plans.getPlanUsage(req.auth!.workspaceId),
+}))
+
+// Dev and test only: set the plan of the current workspace. Payments do not
+// exist yet, so the e2e suite and local development use this route.
+if (process.env.NODE_ENV !== 'production') {
+  app.post('/api/__test__/workspace-plan', async (req, res) => {
+    try {
+      const { plan } = req.body as { plan: string }
+      res.json(await plans.setWorkspacePlan(req.auth!.workspaceId, plan))
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/workspace-plan', err)
+    }
+  })
+}
 
 app.get('/api/legislators/:id', async (req, res) => {
   const id = Number(req.params.id)
@@ -576,7 +596,8 @@ app.get('/api/bills/:id/amendment-documents/:documentId', async (req, res) => {
       res.status(404).json({ error: 'amendment text not found' })
       return
     }
-    res.json(result)
+    const showSummary = await plans.hasFeature(req.auth!.workspaceId, 'aiSummaries')
+    res.json(showSummary ? result : { ...result, summary: null })
   } catch (err) {
     handleError(res, `GET /api/bills/${req.params.id}/amendment-documents`, err)
   }
