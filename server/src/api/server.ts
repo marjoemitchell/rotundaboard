@@ -444,10 +444,12 @@ route('/api/notification-preferences', (req) =>
 
 app.patch('/api/notification-preferences', async (req, res) => {
   try {
-    const body = req.body as { delivery?: string; hearingReminders?: boolean }
+    const body = req.body as { delivery?: string; hearingReminderHours?: unknown }
     if (body.delivery !== undefined) await mutations.setAlertDelivery(req.auth!.userId, String(body.delivery))
-    if (body.hearingReminders !== undefined) await mutations.setHearingReminders(req.auth!.userId, Boolean(body.hearingReminders))
-    if (body.delivery === undefined && body.hearingReminders === undefined) {
+    if (body.hearingReminderHours !== undefined) {
+      await mutations.setHearingReminderHours(req.auth!.userId, body.hearingReminderHours)
+    }
+    if (body.delivery === undefined && body.hearingReminderHours === undefined) {
       res.status(400).json({ error: 'nothing to update' })
       return
     }

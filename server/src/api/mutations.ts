@@ -11,6 +11,7 @@ import { pool } from '../db.js'
 import { getBrief } from './queries.js'
 import { sendLayoutEmail } from '../auth/email.js'
 import { appBaseUrl, escapeHtml } from '../emailLayout.js'
+import { REMINDER_LEAD_HOURS } from '../alerts.js'
 
 export class MutationError extends Error {
   status: number
@@ -395,12 +396,17 @@ export async function setAlertDelivery(userId: number, delivery: string) {
   )
 }
 
-/** Turns the reminder about 24 hours before a hearing on or off for this user. */
-export async function setHearingReminders(userId: number, enabled: boolean) {
+/** Sets the lead times of the hearing reminders for this user. An empty list turns the reminders off. */
+export async function setHearingReminderHours(userId: number, hours: unknown) {
+  const allowed: readonly number[] = REMINDER_LEAD_HOURS
+  if (!Array.isArray(hours) || !hours.every((h) => allowed.includes(h))) {
+    throw new MutationError(400, `hearingReminderHours must be a list of ${REMINDER_LEAD_HOURS.join(', ')}`)
+  }
+  const sorted = [...new Set(hours as number[])].sort((a, b) => a - b)
   await pool.query(
-    `INSERT INTO notification_preferences (user_id, delivery, hearing_reminders) VALUES ($1, 'immediate', $2)
-     ON CONFLICT (user_id) DO UPDATE SET hearing_reminders = $2, updated_at = now()`,
-    [userId, enabled],
+    `INSERT INTO notification_preferences (user_id, delivery, hearing_reminder_hours) VALUES ($1, 'immediate', $2)
+     ON CONFLICT (user_id) DO UPDATE SET hearing_reminder_hours = $2, updated_at = now()`,
+    [userId, sorted],
   )
 }
 

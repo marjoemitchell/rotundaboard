@@ -31,7 +31,12 @@ const OLD_STATUS_DAYS = 7
 // agenda is canceled, and the hearing is still in the schedule.
 const HEARING_ACTIVE =
   "(coalesce(cm.status, '') <> 'CANCELED' AND coalesce(cbh.status, '') <> 'CANCELED' AND cbh.removed_at IS NULL)"
-const REMINDER_HOURS = 25
+// The lead times that a person can choose for hearing reminders, in hours
+// before the hearing. Sorted from the shortest to the longest.
+export const REMINDER_LEAD_HOURS = [2, 24, 48] as const
+// The hearing schedule refreshes one time each hour, so a reminder can be up
+// to this many hours earlier than its lead time.
+const REMINDER_SLACK_HOURS = 1
 const REMINDER_MIN_NOTICE_HOURS = 6
 // The maximum time that an amendment alert waits for the amendment summary.
 const AMENDMENT_SUMMARY_WAIT_HOURS = 12
@@ -122,24 +127,7 @@ async function detectChanges(): Promise<{ newEventIds: number[]; baseline: boole
        )
      ON CONFLICT (key) DO NOTHING
      RETURNING id`,
-    // A reminder in the last ${REMINDER_HOURS} hours before a hearing. Not for
-    // a hearing that was announced less than ${REMINDER_MIN_NOTICE_HOURS} hours
-    // ago: that announcement is recent enough.
-    `INSERT INTO change_events (key, kind, variant, bill_id, summary, detail, occurred_at, baseline)
-     SELECT 'hearing-reminder:' || cbh.id || ':' || cm.meeting_time, 'bill_hearing', 'reminder', cbh.bill_id,
-            'Hearing reminder' || coalesce(': ' || sc.name, ''), cm.location, cm.meeting_time, $1
-     FROM committee_bill_hearings cbh
-     JOIN committee_meetings cm ON cm.id = cbh.committee_meeting_id
-     LEFT JOIN standing_committees sc ON sc.id = cm.standing_committee_id
-     WHERE cm.meeting_time BETWEEN ${NOW_MT} AND ${NOW_MT} + interval '${REMINDER_HOURS} hours'
-       AND ${HEARING_ACTIVE}
-       AND EXISTS (
-         SELECT 1 FROM change_events e
-         WHERE e.key = 'hearing:' || cbh.id || ':' || cm.meeting_time
-           AND e.detected_at < now() - interval '${REMINDER_MIN_NOTICE_HOURS} hours'
-       )
-     ON CONFLICT (key) DO NOTHING
-     RETURNING id`,
+    ...REMINDER_LEAD_HOURS.map(reminderStatement),
     `INSERT INTO change_events (key, kind, variant, committee_id, summary, detail, occurred_at, baseline)
      SELECT 'meeting:' || m.id || ':' || m.meeting_time, 'committee_meeting',
             CASE WHEN EXISTS (SELECT 1 FROM change_events e WHERE e.ref = 'meeting:' || m.id)
@@ -179,6 +167,37 @@ async function detectChanges(): Promise<{ newEventIds: number[]; baseline: boole
   return { newEventIds, baseline }
 }
 
+// The statement that records the reminders for one lead time. The windows
+// of the lead times do not overlap, so one run records a maximum of one
+// reminder for each hearing. The statement skips the reminder in these
+// conditions:
+//
+//   - The announcement of the hearing came after the time of the reminder.
+//     The announcement email then gives the same information.
+//   - The announcement came less than REMINDER_MIN_NOTICE_HOURS ago. The
+//     person read about the hearing recently.
+function reminderStatement(hours: number, index: number): string {
+  const after = index === 0 ? 0 : REMINDER_LEAD_HOURS[index - 1] + REMINDER_SLACK_HOURS
+  const until = hours + REMINDER_SLACK_HOURS
+  return `INSERT INTO change_events (key, kind, variant, reminder_hours, bill_id, summary, detail, occurred_at, baseline)
+     SELECT 'hearing-reminder:' || cbh.id || ':' || cm.meeting_time || ':${hours}h', 'bill_hearing', 'reminder', ${hours},
+            cbh.bill_id, 'Hearing reminder' || coalesce(': ' || sc.name, ''), cm.location, cm.meeting_time, $1
+     FROM committee_bill_hearings cbh
+     JOIN committee_meetings cm ON cm.id = cbh.committee_meeting_id
+     LEFT JOIN standing_committees sc ON sc.id = cm.standing_committee_id
+     WHERE cm.meeting_time > ${NOW_MT} + interval '${after} hours'
+       AND cm.meeting_time <= ${NOW_MT} + interval '${until} hours'
+       AND ${HEARING_ACTIVE}
+       AND EXISTS (
+         SELECT 1 FROM change_events e
+         WHERE e.key = 'hearing:' || cbh.id || ':' || cm.meeting_time
+           AND e.detected_at < now() - interval '${REMINDER_MIN_NOTICE_HOURS} hours'
+           AND e.detected_at < (cm.meeting_time - interval '${hours} hours') AT TIME ZONE 'America/Denver'
+       )
+     ON CONFLICT (key) DO NOTHING
+     RETURNING id`
+}
+
 // ---------------------------------------------------------------- match + queue
 
 async function queueDeliveries(eventIds: number[]): Promise<number> {
@@ -209,7 +228,7 @@ async function queueDeliveries(eventIds: number[]): Promise<number> {
      JOIN workspace_members wm ON wm.workspace_id = m.workspace_id
      LEFT JOIN notification_preferences np ON np.user_id = wm.user_id
      WHERE coalesce(np.delivery, $2) <> 'off'
-       AND NOT (ce.variant = 'reminder' AND coalesce(np.hearing_reminders, true) = false)
+       AND (ce.variant IS DISTINCT FROM 'reminder' OR ce.reminder_hours = ANY(coalesce(np.hearing_reminder_hours, '{24}')))
        AND NOT EXISTS (
          SELECT 1 FROM alert_mutes am
          WHERE am.user_id = wm.user_id AND am.workspace_id = m.workspace_id

@@ -1973,8 +1973,8 @@ export async function getTestimonyAttachment(id: number, workspaceId: number) {
 
 export async function getNotificationPreferences(userId: number, workspaceId: number) {
   const [{ rows: prefRows }, { rows: muteRows }, { rows: watchRows }, { rows: committeeRows }] = await Promise.all([
-    pool.query<{ delivery: string; hearing_reminders: boolean }>(
-      'SELECT delivery, hearing_reminders FROM notification_preferences WHERE user_id = $1',
+    pool.query<{ delivery: string; hearing_reminder_hours: number[] }>(
+      'SELECT delivery, hearing_reminder_hours FROM notification_preferences WHERE user_id = $1',
       [userId],
     ),
     pool.query<{ watch_type: string; watch_id: number }>(
@@ -1995,7 +1995,7 @@ export async function getNotificationPreferences(userId: number, workspaceId: nu
   const muted = new Set(muteRows.map((m) => `${m.watch_type}:${m.watch_id}`))
   return {
     delivery: (prefRows[0]?.delivery ?? 'immediate') as 'immediate' | 'daily' | 'off',
-    hearingReminders: prefRows[0]?.hearing_reminders ?? true,
+    hearingReminderHours: prefRows[0]?.hearing_reminder_hours ?? [24],
     trackedBills: !muted.has('tracked_bills:0'),
     subjectWatches: watchRows.map((w) => ({ id: String(w.id), name: w.name, enabled: !muted.has(`subject_watch:${w.id}`) })),
     followedCommittees: committeeRows.map((c) => ({
