@@ -90,6 +90,18 @@
   color: var(--accent);
 }
 
+/* The previous week or month while the next one loads. */
+.loading {
+  opacity: 0.55;
+  transition: opacity 120ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading {
+    transition: none;
+  }
+}
+
 /* Week */
 .week {
   display: grid;
