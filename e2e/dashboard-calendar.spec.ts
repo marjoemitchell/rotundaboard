@@ -68,6 +68,38 @@ test.describe('dashboard calendar', () => {
     await expect(page.getByRole('dialog', { name: `${bill.identifier} details` })).toBeVisible()
   })
 
+  test('while the next week loads, the calendar keeps the current week, so the page below does not jump', async ({
+    page,
+  }) => {
+    const { room } = await setUpEvents(page)
+    // Hold back the response for every week except the current one.
+    const monday = new Date(`${todayInMontana()}T00:00:00Z`)
+    monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7))
+    const thisWeek = monday.toISOString().slice(0, 10)
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    await page.route('**/api/calendar?**', async (route) => {
+      if (new URL(route.request().url()).searchParams.get('from') !== thisWeek) await held
+      await route.continue()
+    })
+
+    await page.goto('/')
+    const calendar = page.getByRole('region', { name: 'Calendar' })
+    const chip = calendar.getByRole('button', { name: room })
+    await expect(chip).toBeVisible()
+    const height = (await calendar.boundingBox())!.height
+
+    await calendar.getByRole('button', { name: 'Next week' }).click()
+    await expect(calendar).not.toContainText('This week')
+    // The current week stays until the next week is loaded.
+    await expect(chip).toBeVisible()
+    expect((await calendar.boundingBox())!.height).toBe(height)
+
+    release()
+    await expect(chip).toHaveCount(0)
+    await expect(calendar.getByRole('group', { name: dayLabel(todayInMontana()) })).toHaveCount(0)
+  })
+
   test('"Next week" and "Today" move the week', async ({ page }) => {
     await signUpFreshWorkspace(page)
     await page.goto('/')

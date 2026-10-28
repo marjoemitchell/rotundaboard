@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as client from '../../data/client'
-import type { CalendarEvent, LoadState } from '../../types'
+import type { CalendarEvent } from '../../types'
 import {
   addDays,
   addMonths,
@@ -22,26 +22,47 @@ import styles from './DashboardCalendar.module.css'
 // The number of events that a day of the month view shows before "+N more".
 const MONTH_CELL_EVENTS = 3
 
-function useCalendar(from: string, to: string): LoadState<CalendarEvent[]> {
-  const [state, setState] = useState<LoadState<CalendarEvent[]>>({ status: 'loading' })
-  useEffect(() => {
-    let current = true
-    setState({ status: 'loading' })
-    client
-      .getCalendar(from, to)
-      .then(({ events }) => current && setState(events.length === 0 ? { status: 'empty' } : { status: 'ready', data: events }))
-      .catch(() => current && setState({ status: 'empty' }))
-    return () => {
-      current = false
-    }
-  }, [from, to])
-  return state
+interface Shown {
+  from: string
+  events: CalendarEvent[]
 }
 
-function byDay(events: LoadState<CalendarEvent[]>): Map<string, CalendarEvent[]> {
+// Loads the events of a date range, and keeps each loaded range in memory.
+// While a new range loads, "shown" stays the previous range. The calendar then
+// does not become empty for a moment, and the page below it does not jump.
+// "load" also loads a range ahead of time, for example the next week.
+function useCalendar(from: string, to: string): { shown: Shown | null; loading: boolean; load: (from: string, to: string) => void } {
+  const loaded = useRef(new Map<string, CalendarEvent[]>())
+  const pending = useRef(new Set<string>())
+  const last = useRef<Shown | null>(null)
+  const [, setVersion] = useState(0)
+
+  const load = useCallback((f: string, t: string) => {
+    const key = `${f}/${t}`
+    if (loaded.current.has(key) || pending.current.has(key)) return
+    pending.current.add(key)
+    client
+      .getCalendar(f, t)
+      .then(
+        ({ events }) => loaded.current.set(key, events),
+        () => loaded.current.set(key, []),
+      )
+      .finally(() => {
+        pending.current.delete(key)
+        setVersion((v) => v + 1)
+      })
+  }, [])
+
+  useEffect(() => load(from, to), [from, to, load])
+
+  const events = loaded.current.get(`${from}/${to}`)
+  if (events) last.current = { from, events }
+  return { shown: last.current, loading: !events, load }
+}
+
+function byDay(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
   const map = new Map<string, CalendarEvent[]>()
-  if (events.status !== 'ready') return map
-  for (const e of events.data) map.set(eventDay(e), [...(map.get(eventDay(e)) ?? []), e])
+  for (const e of events) map.set(eventDay(e), [...(map.get(eventDay(e)) ?? []), e])
   return map
 }
 
@@ -159,10 +180,22 @@ function MonthDialog({
   onPickWeek: (day: string) => void
 }) {
   const [month, setMonth] = useState(initialMonth)
-  const days = monthGridDays(month)
-  const events = useCalendar(days[0], days[days.length - 1])
-  const grouped = byDay(events)
-  const monthEvents = events.status === 'ready' ? events.data.filter((e) => eventDay(e).startsWith(month.slice(0, 7))) : []
+  const target = monthGridDays(month)
+  const { shown, loading, load } = useCalendar(target[0], target[41])
+  // Load the months before and after ahead of time.
+  useEffect(() => {
+    if (loading) return
+    for (const m of [addMonths(month, -1), addMonths(month, 1)]) {
+      const days = monthGridDays(m)
+      load(days[0], days[41])
+    }
+  }, [month, loading, load])
+  // The grid shows the loaded month. The second week is always in that month.
+  const shownMonth = shown ? monthStart(addDays(shown.from, 7)) : month
+  const days = monthGridDays(shownMonth)
+  const shownEvents = shown?.events ?? []
+  const grouped = byDay(shownEvents)
+  const monthEvents = shownEvents.filter((e) => eventDay(e).startsWith(shownMonth.slice(0, 7)))
   const label = formatDay(month, { month: 'long', year: 'numeric' })
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => ref.current?.focus(), [])
@@ -194,14 +227,23 @@ function MonthDialog({
             )}
           </div>
           <div className={styles.headActions}>
-            <AddToCalendar events={monthEvents} filename={`rotunda-board-${month.slice(0, 7)}.ics`} label="Add month to calendar" />
+            <AddToCalendar
+              events={loading ? [] : monthEvents}
+              filename={`rotunda-board-${month.slice(0, 7)}.ics`}
+              label="Add month to calendar"
+            />
             <button className={styles.close} onClick={onClose} aria-label="Close">
               ×
             </button>
           </div>
         </div>
 
-        <div className={styles.monthGrid} role="grid" aria-label={label} aria-busy={events.status === 'loading'}>
+        <div
+          className={`${styles.monthGrid} ${loading && shown ? styles.loading : ''}`}
+          role="grid"
+          aria-label={label}
+          aria-busy={loading}
+        >
           <div role="row" className={styles.monthRow}>
             {days.slice(0, 7).map((d) => (
               <div key={d} role="columnheader" className={styles.weekdayHead}>
@@ -214,7 +256,7 @@ function MonthDialog({
               {days.slice(w * 7, w * 7 + 7).map((d) => {
                 const dayEvents = grouped.get(d) ?? []
                 const extra = dayEvents.length - MONTH_CELL_EVENTS
-                const outside = d.slice(0, 7) !== month.slice(0, 7)
+                const outside = d.slice(0, 7) !== shownMonth.slice(0, 7)
                 return (
                   <div
                     key={d}
@@ -239,7 +281,7 @@ function MonthDialog({
             </div>
           ))}
         </div>
-        {events.status === 'empty' && (
+        {shown && monthEvents.length === 0 && (
           <p className={styles.emptyNote}>No hearings of tracked bills or meetings of followed committees in this month.</p>
         )}
       </div>
@@ -252,9 +294,19 @@ function MonthDialog({
 export function DashboardCalendar({ onSelectBill }: { onSelectBill: (id: string) => void }) {
   const today = todayInMontana()
   const [start, setStart] = useState(() => weekStart(today))
-  const days = weekDays(start)
-  const events = useCalendar(days[0], days[6])
-  const grouped = byDay(events)
+  const target = weekDays(start)
+  const { shown, loading, load } = useCalendar(target[0], target[6])
+  // Load the weeks before and after ahead of time, so that the arrows change
+  // the week at once.
+  useEffect(() => {
+    if (loading) return
+    load(addDays(start, -7), addDays(start, -1))
+    load(addDays(start, 7), addDays(start, 13))
+  }, [start, loading, load])
+  // The grid shows the loaded week. The header shows the chosen week at once.
+  const days = shown ? weekDays(shown.from) : target
+  const weekEvents = shown?.events ?? []
+  const grouped = byDay(weekEvents)
   const [selected, setSelected] = useState<CalendarEvent | null>(null)
   const [monthOpen, setMonthOpen] = useState(false)
   const monthButton = useRef<HTMLButtonElement>(null)
@@ -275,7 +327,6 @@ export function DashboardCalendar({ onSelectBill }: { onSelectBill: (id: string)
   }, [selected, monthOpen])
 
   const thisWeek = start === weekStart(today)
-  const weekEvents = events.status === 'ready' ? events.data : []
 
   return (
     <section className={styles.card} aria-label="Calendar">
@@ -285,7 +336,7 @@ export function DashboardCalendar({ onSelectBill }: { onSelectBill: (id: string)
           <button className={styles.navButton} onClick={() => setStart(addDays(start, -7))} aria-label="Previous week">
             ‹
           </button>
-          <span className={styles.range}>{formatRange(days[0], days[6])}</span>
+          <span className={styles.range}>{formatRange(target[0], target[6])}</span>
           <button className={styles.navButton} onClick={() => setStart(addDays(start, 7))} aria-label="Next week">
             ›
           </button>
@@ -296,14 +347,18 @@ export function DashboardCalendar({ onSelectBill }: { onSelectBill: (id: string)
           )}
         </div>
         <div className={styles.headActions}>
-          <AddToCalendar events={weekEvents} filename={`rotunda-board-week-${start}.ics`} label="Add week to calendar" />
+          <AddToCalendar
+            events={loading ? [] : weekEvents}
+            filename={`rotunda-board-week-${start}.ics`}
+            label="Add week to calendar"
+          />
           <button ref={monthButton} className={styles.monthButton} onClick={() => setMonthOpen(true)}>
             Month
           </button>
         </div>
       </div>
 
-      <div className={styles.week} aria-busy={events.status === 'loading'}>
+      <div className={`${styles.week} ${loading && shown ? styles.loading : ''}`} aria-busy={loading}>
         {days.map((d) => {
           const dayEvents = grouped.get(d) ?? []
           return (
@@ -324,7 +379,7 @@ export function DashboardCalendar({ onSelectBill }: { onSelectBill: (id: string)
           )
         })}
       </div>
-      {events.status === 'empty' && (
+      {shown && weekEvents.length === 0 && (
         <p className={styles.emptyNote}>
           Nothing this week. Hearings of your tracked bills and meetings of your{' '}
           <Link to="/committees">followed committees</Link> show here.
