@@ -623,23 +623,19 @@ export interface FilterOptions {
   parties: string[]
 }
 
-/** A meeting of a followed committee in the next 30 days (dashboard "Coming up"). */
-export interface UpcomingMeeting {
+export interface CalendarEvent {
   id: string
-  committeeId: string
-  committee: string
-  datetime: string
+  /** "hearing": a hearing of tracked bills. "meeting": a meeting of a followed committee. */
+  kind: 'hearing' | 'meeting'
+  title: string
+  /** Naive Montana time, "YYYY-MM-DD HH:MM:SS". */
+  start: string
+  end: string | null
   location: string | null
-  /** Tracked bills that the agenda names. */
-  trackedBillIds: string[]
-  /** Subjects of subject watches that the agenda names. */
-  watchSubjects: string[]
-}
-
-export interface UpcomingMeetings {
-  meetings: UpcomingMeeting[]
-  /** Followed committees with no meeting in the next 30 days. */
-  idleFollowedCount: number
+  /** The followed committee of a meeting. */
+  committeeId: string | null
+  /** The tracked bills on the agenda. */
+  bills: { id: string; identifier: string; title: string | null }[]
 }
 
 export interface SuggestedBill {

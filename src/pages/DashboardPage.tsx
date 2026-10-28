@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { DashboardData } from '../hooks/useDashboardData'
 import * as client from '../data/client'
@@ -12,14 +12,17 @@ import { AIBrief } from '../components/rail/AIBrief'
 import { HearingAudio, type ClipPayload } from '../components/rail/HearingAudio'
 import { TeamBoard } from '../components/rail/TeamBoard'
 import { MomentumModel, MomentumModelToggle } from '../components/rail/MomentumModel'
-import { SetupChecklist, SETUP_TRACK_TARGET, readSetupDismissed, storeSetupDismissed } from '../components/dashboard/SetupChecklist'
+import { DashboardCalendar } from '../components/dashboard/DashboardCalendar'
 import { SuggestedDrafts } from '../components/dashboard/SuggestedDrafts'
-import { ComingUp } from '../components/dashboard/ComingUp'
 import type { Bill, FilterState, HearingSummary, LoadState, SuggestedBill } from '../types'
 import { formatClock, plural } from '../lib/format'
 import { isClosed } from '../lib/bills'
 import { clipToNote } from '../lib/hearings'
 import styles from '../App.module.css'
+
+// With fewer active tracked bills than this, the dashboard shows suggestions
+// to track first, and no "Moving now".
+const SPARSE_TRACK_TARGET = 5
 
 function readMomentumPreference(): boolean {
   try {
@@ -100,26 +103,13 @@ export function DashboardPage({
         ? { status: 'empty' }
         : { status: 'ready', data: split.active }
 
-  // Sparse mode: the team tracks fewer than SETUP_TRACK_TARGET active bills.
+  // Sparse mode: the team tracks fewer than SPARSE_TRACK_TARGET active bills.
   // The check uses the unfiltered list: a filter that hides all bills shows
-  // the table's "no matches" state, not the setup cards.
+  // the table's "no matches" state, not the suggestions.
   const allTracked = data.bills.status === 'ready' ? data.bills.data : []
   const activeCount = allTracked.filter((b) => !isClosed(b)).length
   const hasAnyTracked = allTracked.length > 0
-  const sparse = data.bills.status === 'empty' || (data.bills.status === 'ready' && activeCount < SETUP_TRACK_TARGET)
-  const missingPositions = allTracked.filter((b) => !isClosed(b) && !b.position).length
-  const watchCount = data.navCounts.status === 'ready' ? data.navCounts.data.subjectWatches : 0
-  const memberCount = data.teamMembers.status === 'ready' ? data.teamMembers.data.length : 0
-
-  // When all four setup steps are done, the card hides for good.
-  const setupComplete = activeCount >= SETUP_TRACK_TARGET && watchCount > 0 && missingPositions === 0 && memberCount >= 2
-  const [setupDismissed] = useState(readSetupDismissed)
-  useEffect(() => {
-    if (setupComplete) storeSetupDismissed()
-  }, [setupComplete])
-  const showSetup = !setupDismissed && !setupComplete
-
-  const suggestionsRef = useRef<HTMLElement>(null)
+  const sparse = data.bills.status === 'empty' || (data.bills.status === 'ready' && activeCount < SPARSE_TRACK_TARGET)
   const handleTrackSuggestion = async (bill: SuggestedBill) => {
     try {
       await onTrackBill(bill.id)
@@ -186,25 +176,15 @@ export function DashboardPage({
         <div className={styles.primary}>
           {sparse ? (
             <>
-              {showSetup && (
-                <SetupChecklist
-                  activeCount={activeCount}
-                  watchCount={watchCount}
-                  missingPositions={missingPositions}
-                  memberCount={memberCount}
-                  onFindBills={() => suggestionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                  onShowMissingPositions={() => onSetFilter('position', 'none')}
-                />
-              )}
-              <SuggestedDrafts ref={suggestionsRef} onTrack={handleTrackSuggestion} />
-              <ComingUp upcoming={data.upcomingMeetings} />
+              <DashboardCalendar onSelectBill={onSelectBill} />
+              <SuggestedDrafts onTrack={handleTrackSuggestion} />
               {hasAnyTracked && table}
             </>
           ) : (
             <>
+              <DashboardCalendar onSelectBill={onSelectBill} />
               <MovingNow bills={activeBills} onSelectBill={onSelectBill} />
               {table}
-              <ComingUp upcoming={data.upcomingMeetings} />
             </>
           )}
         </div>
