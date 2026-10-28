@@ -18,7 +18,7 @@ import type {
   FilterOptions,
   LegislatorMap,
   SuggestedBills,
-  UpcomingMeetings,
+  CalendarEvent,
   Brief,
   FollowedCommittee,
   AlertDelivery,
@@ -244,8 +244,8 @@ export function deleteSavedView(id: string): Promise<void> {
   return sendJson(`/api/saved-views/${id}`, 'DELETE')
 }
 
-export function getUpcomingMeetings(): Promise<UpcomingMeetings> {
-  return getJson('/api/upcoming-meetings')
+export function getCalendar(from: string, to: string): Promise<{ events: CalendarEvent[] }> {
+  return getJson(`/api/calendar?from=${from}&to=${to}`)
 }
 
 export function getSuggestedBills({ limit = 5 }: { limit?: number } = {}): Promise<SuggestedBills> {

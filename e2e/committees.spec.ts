@@ -20,7 +20,7 @@ test.describe('interim committees', () => {
     await expect(page.locator('div[class^="_row_"]', { hasText: name })).toBeVisible()
   })
 
-  test('a followed committee changes the dashboard "Coming up" list, and unfollowing from the detail page works', async ({
+  test('a committee can be followed and unfollowed from the detail page', async ({
     page,
   }) => {
     await signUpFreshWorkspace(page)
@@ -29,6 +29,7 @@ test.describe('interim committees', () => {
     const name = (await firstRow.locator('[class*="rowName"]').textContent())?.trim() ?? ''
     await firstRow.locator('a[class*="rowMain"]').click()
     await page.waitForURL(/\/committees\/.+/)
+    await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible()
 
     // committees.legmt.gov is a hash-routed SPA — a plain-path link 404s at
     // the server before React Router ever sees it, so the href must keep
@@ -39,15 +40,10 @@ test.describe('interim committees', () => {
     await page.locator('button', { hasText: '+ Follow' }).click()
     await expect(page.locator('button', { hasText: 'Following' })).toBeVisible()
 
-    // With a meeting in the next 30 days, the committee is a row. Without
-    // one, the list says that no followed committee meets soon.
-    await page.goto('/')
-    const comingUp = page.getByRole('region', { name: 'Coming up' })
-    await expect(comingUp.getByRole('link', { name }).or(comingUp.getByText('No followed committees meet in the next 30 days.'))).toBeVisible()
-    await expect(comingUp.getByText('Follow an interim committee to see its meetings here.')).toHaveCount(0)
-
-    await page.goBack()
-    await page.waitForURL(/\/committees\/.+/)
+    // The server saves the follow, so it stays after a reload. The dashboard
+    // calendar then shows the meetings of the committee (see dashboard-calendar.spec.ts).
+    await page.reload()
+    await expect(page.locator('button', { hasText: 'Following' })).toBeVisible()
     await page.locator('button', { hasText: 'Following' }).click()
     await expect(page.locator('button', { hasText: '+ Follow' })).toBeVisible()
   })

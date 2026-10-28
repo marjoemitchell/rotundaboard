@@ -394,7 +394,17 @@ function route(path: string, handler: (req: Request) => Promise<unknown>) {
 route('/api/session-calendar', (req) => queries.getSessionCalendar(req.auth!.workspaceId))
 route('/api/bills', (req) => queries.getBills(req.auth!.workspaceId))
 route('/api/brief', (req) => queries.getBrief(req.auth!.workspaceId))
-route('/api/upcoming-meetings', (req) => queries.getUpcomingMeetings(req.auth!.workspaceId))
+// The calendar of the dashboard. "from" and "to" are dates (YYYY-MM-DD). The
+// range is a maximum of 62 days: the month view shows 6 weeks.
+route('/api/calendar', async (req) => {
+  const date = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)
+  const from = date(req.query.from)
+  const to = date(req.query.to)
+  if (!from || !to || to < from || Date.parse(to) - Date.parse(from) > 62 * 86_400_000) {
+    throw new MutationError(400, 'from and to must be dates (YYYY-MM-DD), a maximum of 62 days apart')
+  }
+  return queries.getCalendar(req.auth!.workspaceId, from, to)
+})
 route('/api/suggested-bills', (req) =>
   queries.getSuggestedBills(req.auth!.workspaceId, Math.min(Math.max(Number(req.query.limit) || 5, 1), 10)),
 )

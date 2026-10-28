@@ -2033,66 +2033,98 @@ export async function getFilterOptions() {
   }
 }
 
-// The dashboard "Coming up" list: meetings of the followed committees in the
-// next 30 days. A badge shows when the agenda names a tracked bill or a
-// subject of a subject watch.
-export async function getUpcomingMeetings(workspaceId: number) {
-  const [{ rows }, patterns, { rows: watchSubjects }, { rows: idle }] = await Promise.all([
+// The dashboard calendar: the hearings of the tracked bills and the meetings
+// of the followed committees, from the date "from" to the date "to" (both
+// included). One hearing event is one committee meeting. Each event lists
+// the tracked bills on its agenda. The times are naive Montana times.
+export async function getCalendar(workspaceId: number, from: string, to: string) {
+  const [{ rows: hearings }, { rows: meetings }, patterns, { rows: tracked }] = await Promise.all([
+    pool.query<{
+      meeting_id: number
+      committee: string | null
+      meeting_time: string
+      location: string | null
+      bills: { id: number; type: string | null; number: number | null; draft: string; title: string | null }[]
+    }>(
+      `SELECT cm.id AS meeting_id, sc.name AS committee, cm.meeting_time, cm.location,
+              json_agg(json_build_object('id', b.id, 'type', bt.code, 'number', b.bill_number,
+                                         'draft', d.draft_number, 'title', d.short_title)
+                       ORDER BY bt.code, b.bill_number, d.draft_number) AS bills
+       FROM committee_bill_hearings cbh
+       JOIN committee_meetings cm ON cm.id = cbh.committee_meeting_id
+       LEFT JOIN standing_committees sc ON sc.id = cm.standing_committee_id
+       JOIN tracked_bills tb ON tb.bill_id = cbh.bill_id AND tb.workspace_id = $1
+       JOIN bills b ON b.id = cbh.bill_id
+       JOIN drafts d ON d.id = b.draft_id
+       LEFT JOIN bill_types bt ON bt.id = b.bill_type_id
+       WHERE cm.meeting_time >= $2::date AND cm.meeting_time < $3::date + 1
+         AND coalesce(cm.status, '') <> 'CANCELED' AND coalesce(cbh.status, '') <> 'CANCELED'
+         AND cbh.removed_at IS NULL
+       GROUP BY cm.id, sc.name
+       ORDER BY cm.meeting_time`,
+      [workspaceId, from, to],
+    ),
     pool.query<{
       id: number
       committee_id: number
       committee: string
       meeting_time: string
+      meeting_end_time: string | null
       location: string | null
       agenda_items: { title?: string | null; description?: string | null }[] | null
     }>(
-      `SELECT m.id, nsc.id AS committee_id, nsc.name AS committee, m.meeting_time, m.location, m.agenda_items
+      `SELECT m.id, nsc.id AS committee_id, nsc.name AS committee, m.meeting_time, m.meeting_end_time, m.location,
+              m.agenda_items
        FROM non_standing_committee_meetings m
        JOIN non_standing_committees nsc ON nsc.id = m.non_standing_committee_id
        JOIN followed_committees fc ON fc.committee_id = nsc.id AND fc.workspace_id = $1
-       WHERE m.meeting_time BETWEEN ${NOW_MT} AND ${NOW_MT} + interval '30 days'
+       WHERE m.meeting_time >= $2::date AND m.meeting_time < $3::date + 1
          AND coalesce(m.status, '') <> 'CANCELED'
        ORDER BY m.meeting_time`,
-      [workspaceId],
+      [workspaceId, from, to],
     ),
+    // An interim committee agenda names bills only in its text.
     trackedBillPatterns(workspaceId),
-    pool.query<{ description: string }>(
-      `SELECT DISTINCT sc.description
-       FROM subject_watches w JOIN subject_codes sc ON sc.code = ANY(w.subject_codes)
-       WHERE w.workspace_id = $1 AND sc.description IS NOT NULL`,
-      [workspaceId],
-    ),
-    // Followed committees with no meeting in the next 30 days.
-    pool.query<{ n: string }>(
-      `SELECT count(*) AS n FROM followed_committees fc
-       WHERE fc.workspace_id = $1 AND NOT EXISTS (
-         SELECT 1 FROM non_standing_committee_meetings m
-         WHERE m.non_standing_committee_id = fc.committee_id
-           AND m.meeting_time BETWEEN ${NOW_MT} AND ${NOW_MT} + interval '30 days'
-           AND coalesce(m.status, '') <> 'CANCELED')`,
+    pool.query<{ id: number; type: string | null; number: number | null; draft: string; title: string | null }>(
+      `SELECT b.id, bt.code AS type, b.bill_number AS number, d.draft_number AS draft, d.short_title AS title
+       FROM tracked_bills tb
+       JOIN bills b ON b.id = tb.bill_id
+       JOIN drafts d ON d.id = b.draft_id
+       LEFT JOIN bill_types bt ON bt.id = b.bill_type_id
+       WHERE tb.workspace_id = $1`,
       [workspaceId],
     ),
   ])
-  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const subjectPatterns = watchSubjects.map((w) => ({
-    subject: w.description,
-    pattern: new RegExp(`\\b${escape(w.description)}\\b`, 'i'),
-  }))
-  return {
-    meetings: rows.map((r) => {
-      const agenda = (r.agenda_items ?? []).map((a) => `${a.title ?? ''} ${a.description ?? ''}`).join('\n')
-      return {
-        id: String(r.id),
-        committeeId: String(r.committee_id),
-        committee: r.committee,
-        datetime: r.meeting_time,
-        location: r.location,
-        trackedBillIds: patterns.filter((p) => p.pattern.test(agenda)).map((p) => p.billId),
-        watchSubjects: subjectPatterns.filter((s) => s.pattern.test(agenda)).map((s) => s.subject),
-      }
-    }),
-    idleFollowedCount: Number(idle[0]?.n ?? 0),
+  const trackedById = new Map(
+    tracked.map((b) => [String(b.id), { id: String(b.id), identifier: formatIdentifier(b.type, b.number, b.draft), title: b.title }]),
+  )
+  const agendaBills = (agenda: { title?: string | null; description?: string | null }[] | null) => {
+    const text = (agenda ?? []).map((a) => `${a.title ?? ''} ${a.description ?? ''}`).join('\n')
+    return patterns.filter((p) => p.pattern.test(text)).flatMap((p) => trackedById.get(p.billId) ?? [])
   }
+  const events = [
+    ...hearings.map((h) => ({
+      id: `hearing-${h.meeting_id}`,
+      kind: 'hearing' as const,
+      title: h.committee ? `${h.committee} hearing` : 'Committee hearing',
+      start: h.meeting_time,
+      end: null,
+      location: h.location,
+      committeeId: null,
+      bills: h.bills.map((b) => ({ id: String(b.id), identifier: formatIdentifier(b.type, b.number, b.draft), title: b.title })),
+    })),
+    ...meetings.map((m) => ({
+      id: `meeting-${m.id}`,
+      kind: 'meeting' as const,
+      title: m.committee,
+      start: m.meeting_time,
+      end: m.meeting_end_time,
+      location: m.location,
+      committeeId: String(m.committee_id),
+      bills: agendaBills(m.agenda_items),
+    })),
+  ]
+  return { events: events.sort((a, b) => a.start.localeCompare(b.start)) }
 }
 
 // LC drafts to suggest for tracking: the newest open drafts of a session that
