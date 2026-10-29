@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import * as client from '../data/client'
 import type { HearingSummary, LoadState, UpcomingHearing } from '../types'
 import { formatDate, formatDuration, formatTime } from '../lib/format'
 import { transcriptStatusLabel } from '../lib/hearings'
 import { RecordingsNote } from '../components/shared/RecordingsNote'
 import { EmptyState } from '../components/shared/EmptyState'
+import { usePublicView } from '../lib/publicView'
 import styles from './HearingsPage.module.css'
 
 const RECORDINGS_PREVIEW = 8
@@ -15,17 +16,18 @@ export function HearingsPage() {
   const [recordings, setRecordings] = useState<HearingSummary[]>([])
   const [query, setQuery] = useState('')
   const [showAllRecordings, setShowAllRecordings] = useState(false)
+  // A visitor sees the recordings, but the audio and the transcript need an account.
+  const isPublic = usePublicView()
+  const location = useLocation()
 
   useEffect(() => {
-    client
-      .getUpcomingHearings()
+    ;(isPublic ? client.getPublicUpcomingHearings() : client.getUpcomingHearings())
       .then((data) => setHearings(data.length === 0 ? { status: 'empty' } : { status: 'ready', data }))
       .catch(() => setHearings({ status: 'empty' }))
-    client
-      .getHearings()
+    ;(isPublic ? client.getPublicHearings() : client.getHearings())
       .then(setRecordings)
       .catch(() => setRecordings([]))
-  }, [])
+  }, [isPublic])
 
   const filtered = useMemo(() => {
     if (hearings.status !== 'ready') return []
@@ -43,9 +45,11 @@ export function HearingsPage() {
     <div className={styles.page}>
       <h1 className={styles.title}>Hearings</h1>
       <p className={styles.subhead}>
-        These are all the scheduled interim committee hearings, for all committees, not only the committees that you
-        follow. Click a hearing to see the agenda of its committee. Open a recent recording to read and search its
-        transcript.
+        {isPublic
+          ? 'These are all the scheduled interim committee hearings. Click a hearing to see the agenda of its committee.'
+          : `These are all the scheduled interim committee hearings, for all committees, not only the committees that
+        you follow. Click a hearing to see the agenda of its committee. Open a recent recording to read and search its
+        transcript.`}
       </p>
 
       <div className={styles.searchRow}>
@@ -60,12 +64,16 @@ export function HearingsPage() {
       {filteredRecordings.length > 0 && (
         <section className={styles.section} aria-label="Recent recordings">
           <h2 className={styles.sectionTitle}>Recent recordings</h2>
+          {isPublic && (
+            <p className={styles.publicNote}>Sign up free to listen to a recording and read its transcript.</p>
+          )}
           <RecordingsNote />
           <div className={styles.list}>
             {(showAllRecordings ? filteredRecordings : filteredRecordings.slice(0, RECORDINGS_PREVIEW)).map((r) => (
               <Link
                 key={r.id}
-                to={`/hearings/recordings/${r.id}`}
+                to={isPublic ? '/signup' : `/hearings/recordings/${r.id}`}
+                state={isPublic ? { from: location } : undefined}
                 className={`${styles.recording} ${r.isFollowed ? styles.recordingFollowed : ''}`}
               >
                 <div className={styles.rowDate}>

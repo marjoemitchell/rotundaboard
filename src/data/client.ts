@@ -215,6 +215,22 @@ export function getPublicLegislatorDetail(id: string): Promise<LegislatorDetail>
   return getJson(`/api/public/legislators/${id}`)
 }
 
+export function getPublicCommittees(): Promise<NonStandingCommittee[]> {
+  return getJson('/api/public/committees')
+}
+
+export function getPublicCommitteeDetail(id: string): Promise<NonStandingCommitteeDetail> {
+  return getJson(`/api/public/committees/${id}`)
+}
+
+export function getPublicUpcomingHearings(): Promise<UpcomingHearing[]> {
+  return getJson('/api/public/hearings/schedule')
+}
+
+export function getPublicHearings(): Promise<HearingSummary[]> {
+  return getJson('/api/public/hearings')
+}
+
 export function getPublicAmendmentChanges(billId: string, documentId: string): Promise<AmendmentChanges> {
   return getJson(`/api/public/bills/${billId}/amendment-documents/${documentId}`)
 }

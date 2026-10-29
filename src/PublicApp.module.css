@@ -72,12 +72,25 @@
 }
 
 .main {
-  min-height: calc(100vh - 52px);
   padding: 24px 28px 56px;
   background: var(--paper);
 }
 
 @media (max-width: 760px) {
+  /* The page links go to a second row, under the logo and the buttons. */
+  .bar {
+    flex-wrap: wrap;
+    height: auto;
+    row-gap: 2px;
+    padding: 8px 14px 4px;
+  }
+
+  .nav {
+    order: 3;
+    width: 100%;
+    margin-left: -8px;
+  }
+
   .main {
     padding: 18px 14px 40px;
   }

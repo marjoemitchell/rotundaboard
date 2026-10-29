@@ -604,7 +604,7 @@ function recordingSummary(r: RecordingRow) {
 // Most recent recordings first, but anything from a committee the
 // workspace follows (in the last 30 days) jumps the queue — the dashboard's
 // player shows the first one.
-export async function getRecordedHearings(workspaceId: number) {
+export async function getRecordedHearings(workspaceId: number | null) {
   const { rows } = await pool.query<RecordingRow>(
     `SELECT ${RECORDING_COLUMNS}
      FROM hearing_recordings r ${RECORDING_JOINS}
@@ -753,7 +753,7 @@ export async function resolveHearingMediaUrl(
 // the left-nav's Hearings item links to. isFollowed is still overlaid per-workspace (same
 // LEFT JOIN pattern as getNonStandingCommittees) so the list can highlight
 // hearings for committees the team already follows.
-export async function getUpcomingHearings(workspaceId: number) {
+export async function getUpcomingHearings(workspaceId: number | null) {
   const { rows } = await pool.query<{
     id: number
     committee_id: number
@@ -1708,7 +1708,7 @@ export async function getSubjectWatchBills(watchId: number, workspaceId: number)
 
 type AgendaItem = { id: number; title: string; description: string; orderNumber: number }
 
-export async function getNonStandingCommittees(workspaceId: number) {
+export async function getNonStandingCommittees(workspaceId: number | null) {
   const { rows } = await pool.query<{
     id: number
     name: string
@@ -1743,7 +1743,7 @@ export async function getNonStandingCommittees(workspaceId: number) {
   }))
 }
 
-export async function getNonStandingCommitteeDetail(committeeId: number, workspaceId: number) {
+export async function getNonStandingCommitteeDetail(committeeId: number, workspaceId: number | null) {
   const { rows: coreRows } = await pool.query<{
     id: number
     name: string
