@@ -71,6 +71,33 @@ publicRouter.get('/bills/:id', async (req, res) => {
   }
 })
 
+// Legislators: the same data as for a workspace. The map has no tracked
+// counts, because a visitor tracks no bills.
+async function sendJson(res: Response, path: string, load: () => Promise<unknown>) {
+  try {
+    const data = await load()
+    if (data === null) {
+      res.status(404).json({ error: 'not found' })
+      return
+    }
+    res.json(data)
+  } catch (err) {
+    console.error(`GET /api/public${path} failed:`, err)
+    res.status(500).json({ error: 'internal error' })
+  }
+}
+
+publicRouter.get('/legislators', (_req, res) => sendJson(res, '/legislators', () => queries.getLegislators()))
+
+// Before /legislators/:id, so that "map" is not taken as an id.
+publicRouter.get('/legislators/map', (_req, res) => sendJson(res, '/legislators/map', () => queries.getLegislatorMap(null)))
+
+publicRouter.get('/legislators/:id', (req, res) => {
+  const id = parseId(req.params.id, res, 'legislator')
+  if (id === null) return
+  return sendJson(res, `/legislators/${id}`, () => queries.getLegislatorDetail(id))
+})
+
 // The changes that one amendment makes to the bill text. A visitor gets no
 // AI summary of the amendment, the same as the free plan.
 publicRouter.get('/bills/:id/amendment-documents/:documentId', async (req, res) => {

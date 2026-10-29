@@ -1,13 +1,16 @@
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { BillDetailPage } from './pages/BillDetailPage'
+import { LegislatorDetailPage } from './pages/LegislatorDetailPage'
+import { LegislatorsMapPage } from './pages/LegislatorsMapPage'
+import { LegislatorsPage } from './pages/LegislatorsPage'
 import { PublicViewContext } from './lib/publicView'
 import styles from './PublicApp.module.css'
 
 // The paths that a visitor without an account can open.
-const PUBLIC_BILL_PATH = /^\/bills\/\d+\/?$/
+const PUBLIC_PATHS = [/^\/bills\/\d+\/?$/, /^\/legislators(\/list|\/\d+)?\/?$/]
 
 export function isPublicPath(pathname: string): boolean {
-  return PUBLIC_BILL_PATH.test(pathname)
+  return PUBLIC_PATHS.some((p) => p.test(pathname))
 }
 
 const NO_MEMBERS = { status: 'empty' } as const
@@ -28,6 +31,11 @@ export function PublicApp() {
             Rotunda <span className={styles.wordmarkLight}>Board</span>
           </span>
         </div>
+        <nav className={styles.nav} aria-label="Public pages">
+          <Link to="/legislators" className={styles.navLink}>
+            Legislators
+          </Link>
+        </nav>
         <div className={styles.actions}>
           <Link to="/login" state={{ from: location }} className={styles.login}>
             Log in
@@ -51,6 +59,9 @@ export function PublicApp() {
               />
             }
           />
+          <Route path="/legislators" element={<LegislatorsMapPage />} />
+          <Route path="/legislators/list" element={<LegislatorsPage />} />
+          <Route path="/legislators/:id" element={<LegislatorDetailPage />} />
         </Routes>
       </main>
     </PublicViewContext.Provider>

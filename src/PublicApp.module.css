@@ -29,6 +29,23 @@
   color: var(--ink-muted);
 }
 
+.nav {
+  display: flex;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+.navLink {
+  padding: 6px 8px;
+  font-size: 15px;
+  color: var(--ink-body);
+  text-decoration: none;
+}
+
+.navLink:hover {
+  color: #fff;
+}
+
 .actions {
   margin-left: auto;
   display: flex;

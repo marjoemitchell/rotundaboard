@@ -120,8 +120,78 @@ test.describe('public bill page', () => {
     const visitor = await visitorPage(browser)
     await visitor.page.goto('/tracking-board')
     await expect(visitor.page).toHaveURL(/\/login/)
+    await visitor.page.goto('/legislators/map-not-a-page')
+    await expect(visitor.page).toHaveURL(/\/login/)
     await visitor.page.goto('/bills/1/compare')
     await expect(visitor.page).toHaveURL(/\/login/)
+    await visitor.context.close()
+  })
+})
+
+test.describe('public legislator pages', () => {
+  const panel = (page: Page) => page.getByRole('complementary', { name: 'County details' })
+
+  test('a visitor can use the county map and open a legislator, with no tracked counts', async ({ browser }) => {
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto('/legislators')
+    await expect(visitor.page.locator('h1', { hasText: 'Legislators by county' })).toBeVisible()
+    await expect(visitor.page.locator('path[data-county]')).toHaveCount(56)
+    await expect(visitor.page.getByRole('link', { name: 'Sign up free' })).toBeVisible()
+
+    await visitor.page.locator('path[data-county="Yellowstone"]').click()
+    await visitor.page.mouse.move(0, 0)
+    await expect(panel(visitor.page)).toContainText('Yellowstone County')
+    await expect(panel(visitor.page)).not.toContainText('Sponsor tracked')
+    await expect(panel(visitor.page)).not.toContainText('tracked')
+    await expect(visitor.page.getByText('your team tracks')).toHaveCount(0)
+
+    // A member opens the legislator page, and a sponsored bill opens the public bill page.
+    const member = panel(visitor.page).getByRole('list', { name: 'Senate members' }).getByRole('link').first()
+    const name = (await member.textContent())!.replace(/^Sen\.\s*/, '')
+    await member.click()
+    await expect(visitor.page).toHaveURL(/\/legislators\/\d+$/)
+    await expect(visitor.page.getByRole('heading', { level: 1 })).toContainText(name.split(' ').pop()!)
+    await expect(visitor.page.getByRole('button', { name: '← Back' })).toHaveCount(0)
+    await visitor.context.close()
+  })
+
+  test('a visitor can search the legislator list', async ({ browser, playwright }) => {
+    const anonymous = await playwright.request.newContext()
+    const legislators = (await (await anonymous.get(`${API_BASE}/api/public/legislators`)).json()) as { id: string; name: string }[]
+    await anonymous.dispose()
+    const target = legislators[0]
+    const lastName = target.name.split(' ').pop()!
+
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto('/legislators/list')
+    const table = visitor.page.getByRole('table', { name: 'Legislators' })
+    await expect(table.locator(`a[href="/legislators/${target.id}"]`)).toBeVisible()
+    await visitor.page.getByPlaceholder('Search by name or district').fill('zzzz-no-such-legislator')
+    await expect(table.locator(`a[href="/legislators/${target.id}"]`)).toHaveCount(0)
+    await visitor.page.getByPlaceholder('Search by name or district').fill(lastName)
+    await expect(table.locator(`a[href="/legislators/${target.id}"]`)).toBeVisible()
+    await visitor.context.close()
+  })
+
+  test('a sponsored bill on a legislator page opens the public bill page', async ({ browser, playwright }) => {
+    const anonymous = await playwright.request.newContext()
+    const legislators = (await (await anonymous.get(`${API_BASE}/api/public/legislators`)).json()) as { id: string }[]
+    let found: { legislatorId: string; billId: string } | null = null
+    for (const l of legislators.slice(0, 40)) {
+      const detail = await (await anonymous.get(`${API_BASE}/api/public/legislators/${l.id}`)).json()
+      if (detail.sponsoredBills?.length) {
+        found = { legislatorId: l.id, billId: String(detail.sponsoredBills[0].id) }
+        break
+      }
+    }
+    await anonymous.dispose()
+    expect(found).not.toBeNull()
+
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto(`/legislators/${found!.legislatorId}`)
+    await visitor.page.locator(`a[href="/bills/${found!.billId}"]`).first().click()
+    await expect(visitor.page).toHaveURL(new RegExp(`/bills/${found!.billId}$`))
+    await expect(visitor.page.getByText('Track this bill and get an email when it has a hearing')).toBeVisible()
     await visitor.context.close()
   })
 })

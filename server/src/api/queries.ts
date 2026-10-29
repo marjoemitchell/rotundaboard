@@ -2216,7 +2216,8 @@ const countyDistricts = JSON.parse(
   districts: { house: Record<string, string[]>; senate: Record<string, string[]> }
 }
 
-export async function getLegislatorMap(workspaceId: number) {
+// A visitor without an account gives a null workspaceId: then every tracked count is 0.
+export async function getLegislatorMap(workspaceId: number | null) {
   const { rows } = await pool.query<{
     id: number
     first_name: string | null
