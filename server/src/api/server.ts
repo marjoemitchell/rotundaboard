@@ -9,6 +9,7 @@ import * as queries from './queries.js'
 import * as mutations from './mutations.js'
 import { MutationError } from './mutations.js'
 import { authRouter } from './auth.js'
+import { publicRouter } from './publicRoutes.js'
 import { requireAuth, requireAdmin, SESSION_COOKIE_NAME } from './authMiddleware.js'
 import * as invites from './invites.js'
 import * as workspaces from './workspaces.js'
@@ -61,6 +62,8 @@ function handleError(res: Response, path: string, err: unknown) {
 }
 
 app.use('/api/auth', authRouter)
+// Visitors without an account. Before the session check below.
+app.use('/api/public', publicRouter)
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
 
 // Public: the accept-invite landing page needs to know what it's showing

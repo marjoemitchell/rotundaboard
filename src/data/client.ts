@@ -197,6 +197,16 @@ export function getAmendmentChanges(billId: string, documentId: string): Promise
   return getJson(`/api/bills/${billId}/amendment-documents/${documentId}`)
 }
 
+// --- Public pages (no account) ---------------------------------------------
+
+export function getPublicBillDetail(id: string): Promise<BillDetail> {
+  return getJson(`/api/public/bills/${id}`)
+}
+
+export function getPublicAmendmentChanges(billId: string, documentId: string): Promise<AmendmentChanges> {
+  return getJson(`/api/public/bills/${billId}/amendment-documents/${documentId}`)
+}
+
 export function getBrief(): Promise<Brief> {
   return getJson('/api/brief')
 }

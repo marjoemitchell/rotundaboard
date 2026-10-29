@@ -35,8 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await client.logout()
     // A hard reload (rather than setSession(null) + client-side navigate)
-    // sidesteps a render race with RequireAuth's own redirect: once session
-    // drops to null, RequireAuth re-renders and issues its own `<Navigate
+    // sidesteps a render race with PublicApp's own redirect: once session
+    // drops to null, PublicApp re-renders and issues its own `<Navigate
     // state={{from: location}}>` using the page we were just on — a
     // same-tick client-side navigate() to /login doesn't reliably win that
     // race, so /login can still end up with state.from pointing at e.g.
