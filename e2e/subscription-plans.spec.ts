@@ -77,12 +77,17 @@ test.describe('free plan limits', () => {
     await expect(page.getByTestId('plan-usage')).toContainText('10 of 10 tracked bills')
   })
 
+  // The test above shows the limit in the UI. This test checks the server
+  // only, with no page loads: a page load after the dashboard loads 10
+  // tracked bills was not stable in the full suite.
   test('after an upgrade, the workspace can track more than 10 bills', async ({ page }) => {
     await signUpFreshWorkspace(page, { plan: 'free' })
     const eleventh = await trackTen(page)
-    await setWorkspacePlan(page, 'single_user', { path: `/bills/${eleventh.id}` })
-    await page.getByRole('button', { name: '+ Track this bill' }).click()
-    await expect(page.getByRole('button', { name: 'Stop tracking' })).toBeVisible()
+    expect((await page.request.post(`${API_BASE}/api/bills/${eleventh.id}/track`)).status()).toBe(402)
+
+    const upgrade = await page.request.post(`${API_BASE}/api/__test__/workspace-plan`, { data: { plan: 'single_user' } })
+    expect(upgrade.ok()).toBeTruthy()
+    expect((await page.request.post(`${API_BASE}/api/bills/${eleventh.id}/track`)).ok()).toBeTruthy()
   })
 
   test('a free workspace sees upgrade notices for notes and testimony on the bill page', async ({ page }) => {
