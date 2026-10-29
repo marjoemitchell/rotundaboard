@@ -4,18 +4,19 @@ import * as client from '../data/client'
 import type { LegislatorSummary, LoadState } from '../types'
 import { EmptyState } from '../components/shared/EmptyState'
 import { LegislatorsViewSwitch } from '../components/legislators/LegislatorsViewSwitch'
+import { usePublicView } from '../lib/publicView'
 import styles from './LegislatorsPage.module.css'
 
 export function LegislatorsPage() {
   const [legislators, setLegislators] = useState<LoadState<LegislatorSummary[]>>({ status: 'loading' })
   const [query, setQuery] = useState('')
+  const isPublic = usePublicView()
 
   useEffect(() => {
-    client
-      .getLegislators()
+    ;(isPublic ? client.getPublicLegislators() : client.getLegislators())
       .then((data) => setLegislators(data.length === 0 ? { status: 'empty' } : { status: 'ready', data }))
       .catch(() => setLegislators({ status: 'empty' }))
-  }, [])
+  }, [isPublic])
 
   const filtered = useMemo(() => {
     if (legislators.status !== 'ready') return []

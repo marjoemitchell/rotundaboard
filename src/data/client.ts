@@ -197,6 +197,28 @@ export function getAmendmentChanges(billId: string, documentId: string): Promise
   return getJson(`/api/bills/${billId}/amendment-documents/${documentId}`)
 }
 
+// --- Public pages (no account) ---------------------------------------------
+
+export function getPublicBillDetail(id: string): Promise<BillDetail> {
+  return getJson(`/api/public/bills/${id}`)
+}
+
+export function getPublicLegislatorMap(): Promise<LegislatorMap> {
+  return getJson('/api/public/legislators/map')
+}
+
+export function getPublicLegislators(): Promise<LegislatorSummary[]> {
+  return getJson('/api/public/legislators')
+}
+
+export function getPublicLegislatorDetail(id: string): Promise<LegislatorDetail> {
+  return getJson(`/api/public/legislators/${id}`)
+}
+
+export function getPublicAmendmentChanges(billId: string, documentId: string): Promise<AmendmentChanges> {
+  return getJson(`/api/public/bills/${billId}/amendment-documents/${documentId}`)
+}
+
 export function getBrief(): Promise<Brief> {
   return getJson('/api/brief')
 }

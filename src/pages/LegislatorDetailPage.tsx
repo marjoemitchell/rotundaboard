@@ -4,6 +4,7 @@ import * as client from '../data/client'
 import type { LegislatorDetail, LoadState } from '../types'
 import { formatDate } from '../lib/format'
 import { EmptyState } from '../components/shared/EmptyState'
+import { usePublicView } from '../lib/publicView'
 import styles from './LegislatorDetailPage.module.css'
 
 function partyColor(party: string | null): string {
@@ -16,15 +17,16 @@ export function LegislatorDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [detail, setDetail] = useState<LoadState<LegislatorDetail>>({ status: 'loading' })
+  // A visitor often comes from a shared link, with no page to go back to.
+  const isPublic = usePublicView()
 
   useEffect(() => {
     if (!id) return
     setDetail({ status: 'loading' })
-    client
-      .getLegislatorDetail(id)
+    ;(isPublic ? client.getPublicLegislatorDetail(id) : client.getLegislatorDetail(id))
       .then((data) => setDetail({ status: 'ready', data }))
       .catch(() => setDetail({ status: 'empty' }))
-  }, [id])
+  }, [id, isPublic])
 
   if (detail.status === 'loading') {
     return <div className={styles.page}>Loading legislator…</div>
@@ -32,9 +34,11 @@ export function LegislatorDetailPage() {
   if (detail.status === 'empty') {
     return (
       <div className={styles.page}>
-        <button className={styles.backLink} onClick={() => navigate(-1)}>
-          ← Back
-        </button>
+        {!isPublic && (
+          <button className={styles.backLink} onClick={() => navigate(-1)}>
+            ← Back
+          </button>
+        )}
         <EmptyState message="This legislator couldn't be found." />
       </div>
     )
@@ -44,9 +48,11 @@ export function LegislatorDetailPage() {
 
   return (
     <div className={styles.page}>
-      <button className={styles.backLink} onClick={() => navigate(-1)}>
-        ← Back
-      </button>
+      {!isPublic && (
+        <button className={styles.backLink} onClick={() => navigate(-1)}>
+          ← Back
+        </button>
+      )}
 
       <div className={styles.header}>
         <h1 className={styles.name}>{l.name}</h1>

@@ -94,13 +94,15 @@ export function newWorkspacePlan(): PlanKey {
   return isPlanKey(value) ? value : 'free'
 }
 
-export async function getWorkspacePlan(workspaceId: number): Promise<Plan> {
+// A visitor without an account (workspaceId null) gets the free plan.
+export async function getWorkspacePlan(workspaceId: number | null): Promise<Plan> {
+  if (workspaceId === null) return PLANS.free
   const { rows } = await pool.query<{ plan: string }>('SELECT plan FROM workspaces WHERE id = $1', [workspaceId])
   const key = rows[0]?.plan
   return isPlanKey(key) ? PLANS[key] : PLANS.free
 }
 
-export async function hasFeature(workspaceId: number, feature: Feature): Promise<boolean> {
+export async function hasFeature(workspaceId: number | null, feature: Feature): Promise<boolean> {
   return (await getWorkspacePlan(workspaceId)).features[feature]
 }
 

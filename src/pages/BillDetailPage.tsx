@@ -27,6 +27,7 @@ import { OutcomeBadge } from '../components/shared/OutcomeBadge'
 import { RedlineParagraph, toParagraphs } from '../components/billText/Redline'
 import { UpgradeNotice } from '../components/shared/UpgradeNotice'
 import { usePlan } from '../auth/usePlan'
+import { usePublicView } from '../lib/publicView'
 import styles from './BillDetailPage.module.css'
 
 function formatDraftNumber(draftNumber: string): string {
@@ -54,14 +55,13 @@ const POSITION_OPTIONS: { value: NonNullable<Position>; label: string }[] = [
   { value: 'neutral', label: 'Neutral' },
 ]
 
-function useBillDetail(id: string | undefined): [LoadState<BillDetail>, () => void] {
+function useBillDetail(id: string | undefined, isPublic: boolean): [LoadState<BillDetail>, () => void] {
   const [state, setState] = useState<LoadState<BillDetail>>({ status: 'loading' })
 
   const load = () => {
     if (!id) return
     setState({ status: 'loading' })
-    client
-      .getBillDetail(id)
+    ;(isPublic ? client.getPublicBillDetail(id) : client.getBillDetail(id))
       .then((data) => setState({ status: 'ready', data }))
       .catch(() => setState({ status: 'empty' }))
   }
@@ -508,7 +508,9 @@ export function BillDetailPage({
 }) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [detail, refetch] = useBillDetail(id)
+  const isPublic = usePublicView()
+  const location = useLocation()
+  const [detail, refetch] = useBillDetail(id, isPublic)
 
   if (detail.status === 'loading') {
     return <div className={styles.page}>Loading bill…</div>
@@ -516,9 +518,11 @@ export function BillDetailPage({
   if (detail.status === 'empty') {
     return (
       <div className={styles.page}>
-        <button className={styles.backLink} onClick={() => navigate(-1)}>
-          ← Back
-        </button>
+        {!isPublic && (
+          <button className={styles.backLink} onClick={() => navigate(-1)}>
+            ← Back
+          </button>
+        )}
         <EmptyState message="This bill couldn't be found." />
       </div>
     )
@@ -547,9 +551,12 @@ export function BillDetailPage({
 
   return (
     <div className={styles.page}>
-      <button className={styles.backLink} onClick={() => navigate(-1)}>
-        ← Back
-      </button>
+      {/* A visitor often comes from a shared link, with no page to go back to. */}
+      {!isPublic && (
+        <button className={styles.backLink} onClick={() => navigate(-1)}>
+          ← Back
+        </button>
+      )}
 
       <div className={styles.header}>
         <div>
@@ -567,7 +574,19 @@ export function BillDetailPage({
           <h1 className={styles.title}>{bill.title}</h1>
         </div>
         <div className={styles.headerControls}>
-          {bill.isTracked ? (
+          {isPublic ? (
+            <div className={styles.trackPrompt} aria-label="Track this bill">
+              <span className={styles.controlLabel}>Track this bill and get an email when it has a hearing</span>
+              <span className={styles.publicActions}>
+                <Link to="/signup" state={{ from: location }} className={styles.trackButton}>
+                  Sign up free
+                </Link>
+                <Link to="/login" state={{ from: location }} className={styles.publicLogin}>
+                  Log in
+                </Link>
+              </span>
+            </div>
+          ) : bill.isTracked ? (
             <>
               <label className={styles.controlLabel}>
                 Position
@@ -685,10 +704,12 @@ export function BillDetailPage({
                 <span className={styles.rowValue}>{bill.subjects.join(', ')}</span>
               </div>
             )}
-            <div className={styles.row}>
-              <span className={styles.rowLabel}>Position</span>
-              <PositionChip position={bill.position} />
-            </div>
+            {!isPublic && (
+              <div className={styles.row}>
+                <span className={styles.rowLabel}>Position</span>
+                <PositionChip position={bill.position} />
+              </div>
+            )}
           </section>
 
           <section className={styles.section}>
@@ -753,11 +774,16 @@ export function BillDetailPage({
 
           {bill.amendments.length > 0 && <AmendmentsSection bill={bill} />}
 
-          <TagsSection billId={bill.id} />
+          {/* Tags, testimony, and notes are workspace data. */}
+          {!isPublic && (
+            <>
+              <TagsSection billId={bill.id} />
 
-          <TestimonySection bill={bill} />
+              <TestimonySection bill={bill} />
 
-          <NotesSection billId={bill.id} />
+              <NotesSection billId={bill.id} />
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -806,12 +832,14 @@ function DeadlinesSection({ bill }: { bill: BillDetail }) {
 
 // The versions of the bill text, with a link to compare them.
 function BillTextSection({ bill }: { bill: BillDetail }) {
+  // The compare page needs an account.
+  const isPublic = usePublicView()
   if (bill.textVersions.length === 0) return null
   return (
     <section className={styles.section} aria-label="Bill text">
       <div className={styles.testimonyHead}>
         <div className="eyebrow">Bill text</div>
-        {bill.textVersions.length > 1 && (
+        {bill.textVersions.length > 1 && !isPublic && (
           <Link to={`/bills/${bill.id}/compare`} className={styles.testimonyAddLink}>
             Compare versions
           </Link>
@@ -853,18 +881,18 @@ function AmendmentsSection({ bill }: { bill: BillDetail }) {
 function AmendmentRow({ billId, amendment: a, baseName }: { billId: string; amendment: Amendment; baseName: string | null }) {
   const [open, setOpen] = useState(false)
   const [changes, setChanges] = useState<LoadState<AmendmentChanges>>({ status: 'loading' })
+  const isPublic = usePublicView()
 
   useEffect(() => {
     if (!open || !a.documentId || changes.status === 'ready') return
     let cancelled = false
-    client
-      .getAmendmentChanges(billId, a.documentId)
+    ;(isPublic ? client.getPublicAmendmentChanges(billId, a.documentId) : client.getAmendmentChanges(billId, a.documentId))
       .then((c) => !cancelled && setChanges({ status: 'ready', data: c }))
       .catch(() => !cancelled && setChanges({ status: 'empty' }))
     return () => {
       cancelled = true
     }
-  }, [open, a.documentId, billId, changes.status])
+  }, [open, a.documentId, billId, changes.status, isPublic])
 
   const name = `Amendment ${a.section ? `${a.section}.` : '#'}${a.number ?? ''}`
   // COMMITTEE (offered in a committee) or FLOOR (offered in a floor debate).

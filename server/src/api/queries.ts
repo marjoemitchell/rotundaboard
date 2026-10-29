@@ -818,7 +818,9 @@ function legislatorLabel(first: string | null, last: string | null): string {
 // editors. The tracked_bills join is scoped to workspaceId inside the JOIN
 // condition (not a WHERE), since the row may legitimately not exist for
 // this workspace even though the bill itself is global.
-export async function getBillDetail(billId: number, workspaceId: number) {
+// A visitor without an account gives a null workspaceId: then no row joins,
+// and the visitor gets what the free plan shows.
+export async function getBillDetail(billId: number, workspaceId: number | null) {
   const { rows: coreRows } = await pool.query<{
     bill_id: number
     bill_type_code: string | null
@@ -2214,7 +2216,8 @@ const countyDistricts = JSON.parse(
   districts: { house: Record<string, string[]>; senate: Record<string, string[]> }
 }
 
-export async function getLegislatorMap(workspaceId: number) {
+// A visitor without an account gives a null workspaceId: then every tracked count is 0.
+export async function getLegislatorMap(workspaceId: number | null) {
   const { rows } = await pool.query<{
     id: number
     first_name: string | null

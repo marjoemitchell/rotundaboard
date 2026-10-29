@@ -7,6 +7,7 @@ import type { LegislatorMap, LoadState, MapCounty, MapMember } from '../types'
 import { EmptyState } from '../components/shared/EmptyState'
 import { LegislatorsViewSwitch } from '../components/legislators/LegislatorsViewSwitch'
 import { plural } from '../lib/format'
+import { usePublicView } from '../lib/publicView'
 import styles from './LegislatorsMapPage.module.css'
 
 type Chamber = 'both' | 'house' | 'senate'
@@ -64,10 +65,11 @@ export function LegislatorsMapPage() {
   const [search, setSearch] = useSearchParams()
   const districtParam = /^(house|senate)-(\d{1,3})$/.exec(search.get('district') ?? '')
   const district = districtParam ? { chamber: districtParam[1] as 'house' | 'senate', number: Number(districtParam[2]) } : null
+  // A visitor tracks no bills, so the map shows no tracked counts.
+  const isPublic = usePublicView()
 
   useEffect(() => {
-    client
-      .getLegislatorMap()
+    ;(isPublic ? client.getPublicLegislatorMap() : client.getLegislatorMap())
       .then((d) => setData(d.counties.length === 0 ? { status: 'empty' } : { status: 'ready', data: d }))
       .catch(() => setData({ status: 'empty' }))
     fetch('/maps/montana-counties.json')
@@ -77,7 +79,7 @@ export function LegislatorsMapPage() {
         setState((fc.features.find((f) => f.id === 'state') as Shape) ?? null)
       })
       .catch(() => setShapesFailed(true))
-  }, [])
+  }, [isPublic])
 
   const path = useMemo(() => {
     if (!state) return null
@@ -174,7 +176,8 @@ export function LegislatorsMapPage() {
             <div className={styles.mapBar}>
               <span className="eyebrow">Montana · 56 counties</span>
               <div className={styles.legend} aria-label="Legend">
-                {['None', '1', '2', '3+'].map((label, i) => (
+                {!isPublic &&
+                  ['None', '1', '2', '3+'].map((label, i) => (
                   <span key={label}>
                     <i style={{ background: SHADES[i] }} />
                     {label}
@@ -266,7 +269,7 @@ export function LegislatorsMapPage() {
               )}
             </div>
             <div className={styles.mapFoot}>
-              <span>Shading: members in the county who sponsor a bill that your team tracks</span>
+              {!isPublic && <span>Shading: members in the county who sponsor a bill that your team tracks</span>}
               <span>Districts: US Census 2024 boundaries</span>
             </div>
           </section>
@@ -295,7 +298,10 @@ export function LegislatorsMapPage() {
             ) : (
               <div className={styles.empty}>
                 <div className="eyebrow">No county selected</div>
-                <p>Hover any county, or choose one in the menu, to see its House and Senate members, their committees, and which tracked bills they sponsor.</p>
+                <p>
+                  Hover any county, or choose one in the menu, to see its House and Senate members
+                  {isPublic ? ' and their committees.' : ', their committees, and which tracked bills they sponsor.'}
+                </p>
               </div>
             )}
           </aside>
@@ -368,6 +374,7 @@ function CountyPanel({
   const r = all.filter((m) => m.party === 'R').length
   const d = all.filter((m) => m.party === 'D').length
   const sponsors = all.filter((m) => m.trackedSponsored > 0).length
+  const isPublic = usePublicView()
   const emails = all.map((m) => m.email).filter((e): e is string => Boolean(e))
 
   const exportContacts = () => {
@@ -398,16 +405,18 @@ function CountyPanel({
                   {[`${m.chamber === 'house' ? 'HD' : 'SD'} ${m.district}`, m.party, m.committees[0]].filter(Boolean).join(' · ')}
                 </div>
               </div>
-              <div className={styles.memberCount}>
-                {m.trackedSponsored > 0 ? (
-                  <>
-                    <b>{m.trackedSponsored}</b>
-                    <span>tracked</span>
-                  </>
-                ) : (
-                  <span aria-label="Sponsors no tracked bill">—</span>
-                )}
-              </div>
+              {!isPublic && (
+                <div className={styles.memberCount}>
+                  {m.trackedSponsored > 0 ? (
+                    <>
+                      <b>{m.trackedSponsored}</b>
+                      <span>tracked</span>
+                    </>
+                  ) : (
+                    <span aria-label="Sponsors no tracked bill">—</span>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -432,7 +441,7 @@ function CountyPanel({
           {plural(county.house.length, 'House district')} · {plural(county.senate.length, 'Senate district')}
         </div>
       </div>
-      <div className={styles.stats}>
+      <div className={`${styles.stats} ${isPublic ? styles.statsTwo : ''}`}>
         <div>
           <b>{all.length}</b>
           <span>Members</span>
@@ -443,10 +452,12 @@ function CountyPanel({
           </b>
           <span>R to D</span>
         </div>
-        <div>
-          <b>{sponsors}</b>
-          <span>Sponsor tracked</span>
-        </div>
+        {!isPublic && (
+          <div>
+            <b>{sponsors}</b>
+            <span>Sponsor tracked</span>
+          </div>
+        )}
       </div>
       {rows(members.senate, 'Senate')}
       {rows(members.house, 'House')}

@@ -122,7 +122,20 @@
   gap: 6px;
 }
 
+.publicActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.publicLogin {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--teal);
+}
+
 .trackButton {
+  text-decoration: none;
   padding: 7px 14px;
   font-size: 16px;
   font-weight: 500;
@@ -687,6 +700,13 @@
   }
   .controlLabel select {
     width: 100%;
+  }
+  /* The prompt is a column: a flex basis there is a height. */
+  .trackPrompt {
+    align-items: flex-start;
+  }
+  .trackPrompt .controlLabel {
+    flex: none;
   }
 }
 
