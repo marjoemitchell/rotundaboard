@@ -4,20 +4,23 @@ import * as client from '../data/client'
 import type { LoadState, NonStandingCommittee } from '../types'
 import { formatDate, formatTime } from '../lib/format'
 import { EmptyState } from '../components/shared/EmptyState'
+import { SignupLink } from '../components/shared/SignupLink'
+import { usePublicView } from '../lib/publicView'
 import styles from './CommitteesPage.module.css'
 
 export function CommitteesPage() {
   const [committees, setCommittees] = useState<LoadState<NonStandingCommittee[]>>({ status: 'loading' })
   const [query, setQuery] = useState('')
+  const isPublic = usePublicView()
 
   const load = () => {
-    client
-      .getCommittees()
+    ;(isPublic ? client.getPublicCommittees() : client.getCommittees())
       .then((data) => setCommittees(data.length === 0 ? { status: 'empty' } : { status: 'ready', data }))
       .catch(() => setCommittees({ status: 'empty' }))
   }
 
-  useEffect(load, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [isPublic])
 
   const filtered = useMemo(() => {
     if (committees.status !== 'ready') return []
@@ -69,12 +72,18 @@ export function CommitteesPage() {
                       : ' · No upcoming meeting scheduled'}
                   </div>
                 </Link>
-                <button
-                  className={`${styles.followButton} ${c.isFollowed ? styles.followButtonActive : ''}`}
-                  onClick={() => handleToggleFollow(c)}
-                >
-                  {c.isFollowed ? 'Following' : '+ Follow'}
-                </button>
+                {isPublic ? (
+                  <SignupLink className={styles.followButton} title="Sign up to follow this committee">
+                    + Follow
+                  </SignupLink>
+                ) : (
+                  <button
+                    className={`${styles.followButton} ${c.isFollowed ? styles.followButtonActive : ''}`}
+                    onClick={() => handleToggleFollow(c)}
+                  >
+                    {c.isFollowed ? 'Following' : '+ Follow'}
+                  </button>
+                )}
               </div>
             ))}
           </div>

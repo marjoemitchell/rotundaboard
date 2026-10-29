@@ -98,6 +98,21 @@ publicRouter.get('/legislators/:id', (req, res) => {
   return sendJson(res, `/legislators/${id}`, () => queries.getLegislatorDetail(id))
 })
 
+// Interim committees and hearings: the same data as for a workspace, with
+// no followed committees.
+publicRouter.get('/committees', (_req, res) => sendJson(res, '/committees', () => queries.getNonStandingCommittees(null)))
+
+publicRouter.get('/committees/:id', (req, res) => {
+  const id = parseId(req.params.id, res, 'committee')
+  if (id === null) return
+  return sendJson(res, `/committees/${id}`, () => queries.getNonStandingCommitteeDetail(id, null))
+})
+
+publicRouter.get('/hearings/schedule', (_req, res) => sendJson(res, '/hearings/schedule', () => queries.getUpcomingHearings(null)))
+
+// The list of recent recordings. The audio and the transcript need an account.
+publicRouter.get('/hearings', (_req, res) => sendJson(res, '/hearings', () => queries.getRecordedHearings(null)))
+
 // The changes that one amendment makes to the bill text. A visitor gets no
 // AI summary of the amendment, the same as the free plan.
 publicRouter.get('/bills/:id/amendment-documents/:documentId', async (req, res) => {

@@ -1,5 +1,5 @@
 import type { Browser, Page } from '@playwright/test'
-import { test, expect, findSessionIdWithBills, signUpFreshWorkspace, uniqueSuffix } from './fixtures'
+import { test, expect, createHearingFixture, findSessionIdWithBills, signUpFreshWorkspace, uniqueSuffix } from './fixtures'
 
 const API_BASE = 'http://localhost:4000'
 
@@ -193,6 +193,64 @@ test.describe('public legislator pages', () => {
     await expect(visitor.page).toHaveURL(new RegExp(`/bills/${found!.billId}$`))
     await expect(visitor.page.getByText('Track this bill and get an email when it has a hearing')).toBeVisible()
     await visitor.context.close()
+  })
+})
+
+test.describe('public committee and hearing pages', () => {
+  test('a visitor can open a committee, and "Follow" goes to signup and back', async ({ browser, playwright }) => {
+    const api = await playwright.request.newContext()
+    const committees = (await (await api.get(`${API_BASE}/api/public/committees`)).json()) as { id: string; name: string }[]
+    await api.dispose()
+    const committee = committees[0]
+
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto('/committees')
+    await expect(visitor.page.getByRole('heading', { name: 'Interim committees' })).toBeVisible()
+    await visitor.page.getByRole('link', { name: committee.name }).first().click()
+    await expect(visitor.page).toHaveURL(new RegExp(`/committees/${committee.id}$`))
+    await expect(visitor.page.getByRole('heading', { level: 1 })).toHaveText(committee.name)
+
+    await visitor.page.getByRole('link', { name: '+ Follow' }).click()
+    await expect(visitor.page).toHaveURL(/\/signup/)
+    const suffix = uniqueSuffix()
+    await visitor.page.fill('#workspaceName', `E2E Workspace ${suffix}`)
+    await visitor.page.fill('#name', 'E2E Visitor')
+    await visitor.page.fill('#email', `e2e-visitor-${suffix}@example.dev`)
+    await visitor.page.fill('#password', 'e2e-test-password-1')
+    await visitor.page.click('button[type="submit"]')
+    await expect(visitor.page).toHaveURL(new RegExp(`/committees/${committee.id}$`))
+    await visitor.page.getByRole('button', { name: '+ Follow' }).click()
+    await expect(visitor.page.getByRole('button', { name: 'Following' })).toBeVisible()
+    await visitor.context.close()
+  })
+
+  test('a visitor sees the hearings, and a recording goes to signup', async ({ page, browser }) => {
+    const recording = await createHearingFixture(page.request, { segments: [{ start: 0, end: 5, text: 'Good morning.' }] })
+
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto('/hearings')
+    await expect(visitor.page.getByRole('heading', { name: 'Hearings', level: 1 })).toBeVisible()
+    const recordings = visitor.page.getByRole('region', { name: 'Recent recordings' })
+    await expect(recordings.getByText('Sign up free to listen to a recording and read its transcript.')).toBeVisible()
+    await expect(recordings.locator(`a[href="/hearings/recordings/${recording.id}"]`)).toHaveCount(0)
+    await expect(recordings.getByRole('link', { name: new RegExp(recording.committee) }).first()).toHaveAttribute('href', '/signup')
+
+    // The transcript page itself needs an account.
+    await visitor.page.goto(`/hearings/recordings/${recording.id}`)
+    await expect(visitor.page).toHaveURL(/\/login/)
+    await visitor.context.close()
+  })
+
+  test('on a phone, the public pages have no sideways scroll', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 375, height: 700 } })
+    const visitor = await context.newPage()
+    for (const path of ['/committees', '/hearings', '/legislators', '/legislators/list']) {
+      await visitor.goto(path)
+      await expect(visitor.locator('h1').first()).toBeVisible()
+      const overflow = await visitor.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+      expect(overflow, `${path} is wider than the screen`).toBeLessThanOrEqual(0)
+    }
+    await context.close()
   })
 })
 

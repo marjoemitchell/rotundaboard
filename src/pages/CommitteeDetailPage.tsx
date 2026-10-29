@@ -6,12 +6,16 @@ import { formatDate, formatDuration, formatTime } from '../lib/format'
 import { transcriptStatusLabel } from '../lib/hearings'
 import { EmptyState } from '../components/shared/EmptyState'
 import { RecordingsNote } from '../components/shared/RecordingsNote'
+import { SignupLink } from '../components/shared/SignupLink'
+import { usePublicView } from '../lib/publicView'
 import styles from './CommitteeDetailPage.module.css'
 
 // archiveUrl: the archive search for the committee. A past meeting without a
 // stored recording links there, so the user can find the original video.
 function MeetingRow({ meeting, archiveUrl }: { meeting: CommitteeMeeting; archiveUrl?: string }) {
   const [expanded, setExpanded] = useState(false)
+  // The audio and the transcript of a recording need an account.
+  const isPublic = usePublicView()
   const isPast = meeting.meetingTime ? new Date(meeting.meetingTime).getTime() < Date.now() : false
 
   return (
@@ -35,9 +39,15 @@ function MeetingRow({ meeting, archiveUrl }: { meeting: CommitteeMeeting; archiv
         <ul className={styles.recordings} aria-label="Recordings">
           {meeting.recordings.map((r) => (
             <li key={r.id} className={styles.recording}>
-              <Link to={`/hearings/recordings/${r.id}`} className={styles.recordingLink}>
-                {meeting.recordings.length > 1 ? `Recording, ${formatTime(r.datetime)}` : 'Recording'}
-              </Link>
+              {isPublic ? (
+                <SignupLink className={styles.recordingLink} title="Sign up free to listen and read the transcript">
+                  {meeting.recordings.length > 1 ? `Recording, ${formatTime(r.datetime)}` : 'Recording'}
+                </SignupLink>
+              ) : (
+                <Link to={`/hearings/recordings/${r.id}`} className={styles.recordingLink}>
+                  {meeting.recordings.length > 1 ? `Recording, ${formatTime(r.datetime)}` : 'Recording'}
+                </Link>
+              )}
               <span className={styles.recordingMeta}>
                 {[r.durationSeconds > 0 ? formatDuration(r.durationSeconds) : null, transcriptStatusLabel(r)]
                   .filter(Boolean)
@@ -76,16 +86,17 @@ export function CommitteeDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [detail, setDetail] = useState<LoadState<NonStandingCommitteeDetail>>({ status: 'loading' })
+  const isPublic = usePublicView()
 
   const load = () => {
     if (!id) return
-    client
-      .getCommitteeDetail(id)
+    ;(isPublic ? client.getPublicCommitteeDetail(id) : client.getCommitteeDetail(id))
       .then((data) => setDetail({ status: 'ready', data }))
       .catch(() => setDetail({ status: 'empty' }))
   }
 
-  useEffect(load, [id])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [id, isPublic])
 
   if (detail.status === 'loading') {
     return <div className={styles.page}>Loading committee…</div>
@@ -93,9 +104,11 @@ export function CommitteeDetailPage() {
   if (detail.status === 'empty') {
     return (
       <div className={styles.page}>
-        <button className={styles.backLink} onClick={() => navigate(-1)}>
-          ← Back
-        </button>
+        {!isPublic && (
+          <button className={styles.backLink} onClick={() => navigate(-1)}>
+            ← Back
+          </button>
+        )}
         <EmptyState message="This committee couldn't be found." />
       </div>
     )
@@ -137,12 +150,18 @@ export function CommitteeDetailPage() {
           >
             View on official site ↗
           </a>
-          <button
-            className={`${styles.followButton} ${committee.isFollowed ? styles.followButtonActive : ''}`}
-            onClick={handleToggleFollow}
-          >
-            {committee.isFollowed ? 'Following' : '+ Follow'}
-          </button>
+          {isPublic ? (
+            <SignupLink className={styles.followButton} title="Sign up to follow this committee">
+              + Follow
+            </SignupLink>
+          ) : (
+            <button
+              className={`${styles.followButton} ${committee.isFollowed ? styles.followButtonActive : ''}`}
+              onClick={handleToggleFollow}
+            >
+              {committee.isFollowed ? 'Following' : '+ Follow'}
+            </button>
+          )}
         </div>
       </div>
 

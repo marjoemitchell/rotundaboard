@@ -1,5 +1,8 @@
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { BillDetailPage } from './pages/BillDetailPage'
+import { CommitteeDetailPage } from './pages/CommitteeDetailPage'
+import { CommitteesPage } from './pages/CommitteesPage'
+import { HearingsPage } from './pages/HearingsPage'
 import { LegislatorDetailPage } from './pages/LegislatorDetailPage'
 import { LegislatorsMapPage } from './pages/LegislatorsMapPage'
 import { LegislatorsPage } from './pages/LegislatorsPage'
@@ -7,7 +10,12 @@ import { PublicViewContext } from './lib/publicView'
 import styles from './PublicApp.module.css'
 
 // The paths that a visitor without an account can open.
-const PUBLIC_PATHS = [/^\/bills\/\d+\/?$/, /^\/legislators(\/list|\/\d+)?\/?$/]
+const PUBLIC_PATHS = [
+  /^\/bills\/\d+\/?$/,
+  /^\/legislators(\/list|\/\d+)?\/?$/,
+  /^\/committees(\/\d+)?\/?$/,
+  /^\/hearings\/?$/,
+]
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => p.test(pathname))
@@ -34,6 +42,12 @@ export function PublicApp() {
         <nav className={styles.nav} aria-label="Public pages">
           <Link to="/legislators" className={styles.navLink}>
             Legislators
+          </Link>
+          <Link to="/committees" className={styles.navLink}>
+            Committees
+          </Link>
+          <Link to="/hearings" className={styles.navLink}>
+            Hearings
           </Link>
         </nav>
         <div className={styles.actions}>
@@ -62,6 +76,9 @@ export function PublicApp() {
           <Route path="/legislators" element={<LegislatorsMapPage />} />
           <Route path="/legislators/list" element={<LegislatorsPage />} />
           <Route path="/legislators/:id" element={<LegislatorDetailPage />} />
+          <Route path="/committees" element={<CommitteesPage />} />
+          <Route path="/committees/:id" element={<CommitteeDetailPage />} />
+          <Route path="/hearings" element={<HearingsPage />} />
         </Routes>
       </main>
     </PublicViewContext.Provider>
