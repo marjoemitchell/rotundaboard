@@ -1,4 +1,12 @@
-import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill, findSessionIdWithBills, type FreshWorkspace } from './fixtures'
+import {
+  test,
+  expect,
+  signUpFreshWorkspace,
+  trackFirstAvailableBill,
+  findSessionIdWithBills,
+  setWorkspacePlan,
+  type FreshWorkspace,
+} from './fixtures'
 import type { APIRequestContext, Page } from '@playwright/test'
 
 const API_BASE = 'http://localhost:4000'
@@ -172,5 +180,24 @@ test.describe('alert emails', () => {
     await scrapeStatusChange(page.request, bill.id)
     await runAlerts(page.request)
     expect((await lastEmail(page.request, user.email))?.sentAt).toBe(email?.sentAt)
+  })
+})
+
+test.describe('alerts and plans', () => {
+  test('a free workspace gets no alert emails, and a paid workspace does', async ({ page }) => {
+    const info = await signUpFreshWorkspace(page, { plan: 'free' })
+    const { billId } = await trackFirstAvailableBill(page, { index: 12 })
+
+    await page.goto('/settings')
+    await expect(alertsSection(page).getByText('The Free plan does not include email alerts.')).toBeVisible()
+
+    await scrapeStatusChange(page.request, billId)
+    await runAlerts(page.request)
+    expect(await lastEmail(page.request, info.email)).toBeNull()
+
+    await setWorkspacePlan(page, 'single_user')
+    await scrapeStatusChange(page.request, billId)
+    await runAlerts(page.request)
+    expect((await lastEmail(page.request, info.email))?.subject).toContain('Rotunda Board')
   })
 })

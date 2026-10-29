@@ -39,6 +39,16 @@
   margin-bottom: 10px;
 }
 
+.planLine {
+  font-size: 16px;
+  color: var(--ink-2);
+}
+
+.planLine a {
+  color: var(--teal);
+  font-weight: 600;
+}
+
 .memberList {
   display: flex;
   flex-direction: column;

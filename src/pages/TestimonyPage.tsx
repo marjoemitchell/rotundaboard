@@ -6,6 +6,8 @@ import { formatDate, formatTime } from '../lib/format'
 import { PositionChip } from '../components/shared/PositionChip'
 import { EmptyState } from '../components/shared/EmptyState'
 import { useConfirm, type ConfirmFn } from '../hooks/useConfirm'
+import { UpgradeNotice } from '../components/shared/UpgradeNotice'
+import { usePlan } from '../auth/usePlan'
 import styles from './TestimonyPage.module.css'
 
 const POSITION_OPTIONS: { value: NonNullable<Position>; label: string }[] = [
@@ -286,6 +288,8 @@ export function TestimonyPage() {
   const [trackedBills, setTrackedBills] = useState<Bill[]>([])
   const [creating, setCreating] = useState(false)
   const { confirm, confirmDialog } = useConfirm()
+  const { plan, has } = usePlan()
+  const canDraft = has('testimony')
 
   const load = () => {
     client
@@ -321,14 +325,16 @@ export function TestimonyPage() {
             Written and oral statements the team has drafted for committee hearings, from first draft to delivered.
           </p>
         </div>
-        {!creating && (
+        {!creating && canDraft && (
           <button className={styles.newButton} onClick={() => setCreating(true)}>
             + New testimony
           </button>
         )}
       </div>
 
-      {creating && (
+      {!canDraft && <UpgradeNotice message={`The ${plan?.label} plan does not include testimony drafts.`} />}
+
+      {creating && canDraft && (
         <NewTestimonyForm trackedBills={trackedBills} onCancel={() => setCreating(false)} onCreated={handleCreated} />
       )}
 

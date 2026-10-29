@@ -11,6 +11,8 @@ export function uniqueSuffix(): string {
   return `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`
 }
 
+export type PlanKey = 'free' | 'single_user' | 'team' | 'organization'
+
 export type FreshWorkspace = {
   email: string
   password: string
@@ -18,7 +20,39 @@ export type FreshWorkspace = {
   workspaceName: string
 }
 
-export async function signUpFreshWorkspace(page: Page, overrides?: Partial<FreshWorkspace>): Promise<FreshWorkspace> {
+// Sets the plan of the current workspace through the test-only route, then
+// loads `path` (the default is the current page) so that the frontend reads
+// the new plan. Give `path` when the test goes to another page next: then the
+// test loads one page, not two. Wait for the requests of the page to end
+// before and after the load. When a test stops the large dashboard requests,
+// Chromium can fail with ERR_INSUFFICIENT_RESOURCES.
+export async function setWorkspacePlan(page: Page, plan: PlanKey, { path }: { path?: string } = {}) {
+  await page.waitForLoadState('networkidle')
+  const status = await page.evaluate(
+    async ({ apiBase, plan }) => {
+      const res = await fetch(`${apiBase}/api/__test__/workspace-plan`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      })
+      return res.status
+    },
+    { apiBase: API_BASE, plan },
+  )
+  expect(status).toBe(200)
+  if (path) await page.goto(path)
+  else await page.reload()
+  await page.waitForLoadState('networkidle')
+}
+
+// The test API gives a new workspace the organization plan (no limits, see
+// playwright.config.ts). Give `plan` to test another plan. Only then does the
+// helper change the plan and reload the page.
+export async function signUpFreshWorkspace(
+  page: Page,
+  overrides?: Partial<FreshWorkspace> & { plan?: PlanKey },
+): Promise<FreshWorkspace> {
   const suffix = uniqueSuffix()
   const info: FreshWorkspace = {
     email: overrides?.email ?? `e2e-${suffix}@example.dev`,
@@ -33,6 +67,9 @@ export async function signUpFreshWorkspace(page: Page, overrides?: Partial<Fresh
   await page.fill('#password', info.password)
   await page.click('button[type="submit"]')
   await page.waitForURL('/')
+  const plan = overrides?.plan ?? 'organization'
+  const me = await (await page.request.get(`${API_BASE}/api/auth/me`)).json()
+  if (me.currentWorkspace?.plan?.key !== plan) await setWorkspacePlan(page, plan)
   return info
 }
 

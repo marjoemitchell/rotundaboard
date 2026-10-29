@@ -17,6 +17,7 @@ import { versionLabel, versionOrder } from '../billText.js'
 import type { HearingAiSummary } from '../summarizeHearings.js'
 import { computeMomentum, determineOutcome, isProgressStopped, type StatusPoint } from '../momentum.js'
 import { FULL_TRANSCRIPT_DAYS, windowStart } from '../recordingWindows.js'
+import { hasFeature } from '../plans.js'
 
 function formatIdentifier(billTypeCode: string | null, billNumber: number | null, draftNumber: string): string {
   if (billTypeCode && billNumber != null) return `${billTypeCode} ${billNumber}`
@@ -666,7 +667,7 @@ export async function getHearingDetail(recordingId: number, workspaceId: number)
   const r = rows[0]
   if (!r) return null
 
-  const [{ rows: segmentRows }, patterns] = await Promise.all([
+  const [{ rows: segmentRows }, patterns, showSummary] = await Promise.all([
     pool.query<{ start_seconds: number; end_seconds: number; text: string; display_name: string | null; legislator_id: number | null }>(
       `SELECT s.start_seconds, s.end_seconds, s.text, sp.display_name, sp.legislator_id
        FROM hearing_transcript_segments s
@@ -676,6 +677,7 @@ export async function getHearingDetail(recordingId: number, workspaceId: number)
       [recordingId],
     ),
     trackedBillPatterns(workspaceId),
+    hasFeature(workspaceId, 'aiSummaries'),
   ])
 
   const transcript = segmentRows.map((s) => {
@@ -703,10 +705,16 @@ export async function getHearingDetail(recordingId: number, workspaceId: number)
     transcript,
     trackedTermMentions: transcript.filter((t) => t.mentionedBillIds.length > 0).length,
     // The AI summary (summarizeHearings.ts), or null before the job runs.
-    aiSummary: r.ai_summary
-      ? { ...r.ai_summary, model: r.ai_summary_model, generatedAt: r.ai_summarized_at }
-      : null,
+    // A plan without AI summaries gets only the first sentence of the overview.
+    aiSummary:
+      r.ai_summary && showSummary ? { ...r.ai_summary, model: r.ai_summary_model, generatedAt: r.ai_summarized_at } : null,
+    aiSummaryTeaser: r.ai_summary && !showSummary ? firstSentence(r.ai_summary.overview) : null,
   }
+}
+
+function firstSentence(text: string): string {
+  const match = text.match(/^.*?[.!?](?=\s|$)/s)
+  return (match ? match[0] : text).trim()
 }
 
 // Media types for what an HLS stream is made of; anything else is refused.
@@ -1031,6 +1039,7 @@ export async function getBillDetail(billId: number, workspaceId: number) {
         [billId],
       ),
     ])
+  const showAmendmentSummaries = await hasFeature(workspaceId, 'aiSummaries')
 
   const statuses: StatusPoint[] = statusRows.rows.map((r) => ({
     occurredAt: new Date(r.occurred_at),
@@ -1169,9 +1178,11 @@ export async function getBillDetail(billId: number, workspaceId: number) {
       // HB 2 groups its amendments by section letter (A to E).
       section: r.section && /^[A-Z]$/.test(r.section) ? r.section : null,
       documentId: r.document_id != null ? String(r.document_id) : null,
-      summary: r.summary,
+      summary: showAmendmentSummaries ? r.summary : null,
       postedAt: r.posted_at,
     })),
+    // True when the plan hides AI amendment summaries that exist.
+    amendmentSummariesLocked: !showAmendmentSummaries && amendmentRows.rows.some((r) => r.summary),
     textVersions: versionRows.rows
       .map((r) => ({ key: r.version_key, label: versionLabel(r.version_key), postedAt: r.posted_at }))
       .sort((a, b) => versionOrder(a.key) - versionOrder(b.key)),

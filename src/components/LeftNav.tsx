@@ -163,6 +163,11 @@ export function LeftNav({
               size={22}
             />
             <span className={styles.accountName}>{session.user.name}</span>
+            {session.currentWorkspace && (
+              <Link className={styles.planLink} to="/plans">
+                {session.currentWorkspace.plan.label} plan
+              </Link>
+            )}
           </div>
           <div className={styles.accountActions}>
             <Link className={styles.accountAction} to="/settings">
