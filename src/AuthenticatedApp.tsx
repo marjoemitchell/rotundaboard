@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useDashboardData } from './hooks/useDashboardData'
 import { useFilterState } from './hooks/useFilterState'
@@ -23,12 +23,14 @@ import { CommitteeDetailPage } from './pages/CommitteeDetailPage'
 import { TrackingBoardPage } from './pages/TrackingBoardPage'
 import { TestimonyPage } from './pages/TestimonyPage'
 import { SettingsPage } from './pages/SettingsPage'
-import { PlansPage } from './pages/PlansPage'
 import { HearingsPage } from './pages/HearingsPage'
 import { HearingTranscriptPage } from './pages/HearingTranscriptPage'
 import { BillComparePage } from './pages/BillComparePage'
 import type { Bill, FilterState, LoadState, Position } from './types'
 import styles from './App.module.css'
+
+// Few people open the Plans page, so load its code only when it opens.
+const PlansPage = lazy(() => import('./pages/PlansPage').then((m) => ({ default: m.PlansPage })))
 
 const NAV_LABELS: Record<string, string> = {}
 
@@ -423,7 +425,14 @@ export function AuthenticatedApp() {
             <Route path="/legislators/list" element={<LegislatorsPage />} />
             <Route path="/legislators/:id" element={<LegislatorDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/plans" element={<PlansPage />} />
+            <Route
+              path="/plans"
+              element={
+                <Suspense fallback={null}>
+                  <PlansPage />
+                </Suspense>
+              }
+            />
             <Route path="/hearings" element={<HearingsPage />} />
             <Route path="/hearings/recordings/:id" element={<HearingTranscriptPage />} />
           </Routes>

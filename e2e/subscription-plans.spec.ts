@@ -14,6 +14,11 @@ import {
 
 const API_BASE = 'http://localhost:4000'
 
+// Each test here signs up, changes the plan, and loads the large dashboard
+// again. Run the tests one at a time, so that they do not use the browser
+// resources of the multi-user specs that run at the same time.
+test.describe.configure({ mode: 'serial' })
+
 async function sessionBills(page: Page): Promise<{ id: string; identifier: string }[]> {
   const sessionId = await findSessionIdWithBills(page)
   const res = await page.request.get(`${API_BASE}/api/sessions/${sessionId}/bills`)
