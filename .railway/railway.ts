@@ -1,21 +1,14 @@
-import { defineRailway, empty, github, postgres, preserve, project, service } from "railway/iac";
+import { defineRailway, github, postgres, preserve, project, service } from "railway/iac";
 
 export default defineRailway(() => {
   const db = postgres("db");
   const repo = github("marjoemitchell/rotundaboard", { branch: "main" });
 
-  // The cron services deliberately do NOT use `repo` as their source.
-  // Discovered 2026-09-07: connecting them to GitHub meant every push to
-  // main (for completely unrelated api/web work) rebuilt and redeployed
-  // them, and their cronSchedule silently stopped actually firing —
-  // confirmed by zero deployment records across ~13 hours spanning 4
-  // scheduled fires, even though `railway status` kept reporting a
-  // plausible next-run time throughout. Disconnecting them from GitHub
-  // (source: empty()) and deploying manually via `railway up`/`redeploy`
-  // whenever their scripts actually change removes the confounding
-  // variable. A cron/batch job doesn't need continuous deployment on
-  // every commit the way a live service does, so this is the right
-  // architecture regardless of the exact platform mechanism at fault.
+  // All services, the crons too, deploy from GitHub when main changes.
+  // On 2026-09-07 the crons were disconnected from GitHub, because their
+  // schedules stopped running after deploys from GitHub. They were connected
+  // again later in the Railway dashboard. After a merge that changes a cron,
+  // make sure that the cron runs at its next scheduled time.
 
   // EMAIL_FROM_ADDRESS is a Railway shared variable, for example
   // "Rotunda Board <alerts@rotundaboard.com>". The address must be on a domain
@@ -65,7 +58,7 @@ export default defineRailway(() => {
   });
 
   const cronRefreshMeetings = service("cron-refresh-meetings", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run refresh-meetings",
@@ -88,7 +81,7 @@ export default defineRailway(() => {
   // Each run sends hearing alerts and reminders, so it runs every hour.
   // Offset to :15 so it does not start together with the other crons.
   const cronRefreshHearings = service("cron-refresh-hearings", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run refresh-hearings",
@@ -106,7 +99,7 @@ export default defineRailway(() => {
   });
 
   const cronScrape = service("cron-scrape", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run scrape",
@@ -126,7 +119,7 @@ export default defineRailway(() => {
   });
 
   const cronScrapeDetails = service("cron-scrape-details", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run scrape:details",
@@ -146,7 +139,7 @@ export default defineRailway(() => {
   });
 
   const cronGenerateSummaries = service("cron-generate-summaries", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run generate-summaries",
@@ -165,7 +158,7 @@ export default defineRailway(() => {
   // (src/refreshBillTexts.ts). Each run checks at most 300 bills, so the first
   // runs for a session fill in the text over several hours. Offset to :45.
   const cronRefreshBillTexts = service("cron-refresh-bill-texts", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run refresh-bill-texts",
@@ -188,7 +181,7 @@ export default defineRailway(() => {
   // The GPU host writes the transcripts. This cron only reads them, so it
   // runs here. Offset to :50.
   const cronSummarizeHearings = service("cron-summarize-hearings", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run summarize-hearings",
@@ -207,7 +200,7 @@ export default defineRailway(() => {
   // alerts go out from the scrape crons above). 14:00 UTC is 7–8am in
   // Montana, after the overnight scrapes.
   const cronSendAlertDigest = service("cron-send-alert-digest", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run send-alert-digest",
@@ -232,7 +225,7 @@ export default defineRailway(() => {
   // advisory lock keeps it from overlapping the GPU box's runs. Offset to
   // :30 so it doesn't start alongside cron-refresh-meetings.
   const cronTranscribeHearings = service("cron-transcribe-hearings", {
-    source: empty(),
+    source: repo,
     root: "server",
     deploy: {
       startCommand: "npm run transcribe-hearings -- --fallback-after-hours=6",

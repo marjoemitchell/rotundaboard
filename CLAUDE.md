@@ -99,7 +99,8 @@ The API reads `server/.env`. See `server/.env.example` for the variables.
 - Railway runs the API, the web frontend, Postgres, and the cron jobs.
 - Change `.railway/railway.ts`, then run `railway config plan` and `railway config apply`.
   Read the plan before you apply it.
-- The cron services do not deploy from GitHub. After a change to a cron script, run `railway up` for each cron service.
+- All services, the crons too, deploy from GitHub when a change merges into `main`.
+  After a merge that changes a cron, make sure that the cron runs at its next scheduled time.
 - Shared values (`APP_BASE_URL`, `RESEND_API_KEY`, and the Anthropic key and workspace id) are Railway shared variables.
   Services reference them as `${{shared.NAME}}`.
 - Hearing transcription runs on a GPU host with the stack in `deploy/unraid/`. That host writes to the production database.
