@@ -49,8 +49,8 @@ export function PublicHomePage() {
           account.
         </p>
         <p className={styles.pitch}>
-          With a free account, your team can track bills, take positions, write testimony, and get an email when a
-          tracked bill has a hearing.
+          With a free account, you can track a few bills on your own and set your position on each. Paid plans add
+          your team, notes, testimony, and email alerts when a tracked bill has a hearing.
         </p>
         <div className={styles.ctas}>
           <Link to="/signup" state={{ from: location }} className={styles.primary}>
