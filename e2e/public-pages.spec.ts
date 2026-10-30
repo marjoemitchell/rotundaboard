@@ -244,13 +244,75 @@ test.describe('public committee and hearing pages', () => {
   test('on a phone, the public pages have no sideways scroll', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 375, height: 700 } })
     const visitor = await context.newPage()
-    for (const path of ['/committees', '/hearings', '/legislators', '/legislators/list']) {
+    for (const path of ['/', '/committees', '/hearings', '/legislators', '/legislators/list']) {
       await visitor.goto(path)
       await expect(visitor.locator('h1').first()).toBeVisible()
       const overflow = await visitor.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
       expect(overflow, `${path} is wider than the screen`).toBeLessThanOrEqual(0)
     }
     await context.close()
+  })
+})
+
+test.describe('public home page', () => {
+  test('a visitor who opens the site sees the home page, not the login page', async ({ page, browser, playwright }) => {
+    const room = `Room E2E ${uniqueSuffix()}`
+    const res = await page.request.post(`${API_BASE}/api/__test__/committee-meeting`, { data: { daysFromNow: 1, location: room } })
+    expect(res.ok()).toBeTruthy()
+    // The home page shows the first five hearings of the public schedule.
+    const api = await playwright.request.newContext()
+    const schedule = (await (await api.get(`${API_BASE}/api/public/hearings/schedule`)).json()) as {
+      committeeId: string
+      committee: string
+    }[]
+    await api.dispose()
+
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto('/')
+    await expect(visitor.page).toHaveURL(/\/$/)
+    await expect(visitor.page.getByRole('heading', { name: 'Follow the Montana Legislature', level: 1 })).toBeVisible()
+
+    const browse = visitor.page.getByRole('region', { name: 'Browse' })
+    await expect(browse.getByRole('link', { name: /^Legislators/ })).toHaveAttribute('href', '/legislators')
+    await expect(browse.getByRole('link', { name: /^Committees/ })).toHaveAttribute('href', '/committees')
+    await expect(browse.getByRole('link', { name: /^Hearings/ })).toHaveAttribute('href', '/hearings')
+
+    const hearings = visitor.page.getByRole('region', { name: 'Upcoming hearings' })
+    const rows = hearings.locator('a[href^="/committees/"]')
+    await expect(rows).toHaveCount(Math.min(schedule.length, 5))
+    await expect(rows.first()).toHaveAttribute('href', `/committees/${schedule[0].committeeId}`)
+    await expect(rows.first()).toContainText(schedule[0].committee)
+
+    await hearings.getByRole('link', { name: 'See all hearings →' }).click()
+    await expect(visitor.page).toHaveURL(/\/hearings$/)
+    await visitor.page.getByRole('link', { name: 'Rotunda Board home' }).click()
+    await expect(visitor.page).toHaveURL(/\/$/)
+    await visitor.context.close()
+  })
+
+  test('a visitor who signs up from the home page lands on the dashboard', async ({ browser }) => {
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto('/')
+    await visitor.page.getByRole('main').getByRole('link', { name: 'Sign up free' }).click()
+    await expect(visitor.page).toHaveURL(/\/signup/)
+    const suffix = uniqueSuffix()
+    const workspaceName = `E2E Workspace ${suffix}`
+    await visitor.page.fill('#workspaceName', workspaceName)
+    await visitor.page.fill('#name', 'E2E Visitor')
+    await visitor.page.fill('#email', `e2e-visitor-${suffix}@example.dev`)
+    await visitor.page.fill('#password', 'e2e-test-password-1')
+    await visitor.page.click('button[type="submit"]')
+    await expect(visitor.page).toHaveURL(/\/$/)
+    await expect(visitor.page.getByText(workspaceName).first()).toBeVisible()
+    await expect(visitor.page.getByRole('heading', { name: 'Follow the Montana Legislature' })).toHaveCount(0)
+    await visitor.context.close()
+  })
+
+  test('a page that needs an account still goes to the login page', async ({ browser }) => {
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto('/tracking-board')
+    await expect(visitor.page).toHaveURL(/\/login/)
+    await visitor.context.close()
   })
 })
 

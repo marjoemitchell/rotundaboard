@@ -6,11 +6,13 @@ import { HearingsPage } from './pages/HearingsPage'
 import { LegislatorDetailPage } from './pages/LegislatorDetailPage'
 import { LegislatorsMapPage } from './pages/LegislatorsMapPage'
 import { LegislatorsPage } from './pages/LegislatorsPage'
+import { PublicHomePage } from './pages/PublicHomePage'
 import { PublicViewContext } from './lib/publicView'
 import styles from './PublicApp.module.css'
 
 // The paths that a visitor without an account can open.
 const PUBLIC_PATHS = [
+  /^\/$/,
   /^\/bills\/\d+\/?$/,
   /^\/legislators(\/list|\/\d+)?\/?$/,
   /^\/committees(\/\d+)?\/?$/,
@@ -33,12 +35,12 @@ export function PublicApp() {
   return (
     <PublicViewContext.Provider value={true}>
       <header className={styles.bar}>
-        <div className={styles.brand}>
+        <Link to="/" className={styles.brand} aria-label="Rotunda Board home">
           <img src="/logo-mark-dark.svg" alt="" width={26} height={26} />
           <span className={styles.wordmark}>
             Rotunda <span className={styles.wordmarkLight}>Board</span>
           </span>
-        </div>
+        </Link>
         <nav className={styles.nav} aria-label="Public pages">
           <Link to="/legislators" className={styles.navLink}>
             Legislators
@@ -61,6 +63,7 @@ export function PublicApp() {
       </header>
       <main className={styles.main}>
         <Routes>
+          <Route path="/" element={<PublicHomePage />} />
           <Route
             path="/bills/:id"
             element={

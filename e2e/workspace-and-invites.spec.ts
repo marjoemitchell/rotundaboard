@@ -224,8 +224,8 @@ test.describe('password reset', () => {
     await page.click('button[type="submit"]')
     await page.waitForURL('/')
 
-    // The other, previously-logged-in session was force-logged-out by the reset.
-    await otherPage.reload()
+    // The reset signed out the other session. "/" is the public home page, so open a page that needs an account.
+    await otherPage.goto('/tracking-board')
     await expect(otherPage).toHaveURL(/\/login/)
 
     await otherCtx.close()
