@@ -6,7 +6,8 @@ import { formatDate, formatDuration, formatTime } from '../lib/format'
 import { transcriptStatusLabel } from '../lib/hearings'
 import { EmptyState } from '../components/shared/EmptyState'
 import { RecordingsNote } from '../components/shared/RecordingsNote'
-import { SignupLink } from '../components/shared/SignupLink'
+import { SignupGate } from '../components/shared/SignupGate'
+import { followAfterSignupState, useFollowAfterSignup } from '../hooks/useFollowAfterSignup'
 import { usePublicView } from '../lib/publicView'
 import styles from './CommitteeDetailPage.module.css'
 
@@ -40,9 +41,15 @@ function MeetingRow({ meeting, archiveUrl }: { meeting: CommitteeMeeting; archiv
           {meeting.recordings.map((r) => (
             <li key={r.id} className={styles.recording}>
               {isPublic ? (
-                <SignupLink className={styles.recordingLink} title="Sign up free to listen and read the transcript">
+                <SignupGate
+                  action="listen to this recording"
+                  reason="You can read and search its transcript."
+                  returnTo={`/hearings/recordings/${r.id}`}
+                  align="start"
+                  className={styles.recordingLink}
+                >
                   {meeting.recordings.length > 1 ? `Recording, ${formatTime(r.datetime)}` : 'Recording'}
-                </SignupLink>
+                </SignupGate>
               ) : (
                 <Link to={`/hearings/recordings/${r.id}`} className={styles.recordingLink}>
                   {meeting.recordings.length > 1 ? `Recording, ${formatTime(r.datetime)}` : 'Recording'}
@@ -97,6 +104,7 @@ export function CommitteeDetailPage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [id, isPublic])
+  useFollowAfterSignup(load)
 
   if (detail.status === 'loading') {
     return <div className={styles.page}>Loading committee…</div>
@@ -151,9 +159,14 @@ export function CommitteeDetailPage() {
             View on official site ↗
           </a>
           {isPublic ? (
-            <SignupLink className={styles.followButton} title="Sign up to follow this committee">
+            <SignupGate
+              action="follow this committee"
+              reason="You get an email when it schedules a meeting."
+              returnState={followAfterSignupState(committee.id)}
+              className={styles.followButton}
+            >
               + Follow
-            </SignupLink>
+            </SignupGate>
           ) : (
             <button
               className={`${styles.followButton} ${committee.isFollowed ? styles.followButtonActive : ''}`}

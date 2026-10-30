@@ -4,7 +4,8 @@ import * as client from '../data/client'
 import type { LoadState, NonStandingCommittee } from '../types'
 import { formatDate, formatTime } from '../lib/format'
 import { EmptyState } from '../components/shared/EmptyState'
-import { SignupLink } from '../components/shared/SignupLink'
+import { SignupGate } from '../components/shared/SignupGate'
+import { followAfterSignupState, useFollowAfterSignup } from '../hooks/useFollowAfterSignup'
 import { usePublicView } from '../lib/publicView'
 import styles from './CommitteesPage.module.css'
 
@@ -21,6 +22,7 @@ export function CommitteesPage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [isPublic])
+  useFollowAfterSignup(load)
 
   const filtered = useMemo(() => {
     if (committees.status !== 'ready') return []
@@ -73,9 +75,14 @@ export function CommitteesPage() {
                   </div>
                 </Link>
                 {isPublic ? (
-                  <SignupLink className={styles.followButton} title="Sign up to follow this committee">
+                  <SignupGate
+                    action="follow this committee"
+                    reason="You get an email when it schedules a meeting."
+                    returnState={followAfterSignupState(c.id)}
+                    className={styles.followButton}
+                  >
                     + Follow
-                  </SignupLink>
+                  </SignupGate>
                 ) : (
                   <button
                     className={`${styles.followButton} ${c.isFollowed ? styles.followButtonActive : ''}`}

@@ -1,15 +1,41 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import * as client from '../data/client'
 import type { HearingSummary, LoadState, UpcomingHearing } from '../types'
 import { formatDate, formatDuration, formatTime } from '../lib/format'
 import { transcriptStatusLabel } from '../lib/hearings'
 import { RecordingsNote } from '../components/shared/RecordingsNote'
 import { EmptyState } from '../components/shared/EmptyState'
+import { SignupGate } from '../components/shared/SignupGate'
 import { usePublicView } from '../lib/publicView'
 import styles from './HearingsPage.module.css'
 
 const RECORDINGS_PREVIEW = 8
+
+// A recent recording. A visitor gets a signup popover, because the audio and
+// the transcript need an account. After signup, the recording opens.
+function RecordingRow({ recording, isPublic, children }: { recording: HearingSummary; isPublic: boolean; children: ReactNode }) {
+  const className = `${styles.recording} ${recording.isFollowed ? styles.recordingFollowed : ''}`
+  if (isPublic) {
+    return (
+      <SignupGate
+        action="listen to this recording"
+        reason="You can read and search its transcript."
+        returnTo={`/hearings/recordings/${recording.id}`}
+        block
+        className={className}
+      >
+        {children}
+      </SignupGate>
+    )
+  }
+  return (
+    <Link to={`/hearings/recordings/${recording.id}`} className={className}>
+      {children}
+    </Link>
+  )
+}
 
 export function HearingsPage() {
   const [hearings, setHearings] = useState<LoadState<UpcomingHearing[]>>({ status: 'loading' })
@@ -18,7 +44,6 @@ export function HearingsPage() {
   const [showAllRecordings, setShowAllRecordings] = useState(false)
   // A visitor sees the recordings, but the audio and the transcript need an account.
   const isPublic = usePublicView()
-  const location = useLocation()
 
   useEffect(() => {
     ;(isPublic ? client.getPublicUpcomingHearings() : client.getUpcomingHearings())
@@ -70,24 +95,19 @@ export function HearingsPage() {
           <RecordingsNote />
           <div className={styles.list}>
             {(showAllRecordings ? filteredRecordings : filteredRecordings.slice(0, RECORDINGS_PREVIEW)).map((r) => (
-              <Link
-                key={r.id}
-                to={isPublic ? '/signup' : `/hearings/recordings/${r.id}`}
-                state={isPublic ? { from: location } : undefined}
-                className={`${styles.recording} ${r.isFollowed ? styles.recordingFollowed : ''}`}
-              >
-                <div className={styles.rowDate}>
-                  <div className={styles.rowDateDay}>{formatDate(r.datetime)}</div>
-                  <div className={styles.recordingTime}>{formatTime(r.datetime)}</div>
-                </div>
-                <div className={styles.rowMain}>
-                  <div className={styles.recordingCommittee}>{r.committee}</div>
-                  <div className={styles.recordingStatus} data-status={r.transcriptStatus}>
+              <RecordingRow key={r.id} recording={r} isPublic={isPublic}>
+                <span className={styles.rowDate}>
+                  <span className={styles.rowDateDay}>{formatDate(r.datetime)}</span>
+                  <span className={styles.recordingTime}>{formatTime(r.datetime)}</span>
+                </span>
+                <span className={styles.rowMain}>
+                  <span className={styles.recordingCommittee}>{r.committee}</span>
+                  <span className={styles.recordingStatus} data-status={r.transcriptStatus}>
                     {transcriptStatusLabel(r)}
-                  </div>
-                </div>
-                <div className={styles.rowAgenda}>{r.durationSeconds > 0 ? formatDuration(r.durationSeconds) : ''}</div>
-              </Link>
+                  </span>
+                </span>
+                <span className={styles.rowAgenda}>{r.durationSeconds > 0 ? formatDuration(r.durationSeconds) : ''}</span>
+              </RecordingRow>
             ))}
           </div>
           {filteredRecordings.length > RECORDINGS_PREVIEW && (

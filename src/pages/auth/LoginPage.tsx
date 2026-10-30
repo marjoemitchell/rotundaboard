@@ -23,7 +23,7 @@ export function LoginPage() {
       await client.login(email.trim(), password)
       await refresh()
       const from = (location.state as { from?: Location } | null)?.from
-      navigate(from ? `${from.pathname}${from.search}` : '/', { replace: true })
+      navigate(from ? `${from.pathname}${from.search}` : '/', { replace: true, state: from?.state })
     } catch (err) {
       setError(err instanceof Error ? err.message.replace(/^.*: /, '') : 'Could not sign in.')
     } finally {

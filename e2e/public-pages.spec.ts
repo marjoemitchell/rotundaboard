@@ -197,7 +197,10 @@ test.describe('public legislator pages', () => {
 })
 
 test.describe('public committee and hearing pages', () => {
-  test('a visitor can open a committee, and "Follow" goes to signup and back', async ({ browser, playwright }) => {
+  test('a visitor can open a committee, and "Follow" explains signup, then follows the committee after signup', async ({
+    browser,
+    playwright,
+  }) => {
     const api = await playwright.request.newContext()
     const committees = (await (await api.get(`${API_BASE}/api/public/committees`)).json()) as { id: string; name: string }[]
     await api.dispose()
@@ -210,7 +213,14 @@ test.describe('public committee and hearing pages', () => {
     await expect(visitor.page).toHaveURL(new RegExp(`/committees/${committee.id}$`))
     await expect(visitor.page.getByRole('heading', { level: 1 })).toHaveText(committee.name)
 
-    await visitor.page.getByRole('link', { name: '+ Follow' }).click()
+    // The click opens a popover. The page stays the same.
+    await visitor.page.getByRole('button', { name: '+ Follow' }).click()
+    const popover = visitor.page.getByRole('dialog', { name: 'Create an account' })
+    await expect(popover).toContainText('Create a free account to follow this committee.')
+    await expect(visitor.page).toHaveURL(new RegExp(`/committees/${committee.id}$`))
+    await expect(popover.getByRole('link', { name: 'Sign up free' })).toBeFocused()
+
+    await popover.getByRole('link', { name: 'Sign up free' }).click()
     await expect(visitor.page).toHaveURL(/\/signup/)
     const suffix = uniqueSuffix()
     await visitor.page.fill('#workspaceName', `E2E Workspace ${suffix}`)
@@ -218,13 +228,57 @@ test.describe('public committee and hearing pages', () => {
     await visitor.page.fill('#email', `e2e-visitor-${suffix}@example.dev`)
     await visitor.page.fill('#password', 'e2e-test-password-1')
     await visitor.page.click('button[type="submit"]')
+
+    // Signup finishes the action: the committee is followed, with no second click.
     await expect(visitor.page).toHaveURL(new RegExp(`/committees/${committee.id}$`))
-    await visitor.page.getByRole('button', { name: '+ Follow' }).click()
+    await expect(visitor.page.getByRole('button', { name: 'Following' })).toBeVisible()
+    await visitor.page.reload()
     await expect(visitor.page.getByRole('button', { name: 'Following' })).toBeVisible()
     await visitor.context.close()
   })
 
-  test('a visitor sees the hearings, and a recording goes to signup', async ({ page, browser }) => {
+  test('a visitor who logs in from "Follow" on the committee list follows the committee', async ({ page, browser, playwright }) => {
+    const info = await signUpFreshWorkspace(page)
+    const api = await playwright.request.newContext()
+    const committees = (await (await api.get(`${API_BASE}/api/public/committees`)).json()) as { id: string; name: string }[]
+    await api.dispose()
+    const committee = committees[0]
+
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto('/committees')
+    const row = visitor.page.locator('[class*="row"]', { has: visitor.page.getByRole('link', { name: committee.name }) }).first()
+    await row.getByRole('button', { name: '+ Follow' }).click()
+    await visitor.page.getByRole('dialog', { name: 'Create an account' }).getByRole('link', { name: 'Log in' }).click()
+    await visitor.page.fill('input[type="email"]', info.email)
+    await visitor.page.fill('input[type="password"]', info.password)
+    await visitor.page.click('button[type="submit"]')
+
+    await expect(visitor.page).toHaveURL(/\/committees$/)
+    await expect(row.getByRole('button', { name: 'Following' })).toBeVisible()
+    await visitor.context.close()
+  })
+
+  test('Escape and a click outside close the signup popover', async ({ browser }) => {
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto('/committees')
+    const follow = visitor.page.getByRole('button', { name: '+ Follow' }).first()
+    const popover = visitor.page.getByRole('dialog', { name: 'Create an account' })
+
+    await follow.click()
+    await expect(popover).toBeVisible()
+    await expect(follow).toHaveAttribute('aria-expanded', 'true')
+    await visitor.page.keyboard.press('Escape')
+    await expect(popover).toHaveCount(0)
+    await expect(follow).toBeFocused()
+
+    await follow.click()
+    await expect(popover).toBeVisible()
+    await visitor.page.getByRole('heading', { name: 'Interim committees' }).click()
+    await expect(popover).toHaveCount(0)
+    await visitor.context.close()
+  })
+
+  test('a visitor sees the hearings, and signup from a recording opens the recording', async ({ page, browser }) => {
     const recording = await createHearingFixture(page.request, { segments: [{ start: 0, end: 5, text: 'Good morning.' }] })
 
     const visitor = await visitorPage(browser)
@@ -233,12 +287,37 @@ test.describe('public committee and hearing pages', () => {
     const recordings = visitor.page.getByRole('region', { name: 'Recent recordings' })
     await expect(recordings.getByText('Sign up free to listen to a recording and read its transcript.')).toBeVisible()
     await expect(recordings.locator(`a[href="/hearings/recordings/${recording.id}"]`)).toHaveCount(0)
-    await expect(recordings.getByRole('link', { name: new RegExp(recording.committee) }).first()).toHaveAttribute('href', '/signup')
+
+    await recordings.getByRole('button', { name: new RegExp(recording.committee) }).first().click()
+    const popover = recordings.getByRole('dialog', { name: 'Create an account' })
+    await expect(popover).toContainText('Create a free account to listen to this recording.')
+    await popover.getByRole('link', { name: 'Sign up free' }).click()
+    const suffix = uniqueSuffix()
+    await visitor.page.fill('#workspaceName', `E2E Workspace ${suffix}`)
+    await visitor.page.fill('#name', 'E2E Visitor')
+    await visitor.page.fill('#email', `e2e-visitor-${suffix}@example.dev`)
+    await visitor.page.fill('#password', 'e2e-test-password-1')
+    await visitor.page.click('button[type="submit"]')
+    await expect(visitor.page).toHaveURL(/\/hearings\/recordings\/[^/]+$/)
+    await visitor.context.close()
 
     // The transcript page itself needs an account.
-    await visitor.page.goto(`/hearings/recordings/${recording.id}`)
-    await expect(visitor.page).toHaveURL(/\/login/)
-    await visitor.context.close()
+    const other = await visitorPage(browser)
+    await other.page.goto(`/hearings/recordings/${recording.id}`)
+    await expect(other.page).toHaveURL(/\/login/)
+    await other.context.close()
+  })
+
+  test('on a phone, the signup popover fits on the screen', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 375, height: 700 } })
+    const visitor = await context.newPage()
+    await visitor.goto('/committees')
+    await visitor.getByRole('button', { name: '+ Follow' }).first().click()
+    const box = await visitor.getByRole('dialog', { name: 'Create an account' }).boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.x).toBeGreaterThanOrEqual(0)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(375)
+    await context.close()
   })
 
   test('on a phone, the public pages have no sideways scroll', async ({ browser }) => {

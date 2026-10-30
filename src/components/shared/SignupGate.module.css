@@ -1,0 +1,77 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.block,
+.block .trigger {
+  display: flex;
+  width: 100%;
+}
+
+/* The button keeps the look of the control that it replaces (the className prop). */
+.trigger {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--border-2);
+  box-shadow: 0 8px 24px rgba(15, 37, 71, 0.18);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: normal;
+  color: var(--ink-2);
+}
+
+.alignEnd {
+  right: 0;
+}
+
+.alignStart {
+  left: 0;
+}
+
+.text {
+  display: block;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.signup {
+  padding: 6px 12px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--ink);
+  text-decoration: none;
+}
+
+.signup:hover {
+  background: var(--ink-2);
+}
+
+.login {
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.login:hover {
+  text-decoration: underline;
+}

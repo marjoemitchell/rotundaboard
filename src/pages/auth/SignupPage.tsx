@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import type { Location } from 'react-router-dom'
 import * as client from '../../data/client'
 import { useAuth } from '../../auth/AuthContext'
 import styles from './AuthPage.module.css'
@@ -23,9 +24,9 @@ export function SignupPage() {
     try {
       await client.signup({ email: email.trim(), password, name: name.trim(), workspaceName: workspaceName.trim() })
       await refresh()
-      // A visitor who signs up from a public bill page goes back to that bill.
+      // A visitor who signs up from a public page goes back to that page. The state lets the page finish the action.
       const from = (location.state as { from?: Location } | null)?.from
-      navigate(from ? `${from.pathname}${from.search}` : '/', { replace: true })
+      navigate(from ? `${from.pathname}${from.search}` : '/', { replace: true, state: from?.state })
     } catch (err) {
       setError(err instanceof Error ? err.message.replace(/^.*: /, '') : 'Could not create your account.')
     } finally {
