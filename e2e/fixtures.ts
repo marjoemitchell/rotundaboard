@@ -73,6 +73,27 @@ export async function signUpFreshWorkspace(
   return info
 }
 
+// Signs up through the API and sets the plan, with no page load. Use it when
+// the test is not about the signup form: the browser then loads only the
+// pages that the test opens. The session cookie is in the page's context, so
+// the next page.goto is signed in.
+export async function signUpThroughApi(page: Page, plan: PlanKey = 'organization'): Promise<FreshWorkspace> {
+  const suffix = uniqueSuffix()
+  const info: FreshWorkspace = {
+    email: `e2e-${suffix}@example.dev`,
+    password: 'e2e-test-password-1',
+    name: 'E2E Tester',
+    workspaceName: `E2E Workspace ${suffix}`,
+  }
+  const res = await page.request.post(`${API_BASE}/api/auth/signup`, {
+    data: { email: info.email, password: info.password, name: info.name, workspaceName: info.workspaceName },
+  })
+  expect(res.ok()).toBeTruthy()
+  const set = await page.request.post(`${API_BASE}/api/__test__/workspace-plan`, { data: { plan } })
+  expect(set.ok()).toBeTruthy()
+  return info
+}
+
 export async function login(page: Page, email: string, password: string) {
   await page.goto('/login')
   await page.fill('input[type="email"]', email)

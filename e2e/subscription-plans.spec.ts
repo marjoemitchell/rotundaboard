@@ -3,33 +3,37 @@ import {
   test,
   expect,
   createHearingFixture,
-  findSessionIdWithBills,
   getLastEmailToken,
   pendingInviteRow,
   setWorkspacePlan,
-  signUpFreshWorkspace,
-  trackFirstAvailableBill,
+  signUpThroughApi,
   uniqueSuffix,
 } from './fixtures'
 
 const API_BASE = 'http://localhost:4000'
 
-// Each test here signs up, changes the plan, and loads the large dashboard
-// again. Run the tests one at a time, so that they do not use the browser
-// resources of the multi-user specs that run at the same time.
-test.describe.configure({ mode: 'serial' })
+// The tests sign up through the API and open only the pages that they test.
+// With a signup through the UI and a reload after the plan change, each test
+// loaded the large dashboard two times, and the browser crashed sometimes in
+// the full suite.
 
+// The bills of the session with the most bills, through the API.
 async function sessionBills(page: Page): Promise<{ id: string; identifier: string }[]> {
-  const sessionId = await findSessionIdWithBills(page)
-  const res = await page.request.get(`${API_BASE}/api/sessions/${sessionId}/bills`)
-  return res.json()
+  const sessions = (await (await page.request.get(`${API_BASE}/api/sessions`)).json()) as { id: string; billCount: number }[]
+  const best = [...sessions].sort((a, b) => b.billCount - a.billCount)[0]
+  return (await page.request.get(`${API_BASE}/api/sessions/${best.id}/bills`)).json()
+}
+
+async function track(page: Page, billId: string) {
+  expect((await page.request.post(`${API_BASE}/api/bills/${billId}/track`)).ok()).toBeTruthy()
 }
 
 test.describe('plans page', () => {
   test('a new workspace has the free plan, and the plans page shows each plan', async ({ page }) => {
-    await signUpFreshWorkspace(page, { plan: 'free' })
+    await signUpThroughApi(page, 'free')
+    await page.goto('/plans')
 
-    await page.getByRole('link', { name: 'Free plan' }).click()
+    await expect(page.getByRole('link', { name: 'Free plan' })).toHaveAttribute('href', '/plans')
     await expect(page.getByRole('heading', { name: 'Plans' })).toBeVisible()
     await expect(page.getByTestId('plan-usage')).toHaveText('Your workspace has the Free plan: 0 of 10 tracked bills · 1 of 1 members')
 
@@ -45,9 +49,9 @@ test.describe('plans page', () => {
   })
 
   test('a change of plan shows in the navigation and on the plans page', async ({ page }) => {
-    await signUpFreshWorkspace(page, { plan: 'team' })
-    await expect(page.getByRole('link', { name: 'Team plan' })).toBeVisible()
+    await signUpThroughApi(page, 'team')
     await page.goto('/plans')
+    await expect(page.getByRole('link', { name: 'Team plan' })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Team plan' }).getByText('Your plan')).toBeVisible()
     await expect(page.getByRole('region', { name: 'Free plan' }).getByText('Your plan')).toHaveCount(0)
   })
@@ -57,15 +61,12 @@ test.describe('free plan limits', () => {
   // Tracks 10 bills through the API, the limit of the free plan.
   async function trackTen(page: Page) {
     const bills = await sessionBills(page)
-    for (const bill of bills.slice(0, 10)) {
-      const res = await page.request.post(`${API_BASE}/api/bills/${bill.id}/track`)
-      expect(res.ok()).toBeTruthy()
-    }
+    for (const bill of bills.slice(0, 10)) await track(page, bill.id)
     return bills[10]
   }
 
   test('a free workspace can track 10 bills, and the 11th shows the limit', async ({ page }) => {
-    await signUpFreshWorkspace(page, { plan: 'free' })
+    await signUpThroughApi(page, 'free')
     const eleventh = await trackTen(page)
 
     await page.goto(`/bills/${eleventh.id}`)
@@ -77,11 +78,9 @@ test.describe('free plan limits', () => {
     await expect(page.getByTestId('plan-usage')).toContainText('10 of 10 tracked bills')
   })
 
-  // The test above shows the limit in the UI. This test checks the server
-  // only, with no page loads: a page load after the dashboard loads 10
-  // tracked bills was not stable in the full suite.
+  // The test above shows the limit in the UI. This test checks the server.
   test('after an upgrade, the workspace can track more than 10 bills', async ({ page }) => {
-    await signUpFreshWorkspace(page, { plan: 'free' })
+    await signUpThroughApi(page, 'free')
     const eleventh = await trackTen(page)
     expect((await page.request.post(`${API_BASE}/api/bills/${eleventh.id}/track`)).status()).toBe(402)
 
@@ -91,8 +90,10 @@ test.describe('free plan limits', () => {
   })
 
   test('a free workspace sees upgrade notices for notes and testimony on the bill page', async ({ page }) => {
-    await signUpFreshWorkspace(page, { plan: 'free' })
-    await trackFirstAvailableBill(page)
+    await signUpThroughApi(page, 'free')
+    const [bill] = await sessionBills(page)
+    await track(page, bill.id)
+    await page.goto(`/bills/${bill.id}`)
 
     await expect(page.getByText('The Free plan does not include notes.')).toBeVisible()
     await expect(page.getByPlaceholder('Add a note about this bill…')).toHaveCount(0)
@@ -105,7 +106,7 @@ test.describe('free plan limits', () => {
   test('a free workspace sees an upgrade notice on the testimony page, and the API refuses notes and testimony', async ({
     page,
   }) => {
-    await signUpFreshWorkspace(page, { plan: 'free' })
+    await signUpThroughApi(page, 'free')
     const [bill] = await sessionBills(page)
 
     const note = await page.request.post(`${API_BASE}/api/notes`, { data: { billId: bill.id, body: 'E2E note' } })
@@ -119,11 +120,12 @@ test.describe('free plan limits', () => {
   })
 
   test('after an upgrade, the note form is available and saves', async ({ page }) => {
-    await signUpFreshWorkspace(page, { plan: 'free' })
+    await signUpThroughApi(page, 'free')
     const [bill] = await sessionBills(page)
-    expect((await page.request.post(`${API_BASE}/api/bills/${bill.id}/track`)).ok()).toBeTruthy()
+    await track(page, bill.id)
+    expect((await page.request.post(`${API_BASE}/api/__test__/workspace-plan`, { data: { plan: 'single_user' } })).ok()).toBeTruthy()
 
-    await setWorkspacePlan(page, 'single_user', { path: `/bills/${bill.id}` })
+    await page.goto(`/bills/${bill.id}`)
     const noteInput = page.getByPlaceholder('Add a note about this bill…')
     await noteInput.fill('E2E note after the upgrade')
     await noteInput.locator('..').getByRole('button', { name: 'Add', exact: true }).click()
@@ -140,7 +142,7 @@ test.describe('AI summaries by plan', () => {
   const SEGMENTS = [{ start: 0, end: 20, text: 'Good morning, the committee will come to order.' }]
 
   test('a free workspace sees the first sentence of a hearing summary and an upgrade notice', async ({ page }) => {
-    await signUpFreshWorkspace(page, { plan: 'free' })
+    await signUpThroughApi(page, 'free')
     const hearing = await createHearingFixture(page.request, { segments: SEGMENTS, aiSummary: AI_SUMMARY })
 
     await page.goto(`/hearings/recordings/${hearing.id}`)
@@ -156,9 +158,9 @@ test.describe('AI summaries by plan', () => {
   })
 
   test('a free workspace does not see amendment summaries', async ({ page }) => {
-    await signUpFreshWorkspace(page, { plan: 'free' })
+    await signUpThroughApi(page, 'free')
     const billId = (await sessionBills(page))[14].id
-    expect((await page.request.post(`${API_BASE}/api/bills/${billId}/track`)).ok()).toBeTruthy()
+    await track(page, billId)
     const n = Math.floor(Math.random() * 1_000_000) + 1
     const summary = 'This amendment lowers the license fee to $35.'
     const res = await page.request.post(`${API_BASE}/api/__test__/bill-text`, {
@@ -178,7 +180,7 @@ test.describe('AI summaries by plan', () => {
 
 test.describe('member limits', () => {
   test('a single user workspace cannot invite people', async ({ page }) => {
-    await signUpFreshWorkspace(page, { plan: 'single_user' })
+    await signUpThroughApi(page, 'single_user')
     await page.goto('/settings')
     await expect(page.getByText('The Single user plan is for 1 person. A Team plan can invite more people.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Send invite' })).toHaveCount(0)
@@ -190,7 +192,7 @@ test.describe('member limits', () => {
   })
 
   test('a team workspace can have 10 people, and open invites count', async ({ page }) => {
-    await signUpFreshWorkspace(page, { plan: 'team' })
+    await signUpThroughApi(page, 'team')
     const id = await workspaceId(page)
     // The admin and 9 open invites fill the 10 places.
     for (let i = 0; i < 9; i++) {
@@ -207,7 +209,7 @@ test.describe('member limits', () => {
   })
 
   test('an invite cannot be accepted after the workspace changes to a plan for 1 person', async ({ page, browser }) => {
-    await signUpFreshWorkspace(page, { plan: 'team' })
+    await signUpThroughApi(page, 'team')
     const email = `e2e-invitee-${uniqueSuffix()}@example.dev`
     await page.goto('/settings')
     await page.fill('input[type="email"][placeholder="teammate@example.org"]', email)
