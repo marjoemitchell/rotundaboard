@@ -98,6 +98,16 @@ publicRouter.get('/legislators/:id', (req, res) => {
   return sendJson(res, `/legislators/${id}`, () => queries.getLegislatorDetail(id))
 })
 
+// Sessions and the bills of a session: the same data as for a workspace. A
+// visitor tracks no bills, so the tracked counts are 0.
+publicRouter.get('/sessions', (_req, res) => sendJson(res, '/sessions', () => queries.getSessions(null)))
+
+publicRouter.get('/sessions/:id/bills', (req, res) => {
+  const id = parseId(req.params.id, res, 'session')
+  if (id === null) return
+  return sendJson(res, `/sessions/${id}/bills`, () => queries.getSessionBills(id, null))
+})
+
 // Interim committees and hearings: the same data as for a workspace, with
 // no followed committees.
 publicRouter.get('/committees', (_req, res) => sendJson(res, '/committees', () => queries.getNonStandingCommittees(null)))

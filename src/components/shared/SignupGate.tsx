@@ -16,6 +16,8 @@ interface SignupGateProps {
   align?: 'start' | 'end'
   // Fill the width of the parent, for a control that is a full row of a list.
   block?: boolean
+  // The accessible name of the control, when the visible text is not enough (for example "Track HB 12").
+  ariaLabel?: string
   className?: string
   children: ReactNode
 }
@@ -23,7 +25,17 @@ interface SignupGateProps {
 // A control that needs an account, for a visitor without an account. The
 // control keeps its normal look. A click opens a popover with "Sign up free"
 // and "Log in". After signup or login, the person goes to `returnTo`.
-export function SignupGate({ action, reason, returnTo, returnState, align = 'end', block = false, className, children }: SignupGateProps) {
+export function SignupGate({
+  action,
+  reason,
+  returnTo,
+  returnState,
+  align = 'end',
+  block = false,
+  ariaLabel,
+  className,
+  children,
+}: SignupGateProps) {
   const [open, setOpen] = useState(false)
   const location = useLocation()
   const wrapRef = useRef<HTMLSpanElement>(null)
@@ -61,6 +73,7 @@ export function SignupGate({ action, reason, returnTo, returnState, align = 'end
         type="button"
         className={`${styles.trigger} ${className ?? ''}`}
         title={`Sign up to ${action}`}
+        aria-label={ariaLabel}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? popoverId : undefined}

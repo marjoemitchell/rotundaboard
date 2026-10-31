@@ -1197,7 +1197,7 @@ export async function getBillDetail(billId: number, workspaceId: number | null) 
 // sine_die, or no sine_die yet recorded); 'upcoming' hasn't started;
 // 'past' has concluded. tracked_count is scoped to the calling workspace;
 // bill_count is global (same real session data for everyone).
-export async function getSessions(workspaceId: number) {
+export async function getSessions(workspaceId: number | null) {
   const { rows } = await pool.query<{
     id: number
     ordinals: string
@@ -1247,7 +1247,7 @@ export async function getSessions(workspaceId: number) {
 // browser. Deliberately lighter than getBills(): no momentum (expensive to
 // compute per-bill and not meaningful at browse-all scale), no per-bill
 // status-history batch join. is_tracked is scoped to the calling workspace.
-export async function getSessionBills(sessionId: number, workspaceId: number) {
+export async function getSessionBills(sessionId: number, workspaceId: number | null) {
   const { rows } = await pool.query<{
     bill_id: number
     bill_type_code: string | null

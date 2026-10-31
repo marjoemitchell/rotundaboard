@@ -1,4 +1,5 @@
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { AllBillsPage } from './pages/AllBillsPage'
 import { BillDetailPage } from './pages/BillDetailPage'
 import { CommitteeDetailPage } from './pages/CommitteeDetailPage'
 import { CommitteesPage } from './pages/CommitteesPage'
@@ -13,7 +14,7 @@ import styles from './PublicApp.module.css'
 // The paths that a visitor without an account can open.
 const PUBLIC_PATHS = [
   /^\/$/,
-  /^\/bills\/\d+\/?$/,
+  /^\/bills(\/\d+)?\/?$/,
   /^\/legislators(\/list|\/\d+)?\/?$/,
   /^\/committees(\/\d+)?\/?$/,
   /^\/hearings\/?$/,
@@ -25,6 +26,8 @@ export function isPublicPath(pathname: string): boolean {
 
 const NO_MEMBERS = { status: 'empty' } as const
 const noop = () => {}
+// A visitor cannot track a bill. The Track button opens a signup popover (SignupGate), so this function does not run.
+const rejectTrack = () => Promise.reject(new Error('An account is necessary to track a bill.'))
 
 // The app for a visitor without an account: a header with "Log in" and
 // "Sign up", and the read-only page. Other paths go to the login page.
@@ -42,6 +45,9 @@ export function PublicApp() {
           </span>
         </Link>
         <nav className={styles.nav} aria-label="Public pages">
+          <Link to="/bills" className={styles.navLink}>
+            Bills
+          </Link>
           <Link to="/legislators" className={styles.navLink}>
             Legislators
           </Link>
@@ -64,6 +70,7 @@ export function PublicApp() {
       <main className={styles.main}>
         <Routes>
           <Route path="/" element={<PublicHomePage />} />
+          <Route path="/bills" element={<AllBillsPage onTrackBill={rejectTrack} onUntrackBill={rejectTrack} />} />
           <Route
             path="/bills/:id"
             element={

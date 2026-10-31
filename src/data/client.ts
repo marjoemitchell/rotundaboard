@@ -203,6 +203,14 @@ export function getPublicBillDetail(id: string): Promise<BillDetail> {
   return getJson(`/api/public/bills/${id}`)
 }
 
+export function getPublicSessions(): Promise<LegislativeSession[]> {
+  return getJson('/api/public/sessions')
+}
+
+export function getPublicSessionBills(sessionId: string, signal?: AbortSignal): Promise<SessionBillSummary[]> {
+  return getJson(`/api/public/sessions/${sessionId}/bills`, signal)
+}
+
 export function getPublicLegislatorMap(): Promise<LegislatorMap> {
   return getJson('/api/public/legislators/map')
 }

@@ -161,7 +161,7 @@ export function CommitteeDetailPage() {
           {isPublic ? (
             <SignupGate
               action="follow this committee"
-              reason="You get an email when it schedules a meeting."
+              reason="Its meetings show on the calendar of your dashboard."
               returnState={followAfterSignupState(committee.id)}
               className={styles.followButton}
             >
