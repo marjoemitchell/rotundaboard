@@ -84,7 +84,7 @@ test.describe('public bill page', () => {
     await visitor.page.goto(`/bills/${bill.id}`)
     const amendments = visitor.page.getByRole('region', { name: 'Amendments' })
     await expect(amendments.getByText('AI summaries of these amendments are included in the paid plans.')).toBeVisible()
-    await expect(amendments.getByRole('link', { name: 'Sign up' })).toBeVisible()
+    await expect(amendments.getByRole('link', { name: 'See the plans' })).toHaveAttribute('href', '/plans')
     await expect(amendments.getByText(summary)).toHaveCount(0)
 
     const amendment = amendments.getByTestId('amendment').filter({ hasText: `Amendment #${n % 1_000_000}` })
@@ -416,7 +416,7 @@ test.describe('public committee and hearing pages', () => {
   test('on a phone, the public pages have no sideways scroll', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 375, height: 700 } })
     const visitor = await context.newPage()
-    for (const path of ['/', '/bills', '/committees', '/hearings', '/legislators', '/legislators/list']) {
+    for (const path of ['/', '/bills', '/plans', '/committees', '/hearings', '/legislators', '/legislators/list']) {
       await visitor.goto(path)
       await expect(visitor.locator('h1').first()).toBeVisible()
       const overflow = await visitor.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
@@ -498,6 +498,33 @@ test.describe('public home page', () => {
     await visitor.page.goto('/tracking-board')
     await expect(visitor.page).toHaveURL(/\/login/)
     await visitor.context.close()
+  })
+})
+
+test.describe('public plans page', () => {
+  test('a visitor sees the plans, with no workspace usage, and can sign up from them', async ({ browser }) => {
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto('/')
+    await visitor.page.getByRole('link', { name: 'Paid plans' }).click()
+    await expect(visitor.page).toHaveURL(/\/plans$/)
+    await expect(visitor.page.getByRole('heading', { name: 'Plans', level: 1 })).toBeVisible()
+    await expect(visitor.page.getByRole('region', { name: 'Free plan' })).toBeVisible()
+    await expect(visitor.page.getByRole('region', { name: 'Team plan' })).toBeVisible()
+    await expect(visitor.page.getByTestId('plan-usage')).toHaveCount(0)
+    await expect(visitor.page.getByText('Your plan', { exact: true })).toHaveCount(0)
+
+    await visitor.page.getByRole('main').getByRole('link', { name: 'Sign up free' }).click()
+    await expect(visitor.page).toHaveURL(/\/signup/)
+    await visitor.context.close()
+  })
+
+  test('the public plans API has no workspace data', async ({ playwright }) => {
+    const anonymous = await playwright.request.newContext()
+    const body = await (await anonymous.get(`${API_BASE}/api/public/plans`)).json()
+    expect(body.plans.map((p: { key: string }) => p.key)).toEqual(['free', 'single_user', 'team', 'organization'])
+    expect(body.current).toBeUndefined()
+    expect(body.usage).toBeUndefined()
+    await anonymous.dispose()
   })
 })
 

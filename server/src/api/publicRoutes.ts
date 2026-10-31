@@ -5,7 +5,7 @@ import { Router } from 'express'
 import type { NextFunction, Request, Response } from 'express'
 import * as queries from './queries.js'
 import * as billTexts from './billTexts.js'
-import { hasFeature } from '../plans.js'
+import { hasFeature, PLAN_KEYS, PLANS } from '../plans.js'
 
 export const publicRouter = Router()
 
@@ -97,6 +97,10 @@ publicRouter.get('/legislators/:id', (req, res) => {
   if (id === null) return
   return sendJson(res, `/legislators/${id}`, () => queries.getLegislatorDetail(id))
 })
+
+// The plans and their prices and limits, for the Plans page. A visitor has
+// no workspace, so the response has no current plan and no usage.
+publicRouter.get('/plans', (_req, res) => sendJson(res, '/plans', async () => ({ plans: PLAN_KEYS.map((key) => PLANS[key]) })))
 
 // Sessions and the bills of a session: the same data as for a workspace. A
 // visitor tracks no bills, so the tracked counts are 0.

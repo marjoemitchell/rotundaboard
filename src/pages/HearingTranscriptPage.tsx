@@ -9,6 +9,7 @@ import { EmptyState } from '../components/shared/EmptyState'
 import { HearingPlayerBar } from '../components/shared/HearingPlayerBar'
 import { Toast } from '../components/shared/Toast'
 import { UpgradeNotice } from '../components/shared/UpgradeNotice'
+import { usePlan } from '../auth/usePlan'
 import styles from './HearingTranscriptPage.module.css'
 
 export function HearingTranscriptPage() {
@@ -50,6 +51,8 @@ export function HearingTranscriptPage() {
 }
 
 function Transcript({ hearing }: { hearing: Hearing }) {
+  // A plan without AI summaries gets a locked summary card on every recording.
+  const canSeeSummary = usePlan().has('aiSummaries')
   const player = useHearingPlayer(hearing.audioUrl, hearing.durationSeconds)
   const { currentTime, isPlaying, seek } = player
   const [query, setQuery] = useState('')
@@ -145,7 +148,7 @@ function Transcript({ hearing }: { hearing: Hearing }) {
       )}
 
       {hearing.aiSummary && <AiSummaryCard summary={hearing.aiSummary} onSeek={(t) => seek(t, { play: true })} />}
-      {hearing.aiSummaryTeaser && <LockedSummaryCard teaser={hearing.aiSummaryTeaser} />}
+      {!canSeeSummary && <LockedSummaryCard teaser={hearing.aiSummaryTeaser} />}
 
       {hearing.transcript.length === 0 ? (
         <EmptyState
@@ -223,23 +226,31 @@ function Transcript({ hearing }: { hearing: Hearing }) {
   )
 }
 
-// The AI summary of the transcript. A time button plays the recording from
-// the start of that topic.
-// The plan of the workspace does not include AI summaries: show the first
-// sentence and an upgrade notice.
-function LockedSummaryCard({ teaser }: { teaser: string }) {
+// The plan of the workspace does not include AI summaries. The card shows on
+// every recording, so that the free plan is the same on each page:
+//   - With a summary, it shows the first sentence and the upgrade notice.
+//   - Without a summary (not made yet), it shows only the upgrade notice.
+function LockedSummaryCard({ teaser }: { teaser: string | null }) {
   return (
     <section className={styles.summaryCard} aria-label="Summary">
       <div className={styles.summaryHead}>
         <h2 className={styles.summaryTitle}>Summary</h2>
-        <span className={styles.summaryBadge}>AI-generated</span>
+        {teaser && <span className={styles.summaryBadge}>AI-generated</span>}
       </div>
-      <p className={styles.summaryOverview}>{teaser}</p>
-      <p className={styles.summaryLocked}>The full summary has the topics, the actions, and links to each part of the recording.</p>
-      <UpgradeNotice message="AI hearing summaries are included in the paid plans." />
+      {teaser && <p className={styles.summaryOverview}>{teaser}</p>}
+      <UpgradeNotice
+        message={
+          teaser
+            ? 'The full AI summary, with the topics, the actions, and links to each part of the recording, is included in the paid plans.'
+            : 'AI summaries of hearings, with the topics, the actions, and links to each part of the recording, are included in the paid plans.'
+        }
+      />
     </section>
   )
 }
+
+// The AI summary of the transcript. A time button plays the recording from
+// the start of that topic.
 
 function AiSummaryCard({ summary, onSeek }: { summary: HearingAiSummary; onSeek: (seconds: number) => void }) {
   // A column of the same width for each item, also when it has no time.

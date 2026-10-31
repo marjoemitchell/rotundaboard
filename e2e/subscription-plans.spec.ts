@@ -71,10 +71,14 @@ test.describe('free plan limits', () => {
 
     await page.goto(`/bills/${eleventh.id}`)
     await page.getByRole('button', { name: '+ Track this bill' }).click()
-    await expect(page.getByText('The Free plan can track 10 bills. See the plans on the Plans page.')).toBeVisible()
+    const toast = page.getByRole('status').filter({ hasText: 'The Free plan can track 10 bills.' })
+    await expect(toast).toBeVisible()
     await expect(page.getByRole('button', { name: '+ Track this bill' })).toBeVisible()
 
-    await page.goto('/plans')
+    // The message has a link to the Plans page, not only the words.
+    await expect(toast).not.toContainText('on the Plans page')
+    await toast.getByRole('link', { name: 'See the plans' }).click()
+    await expect(page).toHaveURL(/\/plans$/)
     await expect(page.getByTestId('plan-usage')).toContainText('10 of 10 tracked bills')
   })
 
@@ -150,11 +154,36 @@ test.describe('AI summaries by plan', () => {
     await expect(summary).toContainText('The committee reviewed the water rights report.')
     await expect(summary).not.toContainText('Members asked about the drought plan.')
     await expect(summary.getByRole('list', { name: 'Topics' })).toHaveCount(0)
-    await expect(summary.getByText('AI hearing summaries are included in the paid plans.')).toBeVisible()
+    // One notice, with the link to the Plans page, holds all the copy about the paid plans.
+    await expect(summary.getByRole('note', { name: 'Upgrade' })).toContainText(
+      'The full AI summary, with the topics, the actions, and links to each part of the recording, is included in the paid plans.',
+    )
+    await expect(summary.getByText('The full summary has the topics')).toHaveCount(0)
+    await expect(summary.getByRole('note', { name: 'Upgrade' }).getByRole('link', { name: 'See the plans' })).toHaveAttribute(
+      'href',
+      '/plans',
+    )
 
     await setWorkspacePlan(page, 'single_user')
     await expect(summary).toContainText('Members asked about the drought plan.')
     await expect(summary.getByRole('list', { name: 'Topics' })).toContainText('Water rights report')
+  })
+
+  test('a free workspace sees the upgrade notice on a recording that has no summary yet', async ({ page }) => {
+    await signUpThroughApi(page, 'free')
+    const hearing = await createHearingFixture(page.request, { segments: SEGMENTS })
+
+    await page.goto(`/hearings/recordings/${hearing.id}`)
+    const summary = page.getByRole('region', { name: 'Summary' })
+    await expect(summary.getByRole('note', { name: 'Upgrade' })).toContainText(
+      'AI summaries of hearings, with the topics, the actions, and links to each part of the recording, are included in the paid plans.',
+    )
+    await expect(summary.getByText('AI-generated')).toHaveCount(0)
+
+    // A paid workspace sees no summary card until the summary exists.
+    await setWorkspacePlan(page, 'single_user')
+    await expect(page.getByText('Good morning, the committee will come to order.')).toBeVisible()
+    await expect(summary).toHaveCount(0)
   })
 
   test('a free workspace does not see amendment summaries', async ({ page }) => {
@@ -205,7 +234,9 @@ test.describe('member limits', () => {
     await page.goto('/settings')
     await page.fill('input[type="email"][placeholder="teammate@example.org"]', `e2e-invitee-${uniqueSuffix()}@example.dev`)
     await page.getByRole('button', { name: 'Send invite' }).click()
-    await expect(page.getByText('The Team plan is for 10 people. See the plans on the Plans page.')).toBeVisible()
+    const error = page.getByText('The Team plan is for 10 people.')
+    await expect(error).toBeVisible()
+    await expect(error.getByRole('link', { name: 'See the plans' })).toHaveAttribute('href', '/plans')
   })
 
   test('an invite cannot be accepted after the workspace changes to a plan for 1 person', async ({ page, browser }) => {

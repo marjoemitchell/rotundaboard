@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import * as client from '../data/client'
 import type { LoadState, Plan, PlanCatalog } from '../types'
+import { usePublicView } from '../lib/publicView'
 import styles from './PlansPage.module.css'
 
 const DESCRIPTIONS: Record<Plan['key'], string> = {
@@ -57,15 +59,19 @@ function usageLine(catalog: PlanCatalog): string {
   return `${tracked} · ${people}`
 }
 
+// A visitor without an account gets the plans with no current plan and no usage.
+type Catalog = Pick<PlanCatalog, 'plans'> & Partial<Pick<PlanCatalog, 'current' | 'usage'>>
+
 export function PlansPage() {
-  const [catalog, setCatalog] = useState<LoadState<PlanCatalog>>({ status: 'loading' })
+  const [catalog, setCatalog] = useState<LoadState<Catalog>>({ status: 'loading' })
+  const isPublic = usePublicView()
+  const location = useLocation()
 
   useEffect(() => {
-    client
-      .getPlans()
+    ;(isPublic ? client.getPublicPlans() : client.getPlans())
       .then((data) => setCatalog({ status: 'ready', data }))
       .catch(() => setCatalog({ status: 'empty' }))
-  }, [])
+  }, [isPublic])
 
   return (
     <div className={styles.page}>
@@ -78,10 +84,12 @@ export function PlansPage() {
       {catalog.status === 'empty' && <p className={styles.subhead}>The plans could not be loaded.</p>}
       {catalog.status === 'ready' && (
         <>
-          <p className={styles.usage} data-testid="plan-usage">
-            Your workspace has the <b>{catalog.data.plans.find((p) => p.key === catalog.data.current)?.label}</b> plan:{' '}
-            {usageLine(catalog.data)}
-          </p>
+          {catalog.data.current && catalog.data.usage && (
+            <p className={styles.usage} data-testid="plan-usage">
+              Your workspace has the <b>{catalog.data.plans.find((p) => p.key === catalog.data.current)?.label}</b> plan:{' '}
+              {usageLine(catalog.data as PlanCatalog)}
+            </p>
+          )}
 
           <div className={styles.grid}>
             {catalog.data.plans.map((plan) => {
@@ -118,7 +126,18 @@ export function PlansPage() {
 
           <div className={styles.footer}>
             <p>Nonprofit organizations get 40% off each paid plan.</p>
-            <p>Online payment is not available yet. To change your plan, contact the Rotunda Board team.</p>
+            {isPublic ? (
+              <>
+                <p>A new account starts on the Free plan. Online payment is not available yet. To change your plan, contact the Rotunda Board team.</p>
+                <p className={styles.signupRow}>
+                  <Link to="/signup" state={{ from: location }} className={styles.signup}>
+                    Sign up free
+                  </Link>
+                </p>
+              </>
+            ) : (
+              <p>Online payment is not available yet. To change your plan, contact the Rotunda Board team.</p>
+            )}
           </div>
         </>
       )}

@@ -17,17 +17,21 @@ function InviteForm({ onCreate }: { onCreate: (email: string, role: Role) => Pro
   const [role, setRole] = useState<Role>('member')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // True when the error is a plan limit. The error then has a link to the Plans page.
+  const [planLimit, setPlanLimit] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!email.trim()) return
     setSaving(true)
     setError(null)
+    setPlanLimit(false)
     try {
       await onCreate(email.trim(), role)
       setEmail('')
       setRole('member')
     } catch (err) {
+      setPlanLimit(err instanceof client.PlanLimitError)
       setError(err instanceof Error ? err.message.replace(/^.*: /, '') : 'Could not send this invite.')
     } finally {
       setSaving(false)
@@ -51,7 +55,17 @@ function InviteForm({ onCreate }: { onCreate: (email: string, role: Role) => Pro
       <button className={styles.inviteButton} type="submit" disabled={saving}>
         {saving ? 'Sending…' : 'Send invite'}
       </button>
-      {error && <div className={styles.formError}>{error}</div>}
+      {error && (
+        <div className={styles.formError}>
+          {error}
+          {planLimit && (
+            <>
+              {' '}
+              <Link to="/plans">See the plans</Link>
+            </>
+          )}
+        </div>
+      )}
     </form>
   )
 }

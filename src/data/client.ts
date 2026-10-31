@@ -203,6 +203,10 @@ export function getPublicBillDetail(id: string): Promise<BillDetail> {
   return getJson(`/api/public/bills/${id}`)
 }
 
+export function getPublicPlans(): Promise<Pick<PlanCatalog, 'plans'>> {
+  return getJson('/api/public/plans')
+}
+
 export function getPublicSessions(): Promise<LegislativeSession[]> {
   return getJson('/api/public/sessions')
 }
