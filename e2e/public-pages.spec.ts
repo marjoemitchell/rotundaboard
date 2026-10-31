@@ -354,6 +354,9 @@ test.describe('public home page', () => {
     // It does not promise a bill list, because a visitor cannot browse the bills.
     const hero = visitor.page.getByRole('main').locator('section').first()
     await expect(hero).toContainText('You do not need an account.')
+    // "Follow" is a control that needs an account, so the visitor line does not use the word.
+    await expect(hero).toContainText('see what the interim committees are working on')
+    await expect(hero).not.toContainText('follow the interim committees')
     // The free plan has one member and no testimony or alerts, so the free account line does not promise them.
     await expect(hero).toContainText('With a free account, you can track a few bills on your own')
     await expect(hero).toContainText('Paid plans add your team, notes, testimony, and email alerts')

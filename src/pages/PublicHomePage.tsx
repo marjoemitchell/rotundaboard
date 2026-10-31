@@ -45,8 +45,8 @@ export function PublicHomePage() {
       <section className={styles.hero}>
         <h1 className={styles.title}>Follow the Montana Legislature</h1>
         <p className={styles.lead}>
-          Look up your legislators, follow the interim committees, and see the hearing schedule. You do not need an
-          account.
+          Look up your legislators, see what the interim committees are working on, and check the hearing schedule.
+          You do not need an account.
         </p>
         <p className={styles.pitch}>
           With a free account, you can track a few bills on your own and set your position on each. Paid plans add
