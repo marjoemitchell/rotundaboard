@@ -10,3 +10,10 @@
   padding: 9px 16px;
   border: 1px solid var(--ink-hairline);
 }
+
+.link {
+  margin-left: 4px;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: underline;
+}

@@ -29,6 +29,11 @@
   color: var(--ink);
 }
 
+.pitchLink {
+  color: var(--teal);
+  font-weight: 600;
+}
+
 .ctas {
   display: flex;
   flex-wrap: wrap;

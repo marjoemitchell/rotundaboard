@@ -107,8 +107,9 @@ export async function hasFeature(workspaceId: number | null, feature: Feature): 
 }
 
 // 402 Payment Required: the request is correct, but the plan does not allow it.
+// The frontend shows a link to the Plans page next to the message.
 function planError(message: string): MutationError {
-  return new MutationError(402, `${message} See the plans on the Plans page.`)
+  return new MutationError(402, message)
 }
 
 export async function requireFeature(workspaceId: number, feature: Feature): Promise<void> {

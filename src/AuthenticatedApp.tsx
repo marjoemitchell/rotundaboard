@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useDashboardData } from './hooks/useDashboardData'
 import { useFilterState } from './hooks/useFilterState'
@@ -99,7 +99,13 @@ export function AuthenticatedApp() {
   }, [location.pathname])
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNoticeState] = useState<{ text: string; plansLink: boolean } | null>(null)
+  const setNotice = useCallback((text: string | null) => setNoticeState(text ? { text, plansLink: false } : null), [])
+  // An error from a request. A plan limit error gets a link to the Plans page.
+  const showError = (err: unknown, fallback: string) =>
+    setNoticeState(
+      err instanceof Error ? { text: err.message, plansLink: err instanceof client.PlanLimitError } : { text: fallback, plansLink: false },
+    )
   const { prompt, promptDialog } = usePrompt()
 
   useEffect(() => {
@@ -115,7 +121,8 @@ export function AuthenticatedApp() {
 
   useEffect(() => {
     if (!notice) return
-    const timer = setTimeout(() => setNotice(null), 3500)
+    // A plan limit stays longer, so that there is time to click the link.
+    const timer = setTimeout(() => setNoticeState(null), notice.plansLink ? 8000 : 3500)
     return () => clearTimeout(timer)
   }, [notice])
 
@@ -260,7 +267,7 @@ export function AuthenticatedApp() {
       data.refetchSavedViews()
       setNotice(`Saved filter "${name}".`)
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Could not save this filter.')
+      showError(err, 'Could not save this filter.')
     }
   }
 
@@ -270,7 +277,7 @@ export function AuthenticatedApp() {
       data.refetchSavedViews()
       setNotice('Saved filter removed.')
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Could not remove this filter.')
+      showError(err, 'Could not remove this filter.')
     }
   }
 
@@ -280,7 +287,7 @@ export function AuthenticatedApp() {
       data.refetchBills()
       data.refetchTeamBoard()
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Could not update position.')
+      showError(err, 'Could not update position.')
     }
   }
 
@@ -290,7 +297,7 @@ export function AuthenticatedApp() {
       data.refetchBills()
       data.refetchTeamBoard()
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Could not update assignee.')
+      showError(err, 'Could not update assignee.')
     }
   }
 
@@ -301,7 +308,7 @@ export function AuthenticatedApp() {
       data.refetchTeamBoard()
       setNotice('Added to tracked bills.')
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Could not track this bill.')
+      showError(err, 'Could not track this bill.')
     }
   }
 
@@ -312,7 +319,7 @@ export function AuthenticatedApp() {
       data.refetchTeamBoard()
       setNotice('Removed from tracked bills.')
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Could not untrack this bill.')
+      showError(err, 'Could not untrack this bill.')
     }
   }
 
@@ -382,7 +389,7 @@ export function AuthenticatedApp() {
                     try {
                       await client.trackBill(bill.id)
                     } catch (err) {
-                      setNotice(err instanceof Error ? err.message : `Could not track ${bill.identifier}.`)
+                      showError(err, `Could not track ${bill.identifier}.`)
                       throw err
                     }
                     setNotice(`Tracking ${bill.identifier}.`)
@@ -393,7 +400,7 @@ export function AuthenticatedApp() {
                     try {
                       await client.untrackBill(bill.id)
                     } catch (err) {
-                      setNotice(err instanceof Error ? err.message : `Could not stop tracking ${bill.identifier}.`)
+                      showError(err, `Could not stop tracking ${bill.identifier}.`)
                       throw err
                     }
                     setNotice(`Stopped tracking ${bill.identifier}.`)
@@ -465,7 +472,7 @@ export function AuthenticatedApp() {
         />
       )}
 
-      {notice && <Toast message={notice} />}
+      {notice && <Toast message={notice.text} plansLink={notice.plansLink} />}
     </>
   )
 }

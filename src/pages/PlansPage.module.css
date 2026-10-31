@@ -136,3 +136,21 @@
   flex-direction: column;
   gap: 4px;
 }
+
+.signupRow {
+  margin-top: 12px;
+}
+
+.signup {
+  display: inline-block;
+  padding: 9px 18px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--ink);
+  text-decoration: none;
+}
+
+.signup:hover {
+  background: var(--ink-2);
+}

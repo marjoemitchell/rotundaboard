@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AllBillsPage } from './pages/AllBillsPage'
 import { BillDetailPage } from './pages/BillDetailPage'
@@ -11,6 +12,9 @@ import { PublicHomePage } from './pages/PublicHomePage'
 import { PublicViewContext } from './lib/publicView'
 import styles from './PublicApp.module.css'
 
+// Load the Plans page only when it opens, the same as in AuthenticatedApp.tsx.
+const PlansPage = lazy(() => import('./pages/PlansPage').then((m) => ({ default: m.PlansPage })))
+
 // The paths that a visitor without an account can open.
 const PUBLIC_PATHS = [
   /^\/$/,
@@ -18,6 +22,7 @@ const PUBLIC_PATHS = [
   /^\/legislators(\/list|\/\d+)?\/?$/,
   /^\/committees(\/\d+)?\/?$/,
   /^\/hearings\/?$/,
+  /^\/plans\/?$/,
 ]
 
 export function isPublicPath(pathname: string): boolean {
@@ -89,6 +94,14 @@ export function PublicApp() {
           <Route path="/committees" element={<CommitteesPage />} />
           <Route path="/committees/:id" element={<CommitteeDetailPage />} />
           <Route path="/hearings" element={<HearingsPage />} />
+          <Route
+            path="/plans"
+            element={
+              <Suspense fallback={null}>
+                <PlansPage />
+              </Suspense>
+            }
+          />
         </Routes>
       </main>
     </PublicViewContext.Provider>
