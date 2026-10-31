@@ -72,7 +72,7 @@ test.describe('free plan limits', () => {
     await page.goto(`/bills/${eleventh.id}`)
     await page.getByRole('button', { name: '+ Track this bill' }).click()
     const toast = page.getByRole('status').filter({ hasText: 'The Free plan can track 10 bills.' })
-    await expect(toast).toBeVisible()
+    await expect(toast).toContainText('The Free plan can track 10 bills. A paid plan allows for tracking unlimited bills.')
     await expect(page.getByRole('button', { name: '+ Track this bill' })).toBeVisible()
 
     // The message has a link to the Plans page, not only the words.

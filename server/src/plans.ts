@@ -126,7 +126,7 @@ export async function requireTrackingRoom(workspaceId: number): Promise<void> {
     workspaceId,
   ])
   if (Number(rows[0].n) >= plan.trackedBillLimit) {
-    throw planError(`The ${plan.label} plan can track ${plan.trackedBillLimit} bills.`)
+    throw planError(`The ${plan.label} plan can track ${plan.trackedBillLimit} bills. A paid plan allows for tracking unlimited bills.`)
   }
 }
 
