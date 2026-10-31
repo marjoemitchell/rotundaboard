@@ -350,6 +350,18 @@ test.describe('public home page', () => {
     await visitor.page.goto('/')
     await expect(visitor.page).toHaveURL(/\/$/)
     await expect(visitor.page.getByRole('heading', { name: 'Follow the Montana Legislature', level: 1 })).toBeVisible()
+    // The lead tells the visitor what they can see now, and what an account adds.
+    // It does not promise a bill list, because a visitor cannot browse the bills.
+    const hero = visitor.page.getByRole('main').locator('section').first()
+    await expect(hero).toContainText('You do not need an account.')
+    // "Follow" is a control that needs an account, so the visitor line does not use the word.
+    await expect(hero).toContainText('see what the interim committees are working on')
+    await expect(hero).not.toContainText('follow the interim committees')
+    // The free plan has one member and no testimony or alerts, so the free account line does not promise them.
+    await expect(hero).toContainText('With a free account, you can track a few bills on your own')
+    await expect(hero).toContainText('Paid plans add your team, notes, testimony, and email alerts')
+    await expect(hero).not.toContainText('With a free account, your team')
+    await expect(hero).not.toContainText('shows the bills')
 
     const browse = visitor.page.getByRole('region', { name: 'Browse' })
     await expect(browse.getByRole('link', { name: /^Legislators/ })).toHaveAttribute('href', '/legislators')

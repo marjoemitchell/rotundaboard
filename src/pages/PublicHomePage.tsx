@@ -12,17 +12,17 @@ const BROWSE_LINKS = [
   {
     to: '/legislators',
     title: 'Legislators',
-    text: 'Find your legislators on the district map, or see the full list.',
+    text: 'Find your legislators on the county map, or see the full list.',
   },
   {
     to: '/committees',
     title: 'Committees',
-    text: 'See the interim committees, their meetings, and their materials.',
+    text: 'See each interim committee, its meetings, and its agendas and materials.',
   },
   {
     to: '/hearings',
     title: 'Hearings',
-    text: 'See all the scheduled hearings and the recent recordings.',
+    text: 'See the full schedule of upcoming committee hearings.',
   },
 ]
 
@@ -45,8 +45,12 @@ export function PublicHomePage() {
       <section className={styles.hero}>
         <h1 className={styles.title}>Follow the Montana Legislature</h1>
         <p className={styles.lead}>
-          Rotunda Board shows the bills, committees, hearings, and legislators of the Montana Legislature. Your team
-          tracks bills, sets positions, writes testimony, and gets an email when a bill has a hearing.
+          Look up your legislators, see what the interim committees are working on, and check the hearing schedule.
+          You do not need an account.
+        </p>
+        <p className={styles.pitch}>
+          With a free account, you can track a few bills on your own and set your position on each. Paid plans add
+          your team, notes, testimony, and email alerts when a tracked bill has a hearing.
         </p>
         <div className={styles.ctas}>
           <Link to="/signup" state={{ from: location }} className={styles.primary}>
