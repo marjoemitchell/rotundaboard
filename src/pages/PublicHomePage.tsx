@@ -10,6 +10,11 @@ const HEARINGS_PREVIEW = 5
 
 const BROWSE_LINKS = [
   {
+    to: '/bills',
+    title: 'Bills',
+    text: 'Search the bills of each session by number, title, or sponsor.',
+  },
+  {
     to: '/legislators',
     title: 'Legislators',
     text: 'Find your legislators on the county map, or see the full list.',

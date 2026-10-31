@@ -1,4 +1,4 @@
-import type { Browser, Page } from '@playwright/test'
+import type { Browser, Page, PlaywrightWorkerArgs } from '@playwright/test'
 import { test, expect, createHearingFixture, findSessionIdWithBills, signUpFreshWorkspace, uniqueSuffix } from './fixtures'
 
 const API_BASE = 'http://localhost:4000'
@@ -196,6 +196,98 @@ test.describe('public legislator pages', () => {
   })
 })
 
+// The session with the most bills, and its bills, from the public API.
+async function publicSessionBills(playwright: PlaywrightWorkerArgs['playwright']) {
+  const api = await playwright.request.newContext()
+  const sessions = (await (await api.get(`${API_BASE}/api/public/sessions`)).json()) as { id: string; billCount: number }[]
+  const session = [...sessions].sort((a, b) => b.billCount - a.billCount)[0]
+  const bills = (await (await api.get(`${API_BASE}/api/public/sessions/${session.id}/bills`)).json()) as {
+    id: string
+    identifier: string
+    title: string
+    isTracked: boolean
+  }[]
+  await api.dispose()
+  return { sessionId: session.id, bills }
+}
+
+test.describe('public bills list', () => {
+  test('a visitor can search the bills of a session and open a bill', async ({ browser, playwright }) => {
+    const { sessionId, bills } = await publicSessionBills(playwright)
+    const bill = bills.find((b) => b.identifier.startsWith('HB')) ?? bills[0]
+
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto('/')
+    await visitor.page.getByRole('navigation', { name: 'Public pages' }).getByRole('link', { name: 'Bills' }).click()
+    await expect(visitor.page).toHaveURL(/\/bills$/)
+    await expect(visitor.page.getByRole('heading', { name: 'All bills', level: 1 })).toBeVisible()
+    const types = visitor.page.getByRole('group', { name: 'Bill type' })
+    await expect(types.getByRole('button', { name: /^All/ })).toBeVisible()
+    await expect(types.getByRole('button', { name: /^Tracked/ })).toHaveCount(0)
+
+    await visitor.page.goto(`/bills?session=${sessionId}`)
+    await visitor.page.getByPlaceholder('Search by bill number, title, or sponsor').fill(bill.identifier)
+    const table = visitor.page.getByRole('table', { name: 'Bills' })
+    const row = table.getByRole('row').filter({ hasText: bill.identifier }).first()
+    await expect(row).toBeVisible()
+    await row.click()
+    await expect(visitor.page).toHaveURL(new RegExp(`/bills/${bill.id}$`))
+    await expect(visitor.page.getByText('Track this bill and get an email when it has a hearing')).toBeVisible()
+    await visitor.context.close()
+  })
+
+  test('Track explains signup, and the bill is tracked after signup', async ({ browser, playwright }) => {
+    const { sessionId, bills } = await publicSessionBills(playwright)
+    const bill = bills[0]
+
+    const visitor = await visitorPage(browser)
+    await visitor.page.goto(`/bills?session=${sessionId}&q=${encodeURIComponent(bill.identifier)}`)
+    await visitor.page.getByRole('button', { name: `Track ${bill.identifier}`, exact: true }).click()
+    const popover = visitor.page.getByRole('dialog', { name: 'Create an account' })
+    await expect(popover).toContainText('Create a free account to track this bill.')
+    // The free plan has no email alerts, so the popover does not promise email.
+    await expect(popover).not.toContainText('email')
+    await expect(visitor.page).toHaveURL(/\/bills\?/)
+
+    await popover.getByRole('link', { name: 'Sign up free' }).click()
+    await expect(visitor.page).toHaveURL(/\/signup/)
+    const suffix = uniqueSuffix()
+    await visitor.page.fill('#workspaceName', `E2E Workspace ${suffix}`)
+    await visitor.page.fill('#name', 'E2E Visitor')
+    await visitor.page.fill('#email', `e2e-visitor-${suffix}@example.dev`)
+    await visitor.page.fill('#password', 'e2e-test-password-1')
+    await visitor.page.click('button[type="submit"]')
+
+    // The person comes back to the same list, and the bill is tracked with no second click.
+    await expect(visitor.page).toHaveURL(new RegExp(`/bills\\?session=${sessionId}&q=`))
+    const stop = visitor.page.getByRole('button', { name: `Stop tracking ${bill.identifier}`, exact: true })
+    await expect(stop).toBeVisible()
+    await visitor.page.reload()
+    await expect(stop).toBeVisible()
+    await visitor.context.close()
+  })
+
+  test('the public bills API shows no workspace data', async ({ page, playwright }) => {
+    await signUpFreshWorkspace(page)
+    const [bill] = await sessionBills(page)
+    expect((await page.request.post(`${API_BASE}/api/bills/${bill.id}/track`)).ok()).toBeTruthy()
+    const sessionId = await findSessionIdWithBills(page)
+
+    const anonymous = await playwright.request.newContext()
+    const sessions = (await (await anonymous.get(`${API_BASE}/api/public/sessions`)).json()) as {
+      id: string
+      trackedCount: number
+    }[]
+    expect(sessions.every((s) => Number(s.trackedCount) === 0)).toBe(true)
+    const res = await anonymous.get(`${API_BASE}/api/public/sessions/${sessionId}/bills`)
+    expect(res.ok()).toBeTruthy()
+    const publicBill = ((await res.json()) as { id: string; isTracked: boolean }[]).find((b) => b.id === bill.id)
+    expect(publicBill?.isTracked).toBe(false)
+    expect((await anonymous.get(`${API_BASE}/api/sessions/${sessionId}/bills`)).status()).toBe(401)
+    await anonymous.dispose()
+  })
+})
+
 test.describe('public committee and hearing pages', () => {
   test('a visitor can open a committee, and "Follow" explains signup, then follows the committee after signup', async ({
     browser,
@@ -217,6 +309,7 @@ test.describe('public committee and hearing pages', () => {
     await visitor.page.getByRole('button', { name: '+ Follow' }).click()
     const popover = visitor.page.getByRole('dialog', { name: 'Create an account' })
     await expect(popover).toContainText('Create a free account to follow this committee.')
+    await expect(popover).not.toContainText('email')
     await expect(visitor.page).toHaveURL(new RegExp(`/committees/${committee.id}$`))
     await expect(popover.getByRole('link', { name: 'Sign up free' })).toBeFocused()
 
@@ -323,7 +416,7 @@ test.describe('public committee and hearing pages', () => {
   test('on a phone, the public pages have no sideways scroll', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 375, height: 700 } })
     const visitor = await context.newPage()
-    for (const path of ['/', '/committees', '/hearings', '/legislators', '/legislators/list']) {
+    for (const path of ['/', '/bills', '/committees', '/hearings', '/legislators', '/legislators/list']) {
       await visitor.goto(path)
       await expect(visitor.locator('h1').first()).toBeVisible()
       const overflow = await visitor.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
@@ -364,6 +457,7 @@ test.describe('public home page', () => {
     await expect(hero).not.toContainText('shows the bills')
 
     const browse = visitor.page.getByRole('region', { name: 'Browse' })
+    await expect(browse.getByRole('link', { name: /^Bills/ })).toHaveAttribute('href', '/bills')
     await expect(browse.getByRole('link', { name: /^Legislators/ })).toHaveAttribute('href', '/legislators')
     await expect(browse.getByRole('link', { name: /^Committees/ })).toHaveAttribute('href', '/committees')
     await expect(browse.getByRole('link', { name: /^Hearings/ })).toHaveAttribute('href', '/hearings')

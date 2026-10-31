@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import * as client from '../data/client'
 import type { LegislativeSession, LoadState, SessionBillSummary } from '../types'
 import { EmptyState } from '../components/shared/EmptyState'
+import { SignupGate } from '../components/shared/SignupGate'
+import { usePublicView } from '../lib/publicView'
 import styles from './AllBillsPage.module.css'
 
 export type BillType = 'all' | 'lc' | 'introduced' | 'tracked'
@@ -58,7 +60,12 @@ function storeSession(id: string) {
   }
 }
 
+// The router state that SignupGate gives to Track for a visitor. After signup
+// or login, the page tracks the bill.
+type TrackAfterSignup = { trackBill?: { id: string; identifier: string } }
+
 // Every bill of a session, tracked or not: /bills?session=3&type=lc&q=water.
+// A visitor without an account gets the same list, with no "Tracked" tab.
 export function AllBillsPage({
   onTrackBill,
   onUntrackBill,
@@ -74,19 +81,23 @@ export function AllBillsPage({
   // True when the request failed and the page has no bills to show.
   const [failed, setFailed] = useState(false)
   const [shown, setShown] = useState(PAGE_SIZE)
+  const isPublic = usePublicView()
+  const location = useLocation()
+  const navigate = useNavigate()
 
-  const type = (['lc', 'introduced', 'tracked'].includes(search.get('type') ?? '') ? search.get('type') : 'all') as BillType
+  const typeTabs = isPublic ? TYPE_TABS.filter((t) => t.id !== 'tracked') : TYPE_TABS
+  const requestedType = search.get('type') ?? ''
+  const type = (typeTabs.some((t) => t.id === requestedType) ? requestedType : 'all') as BillType
   const query = search.get('q') ?? ''
 
   useEffect(() => {
-    client
-      .getSessions()
+    ;(isPublic ? client.getPublicSessions() : client.getSessions())
       .then((all) => {
         const newestFirst = [...all].sort((a, b) => b.ordinals.localeCompare(a.ordinals))
         setSessions(newestFirst.length === 0 ? { status: 'empty' } : { status: 'ready', data: newestFirst })
       })
       .catch(() => setSessions({ status: 'empty' }))
-  }, [])
+  }, [isPublic])
 
   // The session in the URL, else the last one this person chose, else the
   // newest session that has bills.
@@ -115,8 +126,7 @@ export function AllBillsPage({
     setBills(cached ? toState(withOverrides(cached)) : { status: 'loading' })
     setFailed(false)
     const clicksAtRequest = trackClicks
-    client
-      .getSessionBills(id, controller.signal)
+    ;(isPublic ? client.getPublicSessionBills(id, controller.signal) : client.getSessionBills(id, controller.signal))
       .then((data) => {
         if (trackClicks === clicksAtRequest) trackedOverrides.clear()
         const fresh = withOverrides(data)
@@ -129,7 +139,7 @@ export function AllBillsPage({
         // With cached bills, keep them. Without, show the error and a retry.
         if (!cached) setFailed(true)
       })
-  }, [])
+  }, [isPublic])
 
   useEffect(() => {
     if (sessionId && loadedFor.current !== sessionId) loadSession(sessionId)
@@ -180,6 +190,19 @@ export function AllBillsPage({
     }
   }
 
+  // A visitor who clicked Track and then signed up or logged in comes back
+  // with the bill in the router state. Track that bill one time, and remove the state.
+  const trackAfterSignup = (location.state as TrackAfterSignup | null)?.trackBill
+  const resumed = useRef(false)
+  useEffect(() => {
+    if (isPublic || !trackAfterSignup || resumed.current) return
+    resumed.current = true
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
+    setTracked(trackAfterSignup.id, true)
+    onTrackBill(trackAfterSignup).catch(() => setTracked(trackAfterSignup.id, false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPublic, trackAfterSignup])
+
   const counts = useMemo(() => {
     const list = bills.status === 'ready' ? bills.data : []
     const lc = list.filter(isLc).length
@@ -202,7 +225,11 @@ export function AllBillsPage({
   return (
     <div className={styles.page}>
       <h1 className={styles.title}>All bills</h1>
-      <p className={styles.subhead}>Every bill on record for the session. Click one to view it, or to track it.</p>
+      <p className={styles.subhead}>
+        {isPublic
+          ? 'Every bill on record for the session. Click a bill to see its status, sponsors, text, and hearings.'
+          : 'Every bill on record for the session. Click one to view it, or to track it.'}
+      </p>
 
       {sessions.status === 'loading' && <div className="skeleton" style={{ height: 300, marginTop: 16 }} />}
       {sessions.status === 'empty' && <EmptyState message="No sessions yet." />}
@@ -224,7 +251,7 @@ export function AllBillsPage({
               ))}
             </div>
             <div className={styles.segmented} role="group" aria-label="Bill type">
-              {TYPE_TABS.map((t) => (
+              {typeTabs.map((t) => (
                 <button
                   key={t.id}
                   className={`${styles.segment} ${t.id === type ? styles.segmentActive : ''}`}
@@ -309,16 +336,28 @@ export function AllBillsPage({
                         </div>
                       </Link>
                       <div className={`${styles.cell} ${styles.cellTrack}`}>
-                        <button
-                          className={`${styles.trackButton} ${b.isTracked ? styles.trackButtonOn : ''}`}
-                          aria-pressed={b.isTracked}
-                          aria-label={b.isTracked ? `Stop tracking ${b.identifier}` : `Track ${b.identifier}`}
-                          title={b.isTracked ? 'Stop tracking' : 'Track this bill'}
-                          disabled={pending.has(b.id)}
-                          onClick={() => toggleTracked(b)}
-                        >
-                          {b.isTracked ? '✓ Tracked' : 'Track'}
-                        </button>
+                        {isPublic ? (
+                          <SignupGate
+                            action="track this bill"
+                            reason="It shows on your dashboard, where you can set your position on it."
+                            returnState={{ trackBill: { id: b.id, identifier: b.identifier } }}
+                            ariaLabel={`Track ${b.identifier}`}
+                            className={styles.trackButton}
+                          >
+                            Track
+                          </SignupGate>
+                        ) : (
+                          <button
+                            className={`${styles.trackButton} ${b.isTracked ? styles.trackButtonOn : ''}`}
+                            aria-pressed={b.isTracked}
+                            aria-label={b.isTracked ? `Stop tracking ${b.identifier}` : `Track ${b.identifier}`}
+                            title={b.isTracked ? 'Stop tracking' : 'Track this bill'}
+                            disabled={pending.has(b.id)}
+                            onClick={() => toggleTracked(b)}
+                          >
+                            {b.isTracked ? '✓ Tracked' : 'Track'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
