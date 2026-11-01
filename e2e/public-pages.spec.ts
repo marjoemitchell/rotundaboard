@@ -116,6 +116,39 @@ test.describe('public bill page', () => {
     await context.close()
   })
 
+  test('"View on official site" opens the LC page for a draft and the bill page for an introduced bill', async ({
+    browser,
+    playwright,
+  }) => {
+    // An LC draft and an introduced bill, from any session that has them.
+    const api = await playwright.request.newContext()
+    const sessions = (await (await api.get(`${API_BASE}/api/public/sessions`)).json()) as { id: string; billCount: number }[]
+    let draft: { id: string; identifier: string } | undefined
+    let introduced: { id: string; identifier: string } | undefined
+    for (const session of sessions.filter((x) => x.billCount > 0)) {
+      const bills = (await (await api.get(`${API_BASE}/api/public/sessions/${session.id}/bills`)).json()) as {
+        id: string
+        identifier: string
+      }[]
+      draft ??= bills.find((b) => b.identifier.startsWith('LC'))
+      introduced ??= bills.find((b) => !b.identifier.startsWith('LC'))
+    }
+    await api.dispose()
+    expect(draft, 'no LC draft in the data').toBeDefined()
+    expect(introduced, 'no introduced bill in the data').toBeDefined()
+
+    const visitor = await visitorPage(browser)
+    const officialLink = visitor.page.getByRole('link', { name: /View on official site/ })
+    await visitor.page.goto(`/bills/${draft!.id}`)
+    await expect(officialLink).toHaveAttribute('href', /^https:\/\/bills\.legmt\.gov\/#\/lc\/bill\/\d+\/LC\d+$/)
+    await visitor.page.goto(`/bills/${introduced!.id}`)
+    await expect(officialLink).toHaveAttribute(
+      'href',
+      /^https:\/\/bills\.legmt\.gov\/#\/laws\/bill\/\d+\/[A-Za-z0-9]+\?open_tab=bill$/,
+    )
+    await visitor.context.close()
+  })
+
   test('a visitor who opens a workspace page goes to the login page', async ({ browser }) => {
     const visitor = await visitorPage(browser)
     await visitor.page.goto('/tracking-board')

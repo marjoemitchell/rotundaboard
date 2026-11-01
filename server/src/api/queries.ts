@@ -26,13 +26,15 @@ function formatIdentifier(billTypeCode: string | null, billNumber: number | null
   return match ? `${match[1]} ${match[2]}` : draftNumber
 }
 
-// bills.legmt.gov's own SPA is hash-routed and keys a bill by legislature id
-// + its LC draft number, not by bill type/number or our own bill id — this
-// works for a bill at any stage (confirmed against both an enacted law and
-// one that died in committee), so it's the one link that always resolves.
-function buildOfficialBillUrl(legislatureId: number | null, draftNumber: string): string | null {
+// The bill page on bills.legmt.gov. The site keys a bill by the legislature
+// id and the LC draft number. It uses two routes:
+//   - An introduced bill (it has a bill type and a number) uses /laws/bill/.
+//   - An LC draft that is not introduced uses /lc/bill/. The /laws/bill/ route does not show it.
+function buildOfficialBillUrl(legislatureId: number | null, draftNumber: string, introduced: boolean): string | null {
   if (!legislatureId) return null
-  return `https://bills.legmt.gov/#/laws/bill/${legislatureId}/${draftNumber}?open_tab=bill`
+  return introduced
+    ? `https://bills.legmt.gov/#/laws/bill/${legislatureId}/${draftNumber}?open_tab=bill`
+    : `https://bills.legmt.gov/#/lc/bill/${legislatureId}/${draftNumber}`
 }
 
 export async function getBills(workspaceId: number) {
@@ -167,7 +169,7 @@ export async function getBills(workspaceId: number) {
       id: String(r.bill_id),
       identifier: formatIdentifier(r.bill_type_code, r.bill_number, r.draft_number),
       title: r.short_title,
-      officialUrl: buildOfficialBillUrl(r.legislature_id, r.draft_number),
+      officialUrl: buildOfficialBillUrl(r.legislature_id, r.draft_number, r.bill_type_code != null && r.bill_number != null),
       // The bill's process is over: it became law, its latest status is a
       // final one (died, vetoed, withdrawn, missed a deadline), or its
       // session ended.
@@ -1121,7 +1123,11 @@ export async function getBillDetail(billId: number, workspaceId: number | null) 
     id: String(core.bill_id),
     identifier: formatIdentifier(core.bill_type_code, core.bill_number, core.draft_number),
     draftNumber: core.draft_number,
-    officialUrl: buildOfficialBillUrl(core.legislature_id, core.draft_number),
+    officialUrl: buildOfficialBillUrl(
+      core.legislature_id,
+      core.draft_number,
+      core.bill_type_code != null && core.bill_number != null,
+    ),
     title: core.short_title,
     sponsor: { name: sponsorName, district: core.sponsor_district ?? '', party: core.sponsor_party ?? '' },
     committee: core.committee_name ?? undefined,
