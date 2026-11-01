@@ -192,12 +192,11 @@ authRouter.post('/reset-password', async (req: Request, res: Response) => {
     const passwordHash = await hashPassword(newPassword)
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, rows[0].user_id])
     await pool.query('UPDATE password_reset_tokens SET consumed_at = now() WHERE id = $1', [rows[0].id])
-    // A password reset should invalidate anything an attacker had — including
-    // the session that was open when the reset was requested.
+    // A password reset ends every session of the user, also the session that
+    // was open when the reset was requested. The reset does not sign the
+    // person in. The person logs in again with the new password.
     await destroyAllSessionsForUser(rows[0].user_id)
-
-    const workspaces = await getUserWorkspaces(rows[0].user_id)
-    await issueSession(res, rows[0].user_id, workspaces[0]?.id ?? null)
+    clearSessionCookie(res)
     res.status(200).json({ ok: true })
   } catch (err) {
     handleAuthError(res, 'POST /api/auth/reset-password', err)
