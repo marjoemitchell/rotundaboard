@@ -7,9 +7,9 @@
 import { pool } from './db.js'
 
 const WORKSPACE_NAME_PATTERN = 'E2E %'
-// Most test users use example.dev. The tests of Gmail addresses (dots and
-// "+" in auth.spec.ts) use "e2e-inbox..." at gmail.com or googlemail.com.
-const USER_EMAIL_CONDITION = `(email LIKE 'e2e-%@example.dev' OR email ~ '^e2e-inbox[^@]*@(gmail|googlemail)[.]com$')`
+// Most test users use example.dev. The tests of provider rules for dots and
+// "+" (auth.spec.ts) use "e2e-inbox..." at gmail.com, googlemail.com, or outlook.com.
+const USER_EMAIL_CONDITION = `(email LIKE 'e2e-%@example.dev' OR email ~ '^e2e-inbox[^@]*@(gmail|googlemail|outlook)[.]com$')`
 
 // workspace_id columns on these tables have no ON DELETE CASCADE, so they
 // must be cleared before the workspace row itself can be deleted.
