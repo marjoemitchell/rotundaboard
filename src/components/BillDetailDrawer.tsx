@@ -121,7 +121,7 @@ export function BillDetailDrawer({
               )}
             </div>
             <p className={styles.aiSummaryText}>{aiSummary.data.text}</p>
-            <p className={styles.aiSummaryDisclaimer}>{aiSummaryNote(aiSummary.data)}</p>
+            <p className={styles.aiSummaryDisclaimer}>{aiSummaryNote(aiSummary.data, bill.isDraft)}</p>
           </div>
         )}
 
@@ -164,22 +164,39 @@ export function BillDetailDrawer({
           </div>
         </div>
 
-        <div className={styles.section}>
-          <div className={styles.sectionEyebrow}>Sponsor</div>
-          <div className={styles.row}>
-            <span className={styles.rowLabel}>Name</span>
-            <span className={styles.rowValue}>{bill.sponsor.name || 'Not yet assigned'}</span>
-          </div>
-          {bill.sponsor.district && (
+        {bill.isDraft ? (
+          // An LC draft has a requester, not a sponsor.
+          <div className={styles.section}>
+            <div className={styles.sectionEyebrow}>Requester</div>
             <div className={styles.row}>
-              <span className={styles.rowLabel}>District</span>
-              <span className={styles.rowValue}>
-                {bill.sponsor.district}
-                {bill.sponsor.party ? ` (${bill.sponsor.party})` : ''}
-              </span>
+              <span className={styles.rowLabel}>Name</span>
+              <span className={styles.rowValue}>{bill.requester ? bill.requester.name : 'Not known'}</span>
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className={styles.section}>
+            <div className={styles.sectionEyebrow}>Sponsor</div>
+            <div className={styles.row}>
+              <span className={styles.rowLabel}>Name</span>
+              <span className={styles.rowValue}>{bill.sponsor.name || 'Not yet assigned'}</span>
+            </div>
+            {bill.sponsor.district && (
+              <div className={styles.row}>
+                <span className={styles.rowLabel}>District</span>
+                <span className={styles.rowValue}>
+                  {bill.sponsor.district}
+                  {bill.sponsor.party ? ` (${bill.sponsor.party})` : ''}
+                </span>
+              </div>
+            )}
+            {bill.requester && (
+              <div className={styles.row}>
+                <span className={styles.rowLabel}>Requested by</span>
+                <span className={styles.rowValue}>{bill.requester.name}</span>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className={styles.section}>
           {bill.outcome ? (

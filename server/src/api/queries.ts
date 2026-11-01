@@ -18,6 +18,7 @@ import type { HearingAiSummary } from '../summarizeHearings.js'
 import { computeMomentum, determineOutcome, isProgressStopped, type StatusPoint } from '../momentum.js'
 import { FULL_TRANSCRIPT_DAYS, windowStart } from '../recordingWindows.js'
 import { hasFeature } from '../plans.js'
+import { byRequestOfsSql, requesterNameSql, toRequester, type Requester } from '../requesters.js'
 
 function formatIdentifier(billTypeCode: string | null, billNumber: number | null, draftNumber: string): string {
   if (billTypeCode && billNumber != null) return `${billTypeCode} ${billNumber}`
@@ -52,6 +53,9 @@ export async function getBills(workspaceId: number) {
     sponsor_last_name: string | null
     sponsor_district: string | null
     sponsor_party: string | null
+    requester_type: string | null
+    requester_id: number | null
+    requester_name: string | null
     subjects: string[] | null
     committee_name: string | null
     status_name: string | null
@@ -74,6 +78,9 @@ export async function getBills(workspaceId: number) {
       sp.last_name AS sponsor_last_name,
       dist.name AS sponsor_district,
       pp.code AS sponsor_party,
+      d.requester_type,
+      d.requester_id,
+      ${requesterNameSql('d.requester_type', 'd.requester_id')} AS requester_name,
       subj.descriptions AS subjects,
       latest_committee.committee_name,
       latest_status.status_name,
@@ -175,6 +182,8 @@ export async function getBills(workspaceId: number) {
       // session ended.
       closed: outcome != null || isProgressStopped(statuses),
       sponsor: { name: sponsorName, district: r.sponsor_district ?? '', party: r.sponsor_party ?? '' },
+      isDraft: r.bill_number == null,
+      requester: toRequester(r.requester_type, r.requester_id, r.requester_name),
       committee: r.committee_name ?? undefined,
       chamber: r.chamber ? (r.chamber.toLowerCase() as 'house' | 'senate') : undefined,
       subjects: r.subjects ?? [],
@@ -838,6 +847,9 @@ export async function getBillDetail(billId: number, workspaceId: number | null) 
     sponsor_last_name: string | null
     sponsor_district: string | null
     sponsor_party: string | null
+    requester_type: string | null
+    requester_id: number | null
+    requester_name: string | null
     subjects: string[] | null
     committee_name: string | null
     status_name: string | null
@@ -852,11 +864,13 @@ export async function getBillDetail(billId: number, workspaceId: number | null) 
     summary_version_posted_at: string | null
     session_id: number
     deadline_code: string | null
+    by_request_ofs: { type: string; id: number; name: string | null }[]
   }>(
     `
     SELECT
       d.session_id,
       dc.code AS deadline_code,
+      ${byRequestOfsSql('d.id')} AS by_request_ofs,
       b.id AS bill_id,
       bt.code AS bill_type_code,
       bt.chamber,
@@ -870,6 +884,9 @@ export async function getBillDetail(billId: number, workspaceId: number | null) 
       sp.last_name AS sponsor_last_name,
       dist.name AS sponsor_district,
       pp.code AS sponsor_party,
+      d.requester_type,
+      d.requester_id,
+      ${requesterNameSql('d.requester_type', 'd.requester_id')} AS requester_name,
       subj.descriptions AS subjects,
       latest_committee.committee_name,
       latest_status.status_name,
@@ -1130,6 +1147,11 @@ export async function getBillDetail(billId: number, workspaceId: number | null) 
     ),
     title: core.short_title,
     sponsor: { name: sponsorName, district: core.sponsor_district ?? '', party: core.sponsor_party ?? '' },
+    isDraft: core.bill_number == null,
+    requester: toRequester(core.requester_type, core.requester_id, core.requester_name),
+    byRequestOf: core.by_request_ofs
+      .map((r) => toRequester(r.type, r.id, r.name))
+      .filter((r): r is Requester => r != null),
     committee: core.committee_name ?? undefined,
     chamber: core.chamber ? (core.chamber.toLowerCase() as 'house' | 'senate') : undefined,
     subjects: core.subjects ?? [],
@@ -1263,6 +1285,7 @@ export async function getSessionBills(sessionId: number, workspaceId: number | n
     sponsor_first_name: string | null
     sponsor_last_name: string | null
     sponsor_party: string | null
+    requester_name: string | null
     status_name: string | null
     is_tracked: boolean
   }>(
@@ -1270,6 +1293,7 @@ export async function getSessionBills(sessionId: number, workspaceId: number | n
     SELECT
       b.id AS bill_id, bt.code AS bill_type_code, b.bill_number, d.draft_number, d.short_title,
       sp.first_name AS sponsor_first_name, sp.last_name AS sponsor_last_name, pp.code AS sponsor_party,
+      ${requesterNameSql('d.requester_type', 'd.requester_id')} AS requester_name,
       latest_status.status_name,
       (tb.bill_id IS NOT NULL) AS is_tracked
     FROM bills b
@@ -1298,6 +1322,8 @@ export async function getSessionBills(sessionId: number, workspaceId: number | n
     title: r.short_title,
     sponsor: legislatorLabel(r.sponsor_first_name, r.sponsor_last_name),
     party: r.sponsor_party,
+    isDraft: r.bill_number == null,
+    requester: r.requester_name,
     status: r.status_name ?? 'Unknown',
     isTracked: r.is_tracked,
   }))
@@ -1632,6 +1658,7 @@ export async function getSubjectWatchBills(watchId: number, workspaceId: number)
     sponsor_first_name: string | null
     sponsor_last_name: string | null
     sponsor_party: string | null
+    requester_name: string | null
     status_name: string | null
     is_tracked: boolean
     matched_subjects: string[] | null
@@ -1641,6 +1668,7 @@ export async function getSubjectWatchBills(watchId: number, workspaceId: number)
     SELECT
       b.id AS bill_id, bt.code AS bill_type_code, b.bill_number, d.draft_number, d.short_title,
       sp.first_name AS sponsor_first_name, sp.last_name AS sponsor_last_name, pp.code AS sponsor_party,
+      ${requesterNameSql('d.requester_type', 'd.requester_id')} AS requester_name,
       latest_status.status_name,
       (tb.bill_id IS NOT NULL) AS is_tracked,
       matched.matched_subjects,
@@ -1695,6 +1723,8 @@ export async function getSubjectWatchBills(watchId: number, workspaceId: number)
     title: r.short_title,
     sponsor: legislatorLabel(r.sponsor_first_name, r.sponsor_last_name),
     party: r.sponsor_party,
+    isDraft: r.bill_number == null,
+    requester: r.requester_name,
     status: r.status_name ?? 'Unknown',
     isTracked: r.is_tracked,
     matchedSubjects: r.matched_subjects ?? [],
@@ -2166,11 +2196,7 @@ export async function getSuggestedBills(workspaceId: number, limit: number) {
       subject: string | null
     }>(
       `SELECT b.id AS bill_id, d.draft_number, d.short_title,
-              CASE d.requester_type
-                WHEN 'LEGISLATOR' THEN (SELECT trim(coalesce(l.first_name, '') || ' ' || coalesce(l.last_name, '')) FROM legislators l WHERE l.id = d.requester_id)
-                WHEN 'NON_STANDING_COMMITTEE' THEN (SELECT name FROM non_standing_committees WHERE id = d.requester_id)
-                WHEN 'AGENCY' THEN 'An agency'
-              END AS requester,
+              ${requesterNameSql('d.requester_type', 'd.requester_id')} AS requester,
               (SELECT sc.description FROM draft_subjects ds JOIN subject_codes sc ON sc.id = ds.subject_code_id
                WHERE ds.draft_id = d.id ${matchWatches ? 'AND sc.code = ANY($3)' : ''}
                ORDER BY ds.is_primary DESC NULLS LAST, sc.description LIMIT 1) AS subject

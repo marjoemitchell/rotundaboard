@@ -72,6 +72,20 @@ async function upsertBillType(billType: RawBillType | null) {
   )
 }
 
+// The agencies and other groups that request drafts. The endpoint returns all
+// of them, so it runs one time.
+async function upsertOrganizations() {
+  const organizations = await api.getOrganizations()
+  for (const o of organizations) {
+    await pool.query(
+      `INSERT INTO organizations (id, name, type) VALUES ($1, $2, $3)
+       ON CONFLICT (id) DO UPDATE SET name = $2, type = $3`,
+      [o.id, o.name, o.type],
+    )
+  }
+  console.log(`fetched ${organizations.length} organizations`)
+}
+
 async function upsertDraftAndBill(sessionId: number, draft: RawDraft, billId: number, billFields: {
   billNumber: number | null
   billTypeId: number | null
@@ -109,6 +123,22 @@ async function upsertDraftAndBill(sessionId: number, draft: RawDraft, billId: nu
       draft.preIntroRequired,
     ],
   )
+
+  // Replace the "by request of" list of the draft. Delete the entries that the
+  // API no longer sends.
+  const byRequestOfs = draft.byRequestOfs ?? []
+  for (const r of byRequestOfs) {
+    await pool.query(
+      `INSERT INTO draft_by_request_ofs (id, draft_id, request_type, request_of_id)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET draft_id = $2, request_type = $3, request_of_id = $4`,
+      [r.id, draft.id, r.billRequestType, r.byRequestOfId],
+    )
+  }
+  await pool.query('DELETE FROM draft_by_request_ofs WHERE draft_id = $1 AND NOT (id = ANY($2))', [
+    draft.id,
+    byRequestOfs.map((r) => r.id),
+  ])
 
   for (const ds of draft.subjects ?? []) {
     await upsertSubjectCode(ds.subjectCode)
@@ -494,6 +524,8 @@ async function main() {
   await upsertCommittees(targets.map((t) => t.id))
   const legislatureIds = [...new Set(targets.map((t) => t.legislature.id))]
   for (const id of legislatureIds) await upsertNonStandingCommittees(id)
+
+  await upsertOrganizations()
 
   const { rows: nonStandingCommittees } = await pool.query<{ id: number }>(
     'SELECT id FROM non_standing_committees WHERE legislature_id = ANY($1)',

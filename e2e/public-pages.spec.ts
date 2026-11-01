@@ -259,7 +259,7 @@ test.describe('public bills list', () => {
     await expect(types.getByRole('button', { name: /^Tracked/ })).toHaveCount(0)
 
     await visitor.page.goto(`/bills?session=${sessionId}`)
-    await visitor.page.getByPlaceholder('Search by bill number, title, or sponsor').fill(bill.identifier)
+    await visitor.page.getByPlaceholder('Search by bill number, title, sponsor, or requester').fill(bill.identifier)
     const table = visitor.page.getByRole('table', { name: 'Bills' })
     const row = table.getByRole('row').filter({ hasText: bill.identifier }).first()
     await expect(row).toBeVisible()

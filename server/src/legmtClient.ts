@@ -16,6 +16,7 @@ import type {
   RawLegislator,
   RawNonStandingCommittee,
   RawNonStandingCommitteeMeetingPage,
+  RawOrganization,
   RawSession,
   RawStandingCommittee,
 } from './legmtTypes.js'
@@ -98,6 +99,12 @@ export function getStandingCommittees(): Promise<RawStandingCommittee[]> {
 
 export function getNonStandingCommittees(legislatureId: number): Promise<RawNonStandingCommittee[]> {
   return getList('nonStandingCommittees', `${BASE}/committees/v1/nonStandingCommittees/findByLegislatureId?legislatureId=${legislatureId}`)
+}
+
+// The agencies and other groups that request drafts. The requester of a draft
+// with requesterType "AGENCY" is one of these.
+export function getOrganizations(): Promise<RawOrganization[]> {
+  return getList('organizations', `${BASE}/legislators/v1/organizations`)
 }
 
 const PAGE_SIZE = 500

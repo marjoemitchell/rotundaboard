@@ -220,9 +220,12 @@ export async function billTextFixture(input: {
 // Open LC drafts in a session that has not ended, for the dashboard tests.
 // The scraped data has few open bills between sessions. Negative ids mark
 // the fixtures for e2eCleanup.ts. The first subject code of the database goes
-// on each draft, so a subject watch on that code matches them.
+// on each draft, so a subject watch on that code matches them. A new E2E
+// agency is the requester of each draft. With byRequestOf, the drafts are
+// also requested "by request of" a legislator of the database.
 export async function openDraftsFixture(input: {
   count: number
+  byRequestOf?: boolean
   titlePrefix?: string
   /** How old the newest draft is, in minutes. Older drafts are not in the newest suggestions. */
   ageMinutes?: number
@@ -231,6 +234,9 @@ export async function openDraftsFixture(input: {
 }): Promise<{
   bills: { billId: string; identifier: string; title: string }[]
   subjectCode: string
+  sessionId: string
+  requester: string
+  byRequestOf: { legislatorId: string; name: string } | null
 }> {
   const { rows: sessions } = await pool.query<{ id: number }>(
     `SELECT id FROM sessions WHERE sine_die_date IS NULL OR sine_die_date > now() ORDER BY start_date DESC LIMIT 1`,
@@ -245,6 +251,17 @@ export async function openDraftsFixture(input: {
     [sessions[0].id],
   )
   const usedNumbers = new Set(used.map((r) => r.draft_number))
+  const agency = { id: -base, name: `E2E Agency ${base}` }
+  await pool.query(`INSERT INTO organizations (id, name, type) VALUES ($1, $2, 'REQUESTING_AGENCY')`, [agency.id, agency.name])
+  let byRequestOf: { legislatorId: string; name: string } | null = null
+  if (input.byRequestOf) {
+    const { rows: legislators } = await pool.query<{ id: number; name: string }>(
+      `SELECT id, trim(first_name || ' ' || last_name) AS name FROM legislators
+       WHERE id > 0 AND first_name IS NOT NULL AND last_name IS NOT NULL ORDER BY id LIMIT 1`,
+    )
+    if (!legislators[0]) throw new Error('no legislators for a "by request of" fixture')
+    byRequestOf = { legislatorId: String(legislators[0].id), name: legislators[0].name }
+  }
   let next = base % 1000
   const bills: { billId: string; identifier: string; title: string }[] = []
   for (let i = 0; i < input.count; i++) {
@@ -255,10 +272,16 @@ export async function openDraftsFixture(input: {
     usedNumbers.add(`LC${number}`)
     const title = `${input.titlePrefix ?? 'E2E draft'} ${base}-${i}`
     await pool.query(
-      `INSERT INTO drafts (id, session_id, draft_number, drafted_at, short_title, requester_type)
-       VALUES ($1, $2, $3, now() - make_interval(mins => $4), $5, 'AGENCY')`,
-      [id, sessions[0].id, `LC${number}`, (input.ageMinutes ?? 0) + i, title],
+      `INSERT INTO drafts (id, session_id, draft_number, drafted_at, short_title, requester_type, requester_id)
+       VALUES ($1, $2, $3, now() - make_interval(mins => $4), $5, 'AGENCY', $6)`,
+      [id, sessions[0].id, `LC${number}`, (input.ageMinutes ?? 0) + i, title, agency.id],
     )
+    if (byRequestOf) {
+      await pool.query(
+        `INSERT INTO draft_by_request_ofs (id, draft_id, request_type, request_of_id) VALUES ($1, $1, 'LEGISLATOR', $2)`,
+        [id, Number(byRequestOf.legislatorId)],
+      )
+    }
     await pool.query(
       `INSERT INTO bills (id, session_id, draft_id, bill_number, deadline_code_id)
        VALUES ($1, $2, $1, NULL, (SELECT id FROM deadline_codes WHERE code = $3))`,
@@ -269,7 +292,7 @@ export async function openDraftsFixture(input: {
     }
     bills.push({ billId: String(id), identifier: `LC ${number}`, title })
   }
-  return { bills, subjectCode: subjects[0]?.code ?? '' }
+  return { bills, subjectCode: subjects[0]?.code ?? '', sessionId: String(sessions[0].id), requester: agency.name, byRequestOf }
 }
 
 // An interim committee meeting a few days from now, with agenda items. The

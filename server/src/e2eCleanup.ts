@@ -79,6 +79,8 @@ async function main() {
   await pool.query('DELETE FROM change_events WHERE bill_id < 0')
   await pool.query('DELETE FROM bills WHERE id < 0')
   await pool.query('DELETE FROM drafts WHERE id < 0')
+  // The "by request of" rows of the drafts go with them (ON DELETE CASCADE).
+  await pool.query('DELETE FROM organizations WHERE id < 0')
   // Interim committee meeting fixtures.
   await pool.query('DELETE FROM non_standing_committee_meetings WHERE id < 0')
   // Legislative calendar fixtures.

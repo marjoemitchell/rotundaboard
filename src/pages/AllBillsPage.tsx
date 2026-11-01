@@ -23,6 +23,11 @@ const SESSION_KEY = 'rotunda.allBills.session'
 
 const isLc = (b: SessionBillSummary) => b.identifier.startsWith('LC')
 
+// The text for the requester of an LC draft. In the LC drafts list, the
+// column header is "Requester", so the text is only the name.
+const requesterText = (b: SessionBillSummary, onlyName: boolean) =>
+  b.requester ? (onlyName ? b.requester : `Requested by ${b.requester}`) : 'Requester not known'
+
 // The bills of each session that this page loaded before. A click on that
 // session shows them at once, and the page refreshes them in the background.
 const billCache = new Map<string, SessionBillSummary[]>()
@@ -218,7 +223,8 @@ export function AllBillsPage({
         (!q ||
           b.identifier.toLowerCase().includes(q) ||
           b.title.toLowerCase().includes(q) ||
-          b.sponsor.toLowerCase().includes(q)),
+          b.sponsor.toLowerCase().includes(q) ||
+          (b.requester ?? '').toLowerCase().includes(q)),
     )
   }, [bills, query, type])
 
@@ -284,7 +290,7 @@ export function AllBillsPage({
               <div className={styles.searchRow}>
                 <input
                   className={styles.searchInput}
-                  placeholder="Search by bill number, title, or sponsor"
+                  placeholder="Search by bill number, title, sponsor, or requester"
                   value={query}
                   onChange={(e) => update({ q: e.target.value || null })}
                 />
@@ -307,7 +313,8 @@ export function AllBillsPage({
                       Title
                     </div>
                     <div className={styles.headerCell} role="columnheader">
-                      Sponsor
+                      {/* An LC draft has a requester, not a sponsor. */}
+                      {type === 'lc' ? 'Requester' : 'Sponsor'}
                     </div>
                     <div className={styles.headerCell} role="columnheader">
                       Status
@@ -326,8 +333,14 @@ export function AllBillsPage({
                           <span className={styles.titleCell}>{b.title}</span>
                         </div>
                         <div className={`${styles.cell} ${styles.cellSub}`} role="cell">
-                          {b.sponsor}
-                          {b.party ? ` (${b.party})` : ''}
+                          {isLc(b) ? (
+                            requesterText(b, type === 'lc')
+                          ) : (
+                            <>
+                              {b.sponsor}
+                              {b.party ? ` (${b.party})` : ''}
+                            </>
+                          )}
                         </div>
                         <div className={`${styles.cell} ${styles.cellSub}`} role="cell">
                           <span className={styles.statusCell} title={b.status}>

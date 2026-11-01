@@ -10,6 +10,15 @@ export interface Sponsor {
   party: Party
 }
 
+/** The legislator, committee, or agency that requested an LC draft. */
+export interface Requester {
+  name: string
+  /** Set when the requester is a legislator. */
+  legislatorId: string | null
+  /** Set when the requester is an interim committee. */
+  committeeId: string | null
+}
+
 export interface Momentum {
   score: number
   delta7d: number
@@ -29,6 +38,9 @@ export interface Bill {
   officialUrl: string | null
   title: string
   sponsor: Sponsor
+  /** An LC draft: the bill has no bill number yet. A draft has a requester, not a sponsor. */
+  isDraft: boolean
+  requester: Requester | null
   committee?: string
   chamber?: Chamber
   // Every subject code Montana's own data has tagged this bill with — there's
@@ -148,7 +160,7 @@ export interface AiSummary {
   text: string
   model: string | null
   generatedAt: string | null
-  /** 'text': from the bill text of one version. 'metadata': from the title, subject, sponsor, and status. */
+  /** 'text': from the bill text of one version. 'metadata': from the title, subject, sponsor or requester, and status. */
   source: 'text' | 'metadata'
   /** The version that the summary is from ("Introduced", "Version 2", "Enrolled"), or null. */
   versionLabel: string | null
@@ -157,6 +169,8 @@ export interface AiSummary {
 
 export interface BillDetail extends Bill {
   draftNumber: string
+  /** The people or groups that the requester requested the draft for ("by request of"). */
+  byRequestOf: Requester[]
   isTracked: boolean
   aiSummary: AiSummary | null
   statusHistory: BillStatusEvent[]
@@ -189,6 +203,9 @@ export interface SessionBillSummary {
   title: string
   sponsor: string
   party: string | null
+  isDraft: boolean
+  /** The name of the requester of the draft. */
+  requester: string | null
   status: string
   isTracked: boolean
 }

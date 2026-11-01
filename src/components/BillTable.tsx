@@ -7,6 +7,7 @@ import { PositionChip } from './shared/PositionChip'
 import { EmptyState } from './shared/EmptyState'
 import { plural } from '../lib/format'
 import type { TeamMember } from '../types'
+import { sponsorOrRequester } from '../lib/sponsor'
 import styles from './BillTable.module.css'
 
 type SortKey = 'identifier' | 'title' | 'sponsor' | 'position' | 'momentum'
@@ -27,7 +28,7 @@ function sortValue(bill: Bill, key: SortKey): string | number {
     case 'title':
       return bill.title
     case 'sponsor':
-      return bill.sponsor.name
+      return sponsorOrRequester(bill)
     case 'position':
       return bill.position ?? ''
     case 'momentum':
@@ -134,7 +135,7 @@ export function BillTable({
                   <span className={styles.billTitle}>{bill.title}</span>
                   <span className={styles.lastAction}>{bill.lastAction.text}</span>
                   <span className={`${styles.foldedLine} ${styles.showAt1180}`}>
-                    {bill.sponsor.name || 'Not yet assigned'}
+                    {sponsorOrRequester(bill)}
                     {bill.sponsor.district && ` · ${bill.sponsor.district}${bill.sponsor.party ? ` (${bill.sponsor.party})` : ''}`}
                     {' · '}
                     {bill.position ? bill.position : 'No position'}
@@ -143,7 +144,7 @@ export function BillTable({
               </div>
               <div className={`${styles.cell} ${styles.sponsorCol}`} role="gridcell">
                 <div className={styles.cellStack}>
-                  <span className={styles.sponsorName}>{bill.sponsor.name || 'Not yet assigned'}</span>
+                  <span className={styles.sponsorName}>{sponsorOrRequester(bill)}</span>
                   {bill.sponsor.district && (
                     <span className={styles.sponsorMeta}>
                       {bill.sponsor.district}
