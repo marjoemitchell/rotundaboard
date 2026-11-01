@@ -426,6 +426,15 @@
   border: 1px solid var(--accent, #b9723d);
 }
 
+.subjectChipMontana {
+  color: var(--ink);
+  border-color: var(--border-2);
+}
+
+.subjectChipCustom {
+  border-style: dashed;
+}
+
 .tagRemove {
   border: none;
   background: none;

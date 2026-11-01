@@ -237,6 +237,16 @@ export interface SubjectCode {
   description: string
 }
 
+// The subjects of a bill for the current workspace.
+export interface BillSubjects {
+  /** The default subjects that the Legislature applied. The workspace cannot remove them. */
+  montana: SubjectCode[]
+  /** The default subjects that the workspace applied. */
+  added: SubjectCode[]
+  /** The custom subjects that the workspace made and applied. */
+  custom: Tag[]
+}
+
 export interface SubjectWatch {
   id: string
   name: string

@@ -684,6 +684,38 @@ app.delete('/api/notes/:id', async (req, res) => {
   }
 })
 
+app.get('/api/bills/:id/subjects', async (req, res) => {
+  const billId = parseBillId(req, res)
+  if (billId === null) return
+  try {
+    res.json(await queries.getBillSubjects(billId, req.auth!.workspaceId))
+  } catch (err) {
+    handleError(res, `GET /api/bills/${req.params.id}/subjects`, err)
+  }
+})
+
+app.post('/api/bills/:id/subjects', async (req, res) => {
+  const billId = parseBillId(req, res)
+  if (billId === null) return
+  try {
+    const { code } = req.body as { code: string }
+    res.status(201).json(await mutations.addBillSubject(req.auth!.workspaceId, billId, code, req.auth!.userId))
+  } catch (err) {
+    handleError(res, `POST /api/bills/${req.params.id}/subjects`, err)
+  }
+})
+
+app.delete('/api/bills/:id/subjects/:code', async (req, res) => {
+  const billId = parseBillId(req, res)
+  if (billId === null) return
+  try {
+    await mutations.removeBillSubject(req.auth!.workspaceId, billId, req.params.code)
+    res.status(204).end()
+  } catch (err) {
+    handleError(res, `DELETE /api/bills/${req.params.id}/subjects/${req.params.code}`, err)
+  }
+})
+
 app.get('/api/bills/:id/tags', async (req, res) => {
   const billId = parseBillId(req, res)
   if (billId === null) return

@@ -1580,6 +1580,35 @@ export async function getBillTags(billId: number, workspaceId: number) {
   return rows.map((r) => ({ id: String(r.id), name: r.name }))
 }
 
+// The subjects of a bill for the workspace, in three groups:
+//   - montana: the default subjects that the Legislature applied. The workspace cannot remove them.
+//   - added: the default subjects that the workspace applied.
+//   - custom: the custom subjects (tags) that the workspace applied.
+export async function getBillSubjects(billId: number, workspaceId: number) {
+  const [{ rows: montanaRows }, { rows: addedRows }, custom] = await Promise.all([
+    pool.query<{ code: string; description: string }>(
+      `SELECT sc.code, sc.description FROM bills b
+       JOIN draft_subjects ds ON ds.draft_id = b.draft_id
+       JOIN subject_codes sc ON sc.id = ds.subject_code_id
+       WHERE b.id = $1 ORDER BY sc.description`,
+      [billId],
+    ),
+    pool.query<{ code: string; description: string }>(
+      `SELECT sc.code, sc.description FROM workspace_bill_subjects wbs
+       JOIN subject_codes sc ON sc.id = wbs.subject_code_id
+       WHERE wbs.bill_id = $1 AND wbs.workspace_id = $2 ORDER BY sc.description`,
+      [billId, workspaceId],
+    ),
+    getBillTags(billId, workspaceId),
+  ])
+  const montanaCodes = new Set(montanaRows.map((r) => r.code))
+  return {
+    montana: montanaRows.map((r) => ({ code: r.code, description: r.description })),
+    added: addedRows.filter((r) => !montanaCodes.has(r.code)).map((r) => ({ code: r.code, description: r.description })),
+    custom,
+  }
+}
+
 // --- Subject watches -------------------------------------------------------
 // A saved set of official subject codes and/or custom tags, evaluated live
 // against whichever bills currently match — so a watch surfaces bills the
@@ -1614,6 +1643,10 @@ export async function getSubjectWatches(workspaceId: number) {
       EXISTS (
         SELECT 1 FROM draft_subjects ds JOIN subject_codes sc ON sc.id = ds.subject_code_id
         WHERE ds.draft_id = b.draft_id AND sc.code = ANY(w.subject_codes)
+      )
+      OR EXISTS (
+        SELECT 1 FROM workspace_bill_subjects wbs JOIN subject_codes sc ON sc.id = wbs.subject_code_id
+        WHERE wbs.workspace_id = w.workspace_id AND wbs.bill_id = b.id AND sc.code = ANY(w.subject_codes)
       )
       OR EXISTS (
         SELECT 1 FROM bill_tags bt WHERE bt.bill_id = b.id AND bt.tag_id = ANY(w.tag_ids)
@@ -1693,10 +1726,23 @@ export async function getSubjectWatchBills(watchId: number, workspaceId: number)
       ORDER BY bs.occurred_at DESC
       LIMIT 1
     ) latest_status ON true
+    -- The matched subjects are the default subjects from the Legislature, the
+    -- default subjects that the workspace applied, and the custom subjects.
     LEFT JOIN LATERAL (
-      SELECT array_agg(sc.description ORDER BY sc.description) AS matched_subjects
-      FROM draft_subjects ds JOIN subject_codes sc ON sc.id = ds.subject_code_id
-      WHERE ds.draft_id = d.id AND sc.code = ANY($1)
+      SELECT array_agg(DISTINCT m.name ORDER BY m.name) AS matched_subjects
+      FROM (
+        SELECT sc.description AS name
+        FROM draft_subjects ds JOIN subject_codes sc ON sc.id = ds.subject_code_id
+        WHERE ds.draft_id = d.id AND sc.code = ANY($1)
+        UNION
+        SELECT sc.description
+        FROM workspace_bill_subjects wbs JOIN subject_codes sc ON sc.id = wbs.subject_code_id
+        WHERE wbs.workspace_id = $3 AND wbs.bill_id = b.id AND sc.code = ANY($1)
+        UNION
+        SELECT t.name
+        FROM bill_tags bt3 JOIN tags t ON t.id = bt3.tag_id
+        WHERE bt3.bill_id = b.id AND t.workspace_id = $3 AND bt3.tag_id = ANY($2)
+      ) m
     ) matched ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS total FROM draft_subjects ds WHERE ds.draft_id = d.id
@@ -1706,6 +1752,10 @@ export async function getSubjectWatchBills(watchId: number, workspaceId: number)
       EXISTS (
         SELECT 1 FROM draft_subjects ds JOIN subject_codes sc ON sc.id = ds.subject_code_id
         WHERE ds.draft_id = d.id AND sc.code = ANY($1)
+      )
+      OR EXISTS (
+        SELECT 1 FROM workspace_bill_subjects wbs JOIN subject_codes sc ON sc.id = wbs.subject_code_id
+        WHERE wbs.workspace_id = $3 AND wbs.bill_id = b.id AND sc.code = ANY($1)
       )
       OR EXISTS (
         SELECT 1 FROM bill_tags bt2 WHERE bt2.bill_id = b.id AND bt2.tag_id = ANY($2)

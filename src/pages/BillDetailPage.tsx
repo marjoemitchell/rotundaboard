@@ -7,12 +7,14 @@ import type {
   Amendment,
   AmendmentChanges,
   BillDetail,
+  BillSubjects,
   BillVote,
   ExecutiveAction,
   LoadState,
   Note,
   Position,
   Priority,
+  SubjectCode,
   Tag,
   TeamMember,
   Testimony,
@@ -31,6 +33,7 @@ import { UpgradeNotice } from '../components/shared/UpgradeNotice'
 import { usePlan } from '../auth/usePlan'
 import { usePublicView } from '../lib/publicView'
 import { PRIORITY_OPTIONS } from '../lib/priority'
+import { SubjectPicker, type SubjectPick } from '../components/SubjectPicker'
 import styles from './BillDetailPage.module.css'
 
 function formatDraftNumber(draftNumber: string): string {
@@ -167,60 +170,85 @@ function VoteCard({ vote, kind }: { vote: BillVote | ExecutiveAction; kind: 'flo
   )
 }
 
-function TagsSection({ billId }: { billId: string }) {
-  const [tags, setTags] = useState<Tag[]>([])
-  const [draft, setDraft] = useState('')
+// The subjects of the bill: the default subjects and the custom subjects of the workspace.
+function SubjectsSection({ billId }: { billId: string }) {
+  const [subjects, setSubjects] = useState<BillSubjects>({ montana: [], added: [], custom: [] })
+  const [subjectCodes, setSubjectCodes] = useState<SubjectCode[]>([])
+  const [customSubjects, setCustomSubjects] = useState<Tag[]>([])
   const [saving, setSaving] = useState(false)
 
   const load = () => {
-    client.getBillTags(billId).then(setTags).catch(() => setTags([]))
+    client.getBillSubjects(billId).then(setSubjects).catch(() => setSubjects({ montana: [], added: [], custom: [] }))
+    client.getTags().then(setCustomSubjects).catch(() => setCustomSubjects([]))
   }
 
   useEffect(load, [billId])
+  useEffect(() => {
+    client.getSubjectCodes().then(setSubjectCodes).catch(() => setSubjectCodes([]))
+  }, [])
 
-  const handleAdd = async () => {
-    if (!draft.trim()) return
+  // The dropdown shows only the subjects that the bill does not have.
+  const onBill = new Set([...subjects.montana, ...subjects.added].map((s) => s.code))
+  const customOnBill = new Set(subjects.custom.map((t) => t.id))
+  const defaultOptions = subjectCodes.filter((s) => !onBill.has(s.code))
+  const customOptions = customSubjects.filter((t) => !customOnBill.has(t.id))
+
+  const handlePick = async (pick: SubjectPick) => {
     setSaving(true)
     try {
-      await client.tagBill(billId, draft.trim())
-      setDraft('')
+      if (pick.kind === 'default') await client.addBillSubject(billId, pick.code)
+      else await client.tagBill(billId, pick.name)
       load()
     } finally {
       setSaving(false)
     }
   }
 
-  const handleRemove = async (tagId: string) => {
+  const handleRemoveDefault = async (code: string) => {
+    await client.removeBillSubject(billId, code)
+    load()
+  }
+
+  const handleRemoveCustom = async (tagId: string) => {
     await client.untagBill(billId, tagId)
     load()
   }
 
   return (
-    <section className={styles.section}>
-      <div className="eyebrow">Tags</div>
+    <section className={styles.section} aria-label="Subjects">
+      <div className="eyebrow">Subjects</div>
       <div className={styles.tagList}>
-        {tags.map((t) => (
-          <span key={t.id} className={styles.tagChip}>
+        {subjects.montana.map((s) => (
+          <span key={`montana:${s.code}`} className={`${styles.tagChip} ${styles.subjectChipMontana}`} title="The Legislature applied this subject.">
+            {s.description}
+          </span>
+        ))}
+        {subjects.added.map((s) => (
+          <span key={`added:${s.code}`} className={styles.tagChip}>
+            {s.description}
+            <button
+              className={styles.tagRemove}
+              onClick={() => handleRemoveDefault(s.code)}
+              aria-label={`Remove subject ${s.description}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        {subjects.custom.map((t) => (
+          <span key={`custom:${t.id}`} className={`${styles.tagChip} ${styles.subjectChipCustom}`}>
             {t.name}
-            <button className={styles.tagRemove} onClick={() => handleRemove(t.id)} aria-label={`Remove tag ${t.name}`}>
+            <button className={styles.tagRemove} onClick={() => handleRemoveCustom(t.id)} aria-label={`Remove subject ${t.name}`}>
               ×
             </button>
           </span>
         ))}
       </div>
-      <div className={styles.tagComposer}>
-        <input
-          className={styles.tagInput}
-          placeholder="Add a tag…"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-        />
-        <button className={styles.tagAddButton} onClick={handleAdd} disabled={saving || !draft.trim()}>
-          Add
-        </button>
-      </div>
-      <p className={styles.tagHint}>Tags can be pulled into subject watches to catch other bills like this one.</p>
+      <SubjectPicker defaultSubjects={defaultOptions} customSubjects={customOptions} onPick={handlePick} disabled={saving} />
+      <p className={styles.tagHint}>
+        Pick a default subject or a custom subject. Type a new name to make a custom subject. Subject watches find
+        other bills with the same subjects.
+      </p>
     </section>
   )
 }
@@ -824,10 +852,10 @@ export function BillDetailPage({
 
           {bill.amendments.length > 0 && <AmendmentsSection bill={bill} />}
 
-          {/* Tags, testimony, and notes are workspace data. */}
+          {/* Subjects, testimony, and notes are workspace data. */}
           {!isPublic && (
             <>
-              <TagsSection billId={bill.id} />
+              <SubjectsSection billId={bill.id} />
 
               <TestimonySection bill={bill} />
 
