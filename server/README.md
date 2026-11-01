@@ -9,12 +9,12 @@ schema for it — request shapes were reverse-engineered from live responses.
 
 | Script | What it does | Cost |
 |---|---|---|
-| `npm run scrape` | Full pull: sessions, legislators, committees, bills for the scraped sessions | Slow: pulls every bill again |
+| `npm run scrape` | Full pull: sessions, legislators, committees, requesting agencies, bills for the scraped sessions | Slow: pulls every bill again |
 | `npm run scrape:details` | Per-bill detail pass (status history, votes, cosponsors, amendments) | Slow, concurrency-limited |
 | `npm run refresh-meetings` | Interim-committee meeting times/locations/agendas only, for committees already in the DB | Fast — no bill data touched |
 | `npm run refresh-hearings` | The bill hearing schedule of all standing committees in one paged search, then hearing alerts and reminders | Fast: about 8 requests for a full session |
 | `npm run refresh-bill-texts` | The text of bill versions and amendments (PDF files from the document store), and an AI summary of each amendment | About 3 seconds for each bill. A run checks at most 300 bills (`--limit=N`). One Claude Haiku call for each new amendment |
-| `npm run generate-summaries` | AI bill summaries: from the newest stored bill text, or from the title, subject, sponsor, and status when a bill has no text yet. A bill gets a new summary when a newer version arrives | One Claude Haiku batch request for each new bill or version |
+| `npm run generate-summaries` | AI bill summaries: from the newest stored bill text, or from the title, subject, sponsor or requester, and status when a bill has no text yet. A bill gets a new summary when a newer version arrives | One Claude Haiku batch request for each new bill or version |
 | `npm run send-alert-digest` | Daily email digest of change alerts (immediate alerts are sent by the scrape scripts themselves) | Cheap — database only, plus one email per person |
 | `npm run summarize-hearings` | An AI summary of each finished hearing transcript: overview, topics with times, decisions and next steps | One Claude Sonnet call for each hearing |
 | `npm run transcribe-hearings` | Finds newly posted committee hearing videos, ingests their captions, and produces speaker-attributed transcripts | Discovery + captions are free; diarization is free on the self-hosted GPU (WhisperX) or ~$0.006/audio-minute on the OpenAI fallback, plus one Claude call per hearing for speaker names |
@@ -42,6 +42,21 @@ current members of the House and Senate districts that cover part of it.
   term that has started and not ended. When two terms are current (a member
   and the nominee for the next legislature), the serving legislature comes
   first.
+
+## LC draft requesters
+
+An LC draft has a requester, not a sponsor. A bill gets a sponsor when it is
+introduced. The requester stays on the bill.
+
+- `drafts.requester_type` tells which table has the requester:
+  - `LEGISLATOR`: `legislators`
+  - `STANDING_COMMITTEE`: `standing_committees`
+  - `NON_STANDING_COMMITTEE`: `non_standing_committees`
+  - `AGENCY` (and the other agency and organization types): `organizations`
+- `scrape` loads the organizations from `/legislators/v1/organizations`.
+- Some drafts also have "by request of" entries, with the same types. They
+  are in `draft_by_request_ofs`.
+- `src/requesters.ts` has the SQL that gives the name of a requester.
 
 ## Scraped sessions
 

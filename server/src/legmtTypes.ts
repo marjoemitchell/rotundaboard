@@ -129,6 +129,19 @@ export interface RawDraftSubject {
   subjectCode: RawSubjectCode
 }
 
+export interface RawByRequestOf {
+  id: number
+  billRequestType: string
+  byRequestOfId: number
+}
+
+// An agency or other group that can request a draft.
+export interface RawOrganization {
+  id: number
+  name: string
+  type: string | null
+}
+
 export interface RawDraft {
   id: number
   draftNumber: string
@@ -137,6 +150,7 @@ export interface RawDraft {
   description: string | null
   requesterId: number | null
   requesterType: string | null
+  byRequestOfs: RawByRequestOf[] | null
   billStatuses: RawBillStatus[]
   legalNote: boolean | null
   sessionId: number

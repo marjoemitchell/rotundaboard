@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { aiSummaryNote } from '../lib/aiSummary'
+import { RequesterList, RequesterName } from '../components/RequesterName'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import * as client from '../data/client'
 import type {
@@ -646,7 +647,7 @@ export function BillDetailPage({
             )}
           </div>
           <p className={styles.aiSummaryText}>{bill.aiSummary.text}</p>
-          <p className={styles.aiSummaryDisclaimer}>{aiSummaryNote(bill.aiSummary)}</p>
+          <p className={styles.aiSummaryDisclaimer}>{aiSummaryNote(bill.aiSummary, bill.isDraft)}</p>
         </div>
       )}
 
@@ -678,17 +679,43 @@ export function BillDetailPage({
 
         <div className={styles.sideCol}>
           <section className={styles.section}>
-            <div className="eyebrow">Sponsor</div>
-            <div className={styles.row}>
-              <span className={styles.rowLabel}>Name</span>
-              <span className={styles.rowValue}>{bill.sponsor.name || 'Not yet assigned'}</span>
-            </div>
-            {bill.sponsor.district && (
+            {/* An LC draft has a requester, not a sponsor. An introduced bill shows both. */}
+            <div className="eyebrow">{bill.isDraft ? 'Requester' : 'Sponsor'}</div>
+            {bill.isDraft ? (
               <div className={styles.row}>
-                <span className={styles.rowLabel}>District</span>
+                <span className={styles.rowLabel}>Name</span>
+                <span className={styles.rowValue}>{bill.requester ? <RequesterName requester={bill.requester} /> : 'Not known'}</span>
+              </div>
+            ) : (
+              <>
+                <div className={styles.row}>
+                  <span className={styles.rowLabel}>Name</span>
+                  <span className={styles.rowValue}>{bill.sponsor.name || 'Not yet assigned'}</span>
+                </div>
+                {bill.sponsor.district && (
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>District</span>
+                    <span className={styles.rowValue}>
+                      {bill.sponsor.district}
+                      {bill.sponsor.party ? ` (${bill.sponsor.party})` : ''}
+                    </span>
+                  </div>
+                )}
+                {bill.requester && (
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>Requested by</span>
+                    <span className={styles.rowValue}>
+                      <RequesterName requester={bill.requester} />
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+            {bill.byRequestOf.length > 0 && (
+              <div className={styles.row}>
+                <span className={styles.rowLabel}>By request of</span>
                 <span className={styles.rowValue}>
-                  {bill.sponsor.district}
-                  {bill.sponsor.party ? ` (${bill.sponsor.party})` : ''}
+                  <RequesterList requesters={bill.byRequestOf} />
                 </span>
               </div>
             )}

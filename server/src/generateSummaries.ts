@@ -3,8 +3,8 @@
 //
 // A bill with stored text (bill_text_versions, from refreshBillTexts.ts) gets
 // a summary of its newest version. A bill with no text yet (for example a
-// new LC draft) gets a summary of its metadata: title, subject, sponsor, and
-// status. bill_summaries.source tells which, and the app shows it next to
+// new LC draft) gets a summary of its metadata: title, subject, sponsor or
+// requester, and status. bill_summaries.source tells which, and the app shows it next to
 // the summary. A bill gets a new summary when a newer version arrives.
 //
 // Usage:
@@ -16,6 +16,7 @@ import 'dotenv/config'
 import Anthropic from '@anthropic-ai/sdk'
 import { pool } from './db.js'
 import { markedText, versionLabel, type Paragraph } from './billText.js'
+import { requesterNameSql } from './requesters.js'
 
 const MODEL = 'claude-haiku-5-5'
 const MAX_TOKENS = 300
@@ -30,7 +31,7 @@ In the bill text, <s>struck text</s> is removed from current law, and <u>underli
 
 Write a 2-3 sentence, neutral, factual summary of what the bill does: the main changes to the law, who or what they affect, and important numbers, dates, or amounts. Use only the text. If the text is cut, summarize the part you have and do not guess the rest. Do not editorialize about whether the bill is good or bad policy. Output only the summary text, no preamble.`
 
-const SYSTEM_PROMPT = `You summarize Montana legislative bills for policy staff at an advocacy nonprofit. You are given only structured metadata about a bill — its title, subject area, sponsor, chamber, and current status — never the actual bill text.
+const SYSTEM_PROMPT = `You summarize Montana legislative bills for policy staff at an advocacy nonprofit. You are given only structured metadata about a bill — its title, subject area, sponsor (or, for an LC draft, the requester), chamber, and current status — never the actual bill text.
 
 Write a 2-3 sentence, neutral, factual summary of what the bill most likely does, based only on the metadata given. Do not invent specific provisions, numbers, or effects the metadata doesn't support — if the title is vague, say what's known (subject area, sponsor's apparent intent) rather than guessing at mechanics. If the bill died, was tabled, or became law, you may note that outcome briefly. Do not editorialize about whether the bill is good or bad policy. Output only the summary text, no preamble.`
 
@@ -42,6 +43,8 @@ interface SummaryCandidate {
   sponsor_name: string | null
   sponsor_party: string | null
   sponsor_district: string | null
+  /** The legislator, committee, or agency that requested the draft. */
+  requester_name: string | null
   chamber: string | null
   status_name: string | null
   status_occurred_at: string | null
@@ -76,6 +79,7 @@ async function getCandidates(
       (sp.first_name || ' ' || sp.last_name) AS sponsor_name,
       pp.code AS sponsor_party,
       dist.name AS sponsor_district,
+      ${requesterNameSql('d.requester_type', 'd.requester_id')} AS requester_name,
       bt.chamber,
       latest_status.status_name,
       latest_status.occurred_at AS status_occurred_at,
@@ -140,6 +144,7 @@ function buildPrompt(c: SummaryCandidate): string {
     `Title: ${c.short_title}`,
     c.subject ? `Subject area: ${c.subject}` : null,
     c.sponsor_name ? `Sponsor: ${c.sponsor_name}${c.sponsor_party ? ` (${c.sponsor_party})` : ''}${c.sponsor_district ? `, ${c.sponsor_district}` : ''}` : 'Sponsor: not yet assigned',
+    c.requester_name ? `Requested by: ${c.requester_name}` : null,
     c.chamber ? `Chamber: ${c.chamber}` : null,
     c.status_name ? `Current status: ${c.status_name}` : null,
   ].filter(Boolean)

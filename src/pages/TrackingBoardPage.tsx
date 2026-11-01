@@ -3,6 +3,7 @@ import type { Bill, LoadState, Position, TeamMember } from '../types'
 import { InitialsSquare } from '../components/shared/InitialsSquare'
 import { EmptyState } from '../components/shared/EmptyState'
 import { OutcomeBadge } from '../components/shared/OutcomeBadge'
+import { sponsorOrRequester } from '../lib/sponsor'
 import styles from './TrackingBoardPage.module.css'
 
 const COLUMNS: { key: Position; label: string }[] = [
@@ -37,7 +38,7 @@ function BoardCard({
         </div>
         <div className={styles.cardTitle}>{bill.title}</div>
         <div className={styles.cardStatus}>{bill.status}</div>
-        <div className={styles.cardSponsor}>{bill.sponsor.name || 'Not yet assigned'}</div>
+        <div className={styles.cardSponsor}>{sponsorOrRequester(bill)}</div>
       </button>
       <div className={styles.cardControls}>
         <span className={styles.assigneeControl}>

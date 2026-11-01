@@ -46,7 +46,7 @@ test.describe('Dashboard and All bills navigation', () => {
     await expect(page.getByRole('button', { name: /^Show more/ })).toBeVisible()
 
     // Search finds a tracked bill, and its Track button shows "Tracked".
-    await page.getByPlaceholder('Search by bill number, title, or sponsor').fill(introduced.identifier)
+    await page.getByPlaceholder('Search by bill number, title, sponsor, or requester').fill(introduced.identifier)
     await expect(page.getByRole('button', { name: `Stop tracking ${introduced.identifier}`, exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -55,7 +55,7 @@ test.describe('Dashboard and All bills navigation', () => {
     await nav.getByRole('button', { name: 'LC drafts' }).click()
     await expect(page).toHaveURL(/type=lc/)
     await expect(nav.getByRole('button', { name: 'LC drafts' })).toHaveAttribute('aria-current', 'page')
-    await page.getByPlaceholder('Search by bill number, title, or sponsor').fill(lc.identifier)
+    await page.getByPlaceholder('Search by bill number, title, sponsor, or requester').fill(lc.identifier)
     await expect(rows.filter({ hasText: lc.identifier }).first()).toBeVisible()
     await expect(rows.locator('[class*="identifier"]').filter({ hasNotText: /^LC/ })).toHaveCount(0)
 
@@ -116,7 +116,7 @@ test.describe('Dashboard and All bills navigation', () => {
     // No session in the URL: the page picks the newest session with bills.
     // (The bug occurred from this start: a tab click changed the URL, but the
     // list kept the bills of the session before.)
-    const search = page.getByPlaceholder('Search by bill number, title, or sponsor')
+    const search = page.getByPlaceholder('Search by bill number, title, sponsor, or requester')
     await page.goto('/bills')
     await expect(rows.first()).toBeVisible()
     const startedOnOld = (await sessionTabs.getByRole('button', { name: year(old) }).getAttribute('aria-pressed')) === 'true'
