@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { aiSummaryNote } from '../lib/aiSummary'
 import type { TransitionEvent } from 'react'
 import * as client from '../data/client'
-import type { AiSummary, Bill, LoadState, Position, TeamMember } from '../types'
+import type { AiSummary, Bill, LoadState, Position, Priority, TeamMember } from '../types'
+import { PRIORITY_OPTIONS } from '../lib/priority'
 import { formatDate, formatSignedDelta } from '../lib/format'
 import { InitialsSquare } from './shared/InitialsSquare'
 import { Sparkline } from './shared/Sparkline'
@@ -25,6 +26,7 @@ export function BillDetailDrawer({
   onClose,
   onChangePosition,
   onChangeAssignee,
+  onChangePriority,
   onViewFullDetails,
   onUntrackBill,
 }: {
@@ -34,6 +36,7 @@ export function BillDetailDrawer({
   onClose: () => void
   onChangePosition: (position: Position) => void
   onChangeAssignee: (assigneeId: string | null) => void
+  onChangePriority: (priority: Priority) => void
   onViewFullDetails: () => void
   onUntrackBill: () => void
 }) {
@@ -156,6 +159,22 @@ export function BillDetailDrawer({
             >
               <option value="">No position</option>
               {POSITION_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>Priority</span>
+            <select
+              className={styles.editableSelect}
+              value={bill.priority ?? ''}
+              onChange={(e) => onChangePriority((e.target.value || null) as Priority)}
+              aria-label="Priority"
+            >
+              <option value="">No priority</option>
+              {PRIORITY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>

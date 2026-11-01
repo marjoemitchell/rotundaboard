@@ -76,6 +76,23 @@ export async function setBillAssignee(workspaceId: number, billId: number, assig
   return { billId, assigneeId }
 }
 
+const VALID_PRIORITIES = ['high', 'medium', 'low'] as const
+type Priority = (typeof VALID_PRIORITIES)[number]
+
+export async function setBillPriority(workspaceId: number, billId: number, priority: string | null) {
+  if (priority !== null && !VALID_PRIORITIES.includes(priority as Priority)) {
+    throw new MutationError(400, `priority must be one of ${VALID_PRIORITIES.join(', ')}, or null`)
+  }
+  await requireTrackedBill(workspaceId, billId)
+
+  await pool.query('UPDATE tracked_bills SET priority = $1 WHERE workspace_id = $2 AND bill_id = $3', [
+    priority,
+    workspaceId,
+    billId,
+  ])
+  return { billId, priority }
+}
+
 export async function trackBill(workspaceId: number, billId: number, userId: number) {
   const { rows } = await pool.query('SELECT id FROM bills WHERE id = $1', [billId])
   if (rows.length === 0) throw new MutationError(404, `bill ${billId} not found`)

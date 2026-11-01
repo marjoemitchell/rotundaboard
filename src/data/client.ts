@@ -38,6 +38,7 @@ import type {
   NonStandingCommitteeDetail,
   Note,
   Position,
+  Priority,
   SavedView,
   SearchResults,
   SessionBillSummary,
@@ -291,6 +292,10 @@ export function getNavCounts(): Promise<NavCounts> {
 
 export function setBillPosition(billId: string, position: Position): Promise<void> {
   return sendJson(`/api/bills/${billId}/position`, 'PATCH', { position })
+}
+
+export function setBillPriority(billId: string, priority: Priority): Promise<void> {
+  return sendJson(`/api/bills/${billId}/priority`, 'PATCH', { priority })
 }
 
 export function setBillAssignee(billId: string, assigneeId: string | null): Promise<void> {

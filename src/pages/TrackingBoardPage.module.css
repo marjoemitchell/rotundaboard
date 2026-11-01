@@ -139,6 +139,7 @@
 
 .cardControls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
@@ -166,4 +167,27 @@
 
 .cardSelect:hover {
   border-color: var(--accent, #b9723d);
+}
+
+.priorityBadge {
+  margin-left: 8px;
+  padding: 1px 5px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid currentColor;
+  vertical-align: 1px;
+}
+
+.priority_high {
+  color: var(--accent, #b9723d);
+}
+
+.priority_medium {
+  color: var(--ink-2);
+}
+
+.priority_low {
+  color: var(--faint);
 }

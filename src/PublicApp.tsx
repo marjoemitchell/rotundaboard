@@ -83,6 +83,7 @@ export function PublicApp() {
                 teamMembers={NO_MEMBERS}
                 onChangePosition={noop}
                 onChangeAssignee={noop}
+                onChangePriority={noop}
                 onTrackBill={noop}
                 onUntrackBill={noop}
               />

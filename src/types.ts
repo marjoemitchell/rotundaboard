@@ -2,6 +2,9 @@ export type Party = 'R' | 'D' | 'I'
 
 export type Position = 'support' | 'oppose' | 'watch' | 'neutral' | null
 
+/** The priority that a workspace sets on a tracked bill. null means that no priority is set. */
+export type Priority = 'high' | 'medium' | 'low' | null
+
 export type Chamber = 'house' | 'senate'
 
 export interface Sponsor {
@@ -51,6 +54,7 @@ export interface Bill {
   lastAction: { text: string; date: string }
   position: Position
   assigneeId: string | null
+  priority: Priority
   momentum: Momentum
   outcome: BillOutcome
   /** The process of the bill is over: it became law, died, was vetoed or withdrawn, or its session ended. */

@@ -26,7 +26,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { HearingsPage } from './pages/HearingsPage'
 import { HearingTranscriptPage } from './pages/HearingTranscriptPage'
 import { BillComparePage } from './pages/BillComparePage'
-import type { Bill, FilterState, LoadState, Position } from './types'
+import type { Bill, FilterState, LoadState, Position, Priority } from './types'
 import styles from './App.module.css'
 
 // Few people open the Plans page, so load its code only when it opens.
@@ -301,6 +301,15 @@ export function AuthenticatedApp() {
     }
   }
 
+  const handleChangePriority = async (billId: string, priority: Priority) => {
+    try {
+      await client.setBillPriority(billId, priority)
+      data.refetchBills()
+    } catch (err) {
+      showError(err, 'Could not update priority.')
+    }
+  }
+
   const handleTrackBill = async (billId: string) => {
     try {
       await client.trackBill(billId)
@@ -374,6 +383,7 @@ export function AuthenticatedApp() {
                   teamMembers={data.teamMembers}
                   onChangePosition={handleChangePosition}
                   onChangeAssignee={handleChangeAssignee}
+                  onChangePriority={handleChangePriority}
                   onTrackBill={handleTrackBill}
                   onUntrackBill={handleUntrackBill}
                 />
@@ -424,6 +434,7 @@ export function AuthenticatedApp() {
                   onSelectBill={handleSelectBill}
                   onChangePosition={handleChangePosition}
                   onChangeAssignee={handleChangeAssignee}
+                  onChangePriority={handleChangePriority}
                 />
               }
             />
@@ -467,6 +478,7 @@ export function AuthenticatedApp() {
           onClose={() => setSelectedBillId(null)}
           onChangePosition={(position) => handleChangePosition(selectedBill.id, position)}
           onChangeAssignee={(assigneeId) => handleChangeAssignee(selectedBill.id, assigneeId)}
+          onChangePriority={(priority) => handleChangePriority(selectedBill.id, priority)}
           onViewFullDetails={() => handleViewFullDetails(selectedBill.id)}
           onUntrackBill={() => handleUntrackBill(selectedBill.id)}
         />
