@@ -31,35 +31,51 @@ test.describe('auth', () => {
     await page.click('button[type="submit"]')
   }
 
-  test('rejects a "+" address of an email that already has an account', async ({ page }) => {
-    const suffix = uniqueSuffix()
-    await signUpFreshWorkspace(page, { email: `e2e-${suffix}@example.dev` })
+  // A unique local part for a test address at a real provider domain.
+  // "e2e-inbox" addresses are test users too (server/src/e2eCleanup.ts).
+  function inboxName() {
+    return `e2e-inbox${Date.now()}${Math.floor(Math.random() * 1_000_000)}`
+  }
+
+  test('rejects a "+" address at a provider with "+" tags when the plain address has an account', async ({ page }) => {
+    const name = inboxName()
+    await signUpFreshWorkspace(page, { email: `${name}@outlook.com` })
     await logout(page)
 
-    await submitSignup(page, `e2e-${suffix}+newaccount@example.dev`)
+    await submitSignup(page, `${name}+newaccount@outlook.com`)
     await expect(page.getByText(SAME_INBOX)).toBeVisible()
     await expect(page).toHaveURL(/\/signup/)
   })
 
-  test('rejects the plain address when a "+" address of it already has an account', async ({ page }) => {
-    const suffix = uniqueSuffix()
+  test('rejects the plain address at a provider with "+" tags when a "+" address has an account', async ({ page }) => {
+    const name = inboxName()
     // An address with "+" can make an account when no account uses its inbox.
-    await signUpFreshWorkspace(page, { email: `e2e-${suffix}+first@example.dev` })
+    await signUpFreshWorkspace(page, { email: `${name}+first@outlook.com` })
     await logout(page)
 
-    await submitSignup(page, `E2E-${suffix}@Example.dev`)
+    await submitSignup(page, `${name.toUpperCase()}@Outlook.com`)
     await expect(page.getByText(SAME_INBOX)).toBeVisible()
-    await submitSignup(page, `e2e-${suffix}+second@example.dev`)
+    await submitSignup(page, `${name}+second@outlook.com`)
     await expect(page.getByText(SAME_INBOX)).toBeVisible()
   })
 
-  test('rejects a Gmail address that differs only in dots, "+", or googlemail.com', async ({ page }) => {
-    // "e2e-inbox" Gmail addresses are test users too (server/src/e2eCleanup.ts).
-    const n = `${Date.now()}${Math.floor(Math.random() * 1_000_000)}`
-    await signUpFreshWorkspace(page, { email: `e2e-inbox${n}@gmail.com` })
+  test('"+" makes a different address at a provider that is not on the "+" tag list', async ({ page }) => {
+    const suffix = uniqueSuffix()
+    await signUpFreshWorkspace(page, { email: `e2e-${suffix}@example.dev` })
     await logout(page)
 
-    for (const email of [`e2e-inbox.${n}@gmail.com`, `e2e-inbox${n}@googlemail.com`, `E2E-Inbox.${n}+work@GoogleMail.com`]) {
+    await submitSignup(page, `e2e-${suffix}+other@example.dev`)
+    await page.waitForURL('/')
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+  })
+
+  test('rejects a Gmail address that differs only in dots, "+", or googlemail.com', async ({ page }) => {
+    const name = inboxName()
+    await signUpFreshWorkspace(page, { email: `${name}@gmail.com` })
+    await logout(page)
+
+    const dotted = name.replace('e2e-inbox', 'e2e-inbox.')
+    for (const email of [`${dotted}@gmail.com`, `${name}@googlemail.com`, `${dotted.toUpperCase()}+work@GoogleMail.com`]) {
       await submitSignup(page, email)
       await expect(page.getByText(SAME_INBOX), email).toBeVisible()
       await expect(page).toHaveURL(/\/signup/)
@@ -67,13 +83,13 @@ test.describe('auth', () => {
   })
 
   test('two signups for one inbox at the same time make only one account', async ({ page, playwright }) => {
-    const suffix = uniqueSuffix()
+    const name = inboxName()
     // Two clients with no session, so that each signup is a new visitor.
     const clients = await Promise.all([playwright.request.newContext(), playwright.request.newContext()])
     const responses = await Promise.all(
-      [`e2e-${suffix}+one@example.dev`, `e2e-${suffix}+two@example.dev`].map((email, i) =>
+      [`${name}+one@outlook.com`, `${name}+two@outlook.com`].map((email, i) =>
         clients[i].post('http://localhost:4000/api/auth/signup', {
-          data: { email, password: 'e2e-test-password-1', name: 'E2E Tester', workspaceName: `E2E Workspace ${suffix}-${i}` },
+          data: { email, password: 'e2e-test-password-1', name: 'E2E Tester', workspaceName: `E2E Workspace ${name}-${i}` },
         }),
       ),
     )
@@ -84,16 +100,16 @@ test.describe('auth', () => {
     await Promise.all(clients.map((c) => c.dispose()))
 
     // The refused signup made no workspace and no account: the plain address cannot sign up either.
-    await submitSignup(page, `e2e-${suffix}@example.dev`)
+    await submitSignup(page, `${name}@outlook.com`)
     await expect(page.getByText(SAME_INBOX)).toBeVisible()
   })
 
-  test('dots still make a different address outside Gmail', async ({ page }) => {
-    const suffix = uniqueSuffix()
-    await signUpFreshWorkspace(page, { email: `e2e-${suffix}@example.dev` })
+  test('dots make a different address at a provider other than Gmail', async ({ page }) => {
+    const name = inboxName()
+    await signUpFreshWorkspace(page, { email: `${name}@outlook.com` })
     await logout(page)
 
-    await submitSignup(page, `e2e-.${suffix}@example.dev`)
+    await submitSignup(page, `${name.replace('e2e-inbox', 'e2e-inbox.')}@outlook.com`)
     await page.waitForURL('/')
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
   })

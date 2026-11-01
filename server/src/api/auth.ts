@@ -14,7 +14,7 @@ import { getWorkspacePlan, newWorkspacePlan, requireMemberRoom } from '../plans.
 export const authRouter = Router()
 
 const SAME_INBOX_MESSAGE =
-  'an account with this email already exists. An address with "+", or a Gmail address with dots, goes to the same inbox as the address without them'
+  'an account with this email already exists. At this email provider, an address with "+" (or with dots, at Gmail) goes to the same inbox as the address without them'
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hour
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -55,8 +55,8 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
 
     const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1', [email.trim().toLowerCase()])
     if (existing.length > 0) throw new MutationError(409, 'an account with this email already exists')
-    // One inbox gets one account. "name+other@example.com" goes to the same inbox as
-    // "name@example.com", and Gmail ignores dots (emailAddress.ts).
+    // One inbox gets one account. At some providers, "name+other@" goes to the
+    // inbox of "name@", and Gmail ignores dots. See emailAddress.ts for the list.
     const { rows: sameInbox } = await pool.query(`SELECT id FROM users WHERE ${emailInboxKeySql('email')} = $1`, [
       emailInboxKey(email),
     ])
