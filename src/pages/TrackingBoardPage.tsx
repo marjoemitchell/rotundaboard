@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
-import type { Bill, LoadState, Position, TeamMember } from '../types'
+import type { Bill, LoadState, Position, Priority, TeamMember } from '../types'
 import { InitialsSquare } from '../components/shared/InitialsSquare'
 import { EmptyState } from '../components/shared/EmptyState'
 import { OutcomeBadge } from '../components/shared/OutcomeBadge'
 import { sponsorOrRequester } from '../lib/sponsor'
+import { PRIORITY_OPTIONS, priorityLabel, sortByPriority } from '../lib/priority'
 import styles from './TrackingBoardPage.module.css'
 
 const COLUMNS: { key: Position; label: string }[] = [
@@ -21,6 +22,7 @@ function BoardCard({
   onSelectBill,
   onChangePosition,
   onChangeAssignee,
+  onChangePriority,
 }: {
   bill: Bill
   assignee: TeamMember | null
@@ -28,12 +30,20 @@ function BoardCard({
   onSelectBill: (id: string) => void
   onChangePosition: (billId: string, position: Position) => void
   onChangeAssignee: (billId: string, assigneeId: string | null) => void
+  onChangePriority: (billId: string, priority: Priority) => void
 }) {
   return (
-    <div className={styles.card}>
+    <div className={styles.card} data-bill-id={bill.id}>
       <button className={styles.cardMain} onClick={() => onSelectBill(bill.id)}>
         <div className={styles.cardHead}>
-          <span className={styles.cardIdentifier}>{bill.identifier}</span>
+          <span className={styles.cardIdentifier}>
+            {bill.identifier}
+            {bill.priority && (
+              <span className={`${styles.priorityBadge} ${styles[`priority_${bill.priority}`]}`}>
+                {priorityLabel(bill.priority)}
+              </span>
+            )}
+          </span>
           {bill.outcome ? <OutcomeBadge outcome={bill.outcome} /> : <span className={styles.cardMomentum}>{bill.momentum.score}</span>}
         </div>
         <div className={styles.cardTitle}>{bill.title}</div>
@@ -70,6 +80,19 @@ function BoardCard({
             </option>
           ))}
         </select>
+        <select
+          className={styles.cardSelect}
+          value={bill.priority ?? ''}
+          onChange={(e) => onChangePriority(bill.id, (e.target.value || null) as Priority)}
+          aria-label={`Priority for ${bill.identifier}`}
+        >
+          <option value="">No priority</option>
+          {PRIORITY_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              Priority: {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   )
@@ -81,12 +104,14 @@ export function TrackingBoardPage({
   onSelectBill,
   onChangePosition,
   onChangeAssignee,
+  onChangePriority,
 }: {
   bills: LoadState<Bill[]>
   teamMembers: LoadState<TeamMember[]>
   onSelectBill: (id: string) => void
   onChangePosition: (billId: string, position: Position) => void
   onChangeAssignee: (billId: string, assigneeId: string | null) => void
+  onChangePriority: (billId: string, priority: Priority) => void
 }) {
   const memberById = useMemo(() => {
     const map = new Map<string, TeamMember>()
@@ -104,6 +129,8 @@ export function TrackingBoardPage({
         map.get(key)!.push(b)
       }
     }
+    // Put the highest priority bills at the top of each column.
+    for (const [key, list] of map) map.set(key, sortByPriority(list))
     return map
   }, [bills])
 
@@ -138,6 +165,7 @@ export function TrackingBoardPage({
                       onSelectBill={onSelectBill}
                       onChangePosition={onChangePosition}
                       onChangeAssignee={onChangeAssignee}
+                      onChangePriority={onChangePriority}
                     />
                   ))}
                 </div>

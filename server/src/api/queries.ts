@@ -62,6 +62,7 @@ export async function getBills(workspaceId: number) {
     status_occurred_at: string | null
     position: string | null
     assignee_id: number | null
+    priority: string | null
   }>(
     `
     SELECT
@@ -86,7 +87,8 @@ export async function getBills(workspaceId: number) {
       latest_status.status_name,
       latest_status.occurred_at AS status_occurred_at,
       tb.position,
-      tb.assignee_id
+      tb.assignee_id,
+      tb.priority
     FROM tracked_bills tb
     JOIN bills b ON b.id = tb.bill_id
     JOIN drafts d ON d.id = b.draft_id
@@ -194,6 +196,7 @@ export async function getBills(workspaceId: number) {
       },
       position: r.position as 'support' | 'oppose' | 'watch' | 'neutral' | null,
       assigneeId: r.assignee_id != null ? String(r.assignee_id) : null,
+      priority: r.priority as 'high' | 'medium' | 'low' | null,
       momentum,
       outcome,
     }
@@ -856,6 +859,7 @@ export async function getBillDetail(billId: number, workspaceId: number | null) 
     status_occurred_at: string | null
     position: string | null
     assignee_id: number | null
+    priority: string | null
     summary: string | null
     summary_model: string | null
     summary_generated_at: string | null
@@ -893,6 +897,7 @@ export async function getBillDetail(billId: number, workspaceId: number | null) 
       latest_status.occurred_at AS status_occurred_at,
       tb.position,
       tb.assignee_id,
+      tb.priority,
       (tb.bill_id IS NOT NULL) AS is_tracked,
       bsum.summary,
       bsum.model AS summary_model,
@@ -1162,6 +1167,7 @@ export async function getBillDetail(billId: number, workspaceId: number | null) 
     },
     position: core.position as 'support' | 'oppose' | 'watch' | 'neutral' | null,
     assigneeId: core.assignee_id != null ? String(core.assignee_id) : null,
+    priority: core.priority as 'high' | 'medium' | 'low' | null,
     isTracked: core.is_tracked,
     deadline,
     aiSummary: core.summary

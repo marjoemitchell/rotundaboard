@@ -12,6 +12,7 @@ import type {
   LoadState,
   Note,
   Position,
+  Priority,
   Tag,
   TeamMember,
   Testimony,
@@ -29,6 +30,7 @@ import { RedlineParagraph, toParagraphs } from '../components/billText/Redline'
 import { UpgradeNotice } from '../components/shared/UpgradeNotice'
 import { usePlan } from '../auth/usePlan'
 import { usePublicView } from '../lib/publicView'
+import { PRIORITY_OPTIONS } from '../lib/priority'
 import styles from './BillDetailPage.module.css'
 
 function formatDraftNumber(draftNumber: string): string {
@@ -498,12 +500,14 @@ export function BillDetailPage({
   teamMembers,
   onChangePosition,
   onChangeAssignee,
+  onChangePriority,
   onTrackBill,
   onUntrackBill,
 }: {
   teamMembers: LoadState<TeamMember[]>
   onChangePosition: (billId: string, position: Position) => void
   onChangeAssignee: (billId: string, assigneeId: string | null) => void
+  onChangePriority: (billId: string, priority: Priority) => void
   onTrackBill: (billId: string) => void
   onUntrackBill: (billId: string) => void
 }) {
@@ -539,6 +543,10 @@ export function BillDetailPage({
   }
   const handleAssigneeChange = (assigneeId: string | null) => {
     onChangeAssignee(bill.id, assigneeId)
+    setTimeout(refetch, 300)
+  }
+  const handlePriorityChange = (priority: Priority) => {
+    onChangePriority(bill.id, priority)
     setTimeout(refetch, 300)
   }
   const handleTrack = () => {
@@ -598,6 +606,21 @@ export function BillDetailPage({
                 >
                   <option value="">No position</option>
                   {POSITION_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.controlLabel}>
+                Priority
+                <select
+                  className={styles.editableSelect}
+                  value={bill.priority ?? ''}
+                  onChange={(e) => handlePriorityChange((e.target.value || null) as Priority)}
+                >
+                  <option value="">No priority</option>
+                  {PRIORITY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>

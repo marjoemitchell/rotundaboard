@@ -1002,6 +1002,17 @@ app.patch('/api/bills/:id/position', async (req, res) => {
   }
 })
 
+app.patch('/api/bills/:id/priority', async (req, res) => {
+  const billId = parseBillId(req, res)
+  if (billId === null) return
+  try {
+    const { priority } = req.body as { priority: string | null }
+    res.json(await mutations.setBillPriority(req.auth!.workspaceId, billId, priority ?? null))
+  } catch (err) {
+    handleError(res, `PATCH /api/bills/${req.params.id}/priority`, err)
+  }
+})
+
 app.patch('/api/bills/:id/assignee', async (req, res) => {
   const billId = parseBillId(req, res)
   if (billId === null) return
