@@ -10,6 +10,8 @@ import {
   uniqueSuffix,
 } from './fixtures'
 
+const API_BASE = 'http://localhost:4000'
+
 test.describe('workspace isolation', () => {
   test('a fresh workspace cannot see another workspace\'s tracked bills', async ({ page, browser }) => {
     await signUpFreshWorkspace(page)
@@ -190,11 +192,10 @@ test.describe('invites', () => {
 })
 
 test.describe('password reset', () => {
-  test('reset link from email logs in and invalidates other sessions', async ({ page, browser }) => {
+  test('a reset ends every session, and the person logs in again with the new password', async ({ page, browser }) => {
     const info = await signUpFreshWorkspace(page)
 
-    // A second, still-logged-in session for the same account — the reset
-    // should sign this one out too.
+    // A second, still-logged-in session for the same account. The reset signs it out too.
     const otherCtx = await browser.newContext()
     const otherPage = await otherCtx.newPage()
     await login(otherPage, info.email, info.password)
@@ -210,19 +211,24 @@ test.describe('password reset', () => {
     await page.goto(`/reset-password?token=${token}`)
     await page.fill('#password', 'e2e-reset-new-password-1')
     await page.click('button[type="submit"]')
-    await page.waitForURL('/')
-    await expect(page.locator(`text=${info.workspaceName}`)).toBeVisible()
 
-    // Old password no longer works; new one does.
-    await logout(page)
-    await page.goto('/login')
+    // The reset does not sign the person in. The login page tells them to log in with the new password.
+    await expect(page).toHaveURL(/\/login$/)
+    await expect(page.getByRole('status').filter({ hasText: 'Your password is reset. Log in with your new password.' })).toBeVisible()
+    expect((await page.request.get(`${API_BASE}/api/auth/me`)).status()).toBe(401)
+    await page.goto('/tracking-board')
+    await expect(page).toHaveURL(/\/login/)
+
+    // The old password no longer works. The new password works.
     await page.fill('input[type="email"]', info.email)
     await page.fill('input[type="password"]', info.password)
     await page.click('button[type="submit"]')
     await expect(page).toHaveURL(/\/login/)
     await page.fill('input[type="password"]', 'e2e-reset-new-password-1')
     await page.click('button[type="submit"]')
-    await page.waitForURL('/')
+    // The login goes back to the page that the person tried to open.
+    await expect(page).toHaveURL(/\/tracking-board$/)
+    await expect(page.locator(`text=${info.workspaceName}`)).toBeVisible()
 
     // The reset signed out the other session. "/" is the public home page, so open a page that needs an account.
     await otherPage.goto('/tracking-board')

@@ -20,8 +20,9 @@ export function ResetPasswordPage() {
     setSubmitting(true)
     try {
       await client.resetPassword(token, password)
+      // The reset ends all sessions. The person logs in again with the new password.
       await refresh()
-      navigate('/', { replace: true })
+      navigate('/login', { replace: true, state: { notice: 'Your password is reset. Log in with your new password.' } })
     } catch (err) {
       setError(err instanceof Error ? err.message.replace(/^.*: /, '') : 'Could not reset your password.')
     } finally {
@@ -39,7 +40,7 @@ export function ResetPasswordPage() {
           </span>
         </div>
         <h1 className={styles.title}>Set a new password</h1>
-        <p className={styles.subhead}>This also signs you out everywhere else, for safety.</p>
+        <p className={styles.subhead}>This signs you out on all your devices. Then you log in with the new password.</p>
 
         {!token ? (
           <div className={styles.error} style={{ marginTop: 20 }}>

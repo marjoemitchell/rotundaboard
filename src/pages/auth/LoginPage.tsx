@@ -12,6 +12,8 @@ export function LoginPage() {
   const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  // A message from the page before, for example after a password reset.
+  const notice = (location.state as { notice?: string } | null)?.notice ?? null
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -44,6 +46,11 @@ export function LoginPage() {
         <p className={styles.subhead}>Track legislation with your coalition.</p>
 
         <form className={styles.form} onSubmit={handleSubmit}>
+          {notice && !error && (
+            <div className={styles.success} role="status">
+              {notice}
+            </div>
+          )}
           {error && <div className={styles.error}>{error}</div>}
           <div className={styles.formRow}>
             <label className={styles.formLabel} htmlFor="email">
