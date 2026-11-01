@@ -218,6 +218,10 @@ async function queueDeliveries(eventIds: number[]): Promise<number> {
            SELECT 1 FROM draft_subjects ds JOIN subject_codes sc ON sc.id = ds.subject_code_id
            WHERE ds.draft_id = b.draft_id AND sc.code = ANY(w.subject_codes)
          )
+         OR EXISTS (
+           SELECT 1 FROM workspace_bill_subjects wbs JOIN subject_codes sc ON sc.id = wbs.subject_code_id
+           WHERE wbs.workspace_id = w.workspace_id AND wbs.bill_id = b.id AND sc.code = ANY(w.subject_codes)
+         )
          OR EXISTS (SELECT 1 FROM bill_tags bt WHERE bt.bill_id = b.id AND bt.tag_id = ANY(w.tag_ids))
        UNION ALL
        SELECT ev.id, fc.workspace_id, 'followed_committee', fc.committee_id, 'Followed committee'

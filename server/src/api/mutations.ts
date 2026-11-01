@@ -202,6 +202,37 @@ export async function untagBill(workspaceId: number, billId: number, tagId: numb
   if (rowCount === 0) throw new MutationError(404, `bill ${billId} is not tagged with tag ${tagId}`)
 }
 
+// Apply a default subject (an official subject code) to a bill for the workspace.
+export async function addBillSubject(workspaceId: number, billId: number, code: string, userId: number) {
+  if (!code?.trim()) throw new MutationError(400, 'subject code is required')
+  const { rows: billRows } = await pool.query('SELECT id FROM bills WHERE id = $1', [billId])
+  if (billRows.length === 0) throw new MutationError(404, `bill ${billId} not found`)
+  const { rows: subjectRows } = await pool.query<{ id: number; code: string; description: string }>(
+    'SELECT id, code, description FROM subject_codes WHERE code = $1 ORDER BY id LIMIT 1',
+    [code.trim()],
+  )
+  const subject = subjectRows[0]
+  if (!subject) throw new MutationError(404, `subject ${code} not found`)
+  await pool.query(
+    `INSERT INTO workspace_bill_subjects (workspace_id, bill_id, subject_code_id, created_by) VALUES ($1, $2, $3, $4)
+     ON CONFLICT DO NOTHING`,
+    [workspaceId, billId, subject.id, userId],
+  )
+  return { code: subject.code, description: subject.description }
+}
+
+// Remove a default subject that the workspace applied to a bill.
+// The subjects that the Legislature applied stay on the bill.
+export async function removeBillSubject(workspaceId: number, billId: number, code: string) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM workspace_bill_subjects
+     WHERE workspace_id = $1 AND bill_id = $2
+     AND subject_code_id IN (SELECT id FROM subject_codes WHERE code = $3)`,
+    [workspaceId, billId, code],
+  )
+  if (rowCount === 0) throw new MutationError(404, `bill ${billId} does not have subject ${code}`)
+}
+
 export async function createSubjectWatch(
   workspaceId: number,
   name: string,

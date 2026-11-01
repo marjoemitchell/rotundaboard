@@ -18,21 +18,32 @@ test.describe('subject watches', () => {
     if (subjectLabel) await expect(page.locator(`text=${subjectLabel}`).first()).toBeVisible()
   })
 
-  test('tagging a bill and creating a watch from that tag surfaces the bill, and deleting the watch works', async ({
+  test('a custom subject on a bill appears in the watch form with the default subjects, and its watch surfaces the bill', async ({
     page,
   }) => {
     await signUpFreshWorkspace(page)
     // Watches match the bills of the working session.
     await trackWorkingSessionBill(page)
     const tagName = `E2E Tag ${Date.now()}`
-    await page.fill('input[placeholder="Add a tag…"]', tagName)
-    await page.click('button:has-text("Add")')
-    await expect(page.locator(`text=${tagName}`)).toBeVisible()
+    await page.getByRole('combobox', { name: 'Add a subject' }).fill(tagName)
+    await page.getByRole('option', { name: `Create custom subject “${tagName}”` }).click()
+    await expect(page.getByRole('button', { name: `Remove subject ${tagName}`, exact: true })).toBeVisible()
 
     await page.goto('/watches')
     await page.click('button:has-text("+ New watch")')
     await page.fill('input[placeholder="e.g. Water rights"]', 'E2E Watch by tag')
-    await page.locator('label', { hasText: tagName }).locator('input[type="checkbox"]').check()
+    // One list holds the custom subjects and the default subjects.
+    const subjectList = page.getByRole('group', { name: 'Subjects' })
+    await expect(subjectList.getByText('Custom subjects')).toBeVisible()
+    await expect(subjectList.getByText('Default subjects')).toBeVisible()
+    const customRow = subjectList.locator('label', { hasText: tagName })
+    await expect(customRow).toContainText('Custom')
+    // The search filters the custom subjects too.
+    await page.fill('input[placeholder="Search subjects…"]', 'no subject has this name')
+    await expect(customRow).toHaveCount(0)
+    await page.fill('input[placeholder="Search subjects…"]', tagName)
+    await expect(subjectList.getByText('Default subjects')).toHaveCount(0)
+    await customRow.locator('input[type="checkbox"]').check()
     await page.click('button:has-text("Create watch")')
     await expect(page.locator('text=E2E Watch by tag')).toBeVisible()
 

@@ -96,6 +96,21 @@
   border-top: none;
 }
 
+.optionGroup {
+  padding: 6px 10px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+  background: var(--soft);
+}
+
+.optionCustom {
+  font-size: 12px;
+  color: var(--accent, #b9723d);
+}
+
 .optionCount {
   margin-left: auto;
   font-family: var(--font-mono);

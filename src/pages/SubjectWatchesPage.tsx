@@ -29,6 +29,12 @@ function NewWatchForm({
     return subjectCodes.filter((s) => s.description.toLowerCase().includes(q) || s.code.toLowerCase().includes(q))
   }, [subjectCodes, query])
 
+  const filteredTags = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return tags
+    return tags.filter((t) => t.name.toLowerCase().includes(q))
+  }, [tags, query])
+
   const toggleSubject = (code: string) => {
     setSelectedSubjects((prev) => {
       const next = new Set(prev)
@@ -72,37 +78,41 @@ function NewWatchForm({
       </div>
 
       <div className={styles.formRow}>
-        <label className={styles.formLabel}>Official subjects</label>
+        <label className={styles.formLabel} htmlFor="watch-subject-search">
+          Subjects
+        </label>
         <input
+          id="watch-subject-search"
           className={styles.formInput}
           placeholder="Search subjects…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <div className={styles.optionList}>
+        {/* The custom subjects of the workspace come first, then the default subjects. */}
+        <div className={styles.optionList} role="group" aria-label="Subjects">
+          {filteredTags.length > 0 && <div className={styles.optionGroup}>Custom subjects</div>}
+          {filteredTags.map((t) => (
+            <label key={`custom:${t.id}`} className={styles.optionRow}>
+              <input type="checkbox" checked={selectedTags.has(t.id)} onChange={() => toggleTag(t.id)} />
+              {t.name}
+              <span className={styles.optionCustom}>Custom</span>
+              {t.usageCount ? <span className={styles.optionCount}>{t.usageCount}</span> : null}
+            </label>
+          ))}
+          {filteredSubjects.length > 0 && <div className={styles.optionGroup}>Default subjects</div>}
           {filteredSubjects.map((s) => (
             <label key={s.code} className={styles.optionRow}>
               <input type="checkbox" checked={selectedSubjects.has(s.code)} onChange={() => toggleSubject(s.code)} />
               {s.description}
             </label>
           ))}
-          {filteredSubjects.length === 0 && <div className={styles.optionEmpty}>No subjects match “{query}”.</div>}
+          {filteredSubjects.length === 0 && filteredTags.length === 0 && (
+            <div className={styles.optionEmpty}>No subjects match “{query}”.</div>
+          )}
         </div>
-      </div>
-
-      <div className={styles.formRow}>
-        <label className={styles.formLabel}>Your tags</label>
-        {tags.length === 0 ? (
-          <div className={styles.optionEmpty}>No custom tags yet — tag a bill from its detail page to create one.</div>
-        ) : (
-          <div className={styles.optionList}>
-            {tags.map((t) => (
-              <label key={t.id} className={styles.optionRow}>
-                <input type="checkbox" checked={selectedTags.has(t.id)} onChange={() => toggleTag(t.id)} />
-                {t.name}
-                {t.usageCount ? <span className={styles.optionCount}>{t.usageCount}</span> : null}
-              </label>
-            ))}
+        {tags.length === 0 && (
+          <div className={styles.optionEmpty}>
+            No custom subjects yet. To make one, add a subject to a bill on the bill page.
           </div>
         )}
       </div>
@@ -210,7 +220,7 @@ export function SubjectWatchesPage() {
         <div>
           <h1 className={styles.title}>Subject watches</h1>
           <p className={styles.subhead}>
-            Track a topic, not just a bill — a watch surfaces every bill carrying a subject or tag you care about,
+            Track a topic, not just a bill — a watch surfaces every bill carrying a subject you care about,
             including ones you haven't seen yet.
           </p>
         </div>

@@ -1,16 +1,17 @@
 import { test, expect, signUpFreshWorkspace, trackFirstAvailableBill } from './fixtures'
 
-test.describe('tags', () => {
-  test('adding and removing a tag on a bill works', async ({ page }) => {
+test.describe('custom subjects', () => {
+  test('adding and removing a custom subject on a bill works', async ({ page }) => {
     await signUpFreshWorkspace(page)
     await trackFirstAvailableBill(page)
 
-    await page.fill('input[placeholder="Add a tag…"]', 'Coalition priority')
-    await page.click('button:has-text("Add")')
-    await expect(page.locator('text=Coalition priority')).toBeVisible()
+    await page.getByRole('combobox', { name: 'Add a subject' }).fill('Coalition priority')
+    await page.getByRole('option', { name: 'Create custom subject “Coalition priority”' }).click()
+    const remove = page.getByRole('button', { name: 'Remove subject Coalition priority', exact: true })
+    await expect(remove).toBeVisible()
 
-    await page.click('button[aria-label="Remove tag Coalition priority"]')
-    await expect(page.locator('text=Coalition priority')).not.toBeVisible()
+    await remove.click()
+    await expect(remove).toHaveCount(0)
   })
 })
 
