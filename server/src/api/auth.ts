@@ -7,10 +7,14 @@ import { sendLayoutEmail } from '../auth/email.js'
 import { escapeHtml } from '../emailLayout.js'
 import { deriveInitials, pickColor } from '../auth/userDisplay.js'
 import { clearSessionCookie, destroyAllSessionsForUser, destroySession, issueSession, SESSION_COOKIE_NAME } from './authMiddleware.js'
+import { emailInboxKey, emailInboxKeySql } from '../auth/emailAddress.js'
 import { MutationError } from './mutations.js'
 import { getWorkspacePlan, newWorkspacePlan, requireMemberRoom } from '../plans.js'
 
 export const authRouter = Router()
+
+const SAME_INBOX_MESSAGE =
+  'an account with this email already exists. An address with "+", or a Gmail address with dots, goes to the same inbox as the address without them'
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hour
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -51,6 +55,12 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
 
     const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1', [email.trim().toLowerCase()])
     if (existing.length > 0) throw new MutationError(409, 'an account with this email already exists')
+    // One inbox gets one account. "name+other@example.com" goes to the same inbox as
+    // "name@example.com", and Gmail ignores dots (emailAddress.ts).
+    const { rows: sameInbox } = await pool.query(`SELECT id FROM users WHERE ${emailInboxKeySql('email')} = $1`, [
+      emailInboxKey(email),
+    ])
+    if (sameInbox.length > 0) throw new MutationError(409, SAME_INBOX_MESSAGE)
 
     // Signing up with an invite token joins that invite's workspace at its
     // role instead of creating a new one — validated inside the same
@@ -102,6 +112,11 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
       await client.query('COMMIT')
     } catch (err) {
       await client.query('ROLLBACK')
+      // Two signups for one inbox at the same time both pass the check above.
+      // The unique index (migration 035) refuses the second one.
+      if ((err as { constraint?: string }).constraint === 'users_email_inbox_key') {
+        throw new MutationError(409, SAME_INBOX_MESSAGE)
+      }
       throw err
     } finally {
       client.release()

@@ -7,7 +7,9 @@
 import { pool } from './db.js'
 
 const WORKSPACE_NAME_PATTERN = 'E2E %'
-const USER_EMAIL_PATTERN = 'e2e-%@example.dev'
+// Most test users use example.dev. The tests of Gmail addresses (dots and
+// "+" in auth.spec.ts) use "e2e-inbox..." at gmail.com or googlemail.com.
+const USER_EMAIL_CONDITION = `(email LIKE 'e2e-%@example.dev' OR email ~ '^e2e-inbox[^@]*@(gmail|googlemail)[.]com$')`
 
 // workspace_id columns on these tables have no ON DELETE CASCADE, so they
 // must be cleared before the workspace row itself can be deleted.
@@ -27,9 +29,7 @@ async function main() {
   const { rows: workspaces } = await pool.query<{ id: number }>('SELECT id FROM workspaces WHERE name LIKE $1', [
     WORKSPACE_NAME_PATTERN,
   ])
-  const { rows: users } = await pool.query<{ id: number }>('SELECT id FROM users WHERE email LIKE $1', [
-    USER_EMAIL_PATTERN,
-  ])
+  const { rows: users } = await pool.query<{ id: number }>(`SELECT id FROM users WHERE ${USER_EMAIL_CONDITION}`)
   const workspaceIds = workspaces.map((w) => w.id)
   const userIds = users.map((u) => u.id)
 
@@ -55,7 +55,7 @@ async function main() {
     await pool.query('DELETE FROM workspaces WHERE id = ANY($1)', [workspaceIds])
   }
 
-  const { rowCount: deletedUsers } = await pool.query('DELETE FROM users WHERE email LIKE $1', [USER_EMAIL_PATTERN])
+  const { rowCount: deletedUsers } = await pool.query(`DELETE FROM users WHERE ${USER_EMAIL_CONDITION}`)
 
   // Status-change fixtures (negative ids, see api/testFixtures.ts) and the
   // alert events recorded for them; deliveries cascade off the events.
