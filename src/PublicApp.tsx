@@ -16,9 +16,10 @@ import styles from './PublicApp.module.css'
 const PlansPage = lazy(() => import('./pages/PlansPage').then((m) => ({ default: m.PlansPage })))
 
 // The paths that a visitor without an account can open.
+// A bill id can be negative, the same as in the public API. The e2e fixture bills use negative ids.
 const PUBLIC_PATHS = [
   /^\/$/,
-  /^\/bills(\/\d+)?\/?$/,
+  /^\/bills(\/-?\d+)?\/?$/,
   /^\/legislators(\/list|\/\d+)?\/?$/,
   /^\/committees(\/\d+)?\/?$/,
   /^\/hearings\/?$/,
