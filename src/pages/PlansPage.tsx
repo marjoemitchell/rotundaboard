@@ -40,6 +40,7 @@ function featureRows(plan: Plan): { label: string; included: boolean }[] {
   const tracked = plan.trackedBillLimit == null ? 'Unlimited tracked bills' : `Track up to ${plan.trackedBillLimit} bills`
   return [
     { label: 'All bills, hearings, legislators, and committees', included: true },
+    { label: 'AI summaries of bills', included: true },
     { label: tracked, included: true },
     { label: members, included: true },
     { label: 'Email alerts and hearing reminders', included: plan.features.alerts },
@@ -77,7 +78,7 @@ export function PlansPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>Plans</h1>
-        <p className={styles.subhead}>Every plan can see all of the Legislature's public data. Paid plans add alerts, AI summaries, and team work.</p>
+        <p className={styles.subhead}>Every plan can see all of the Legislature's public data. Paid plans add alerts, AI hearing and amendment summaries, and team work.</p>
       </div>
 
       {catalog.status === 'loading' && <div className="skeleton" style={{ height: 320, marginTop: 20 }} />}
