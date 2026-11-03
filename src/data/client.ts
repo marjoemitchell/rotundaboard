@@ -45,6 +45,7 @@ import type {
   SubjectWatchBillMatch,
   SessionCalendar,
   SubjectCode,
+  BillSubjects,
   SubjectWatch,
   Tag,
   TeamBoardSummary,
@@ -368,6 +369,18 @@ export function getSubjectCodes(): Promise<SubjectCode[]> {
 
 export function getTags(): Promise<Tag[]> {
   return getJson('/api/tags')
+}
+
+export function getBillSubjects(billId: string): Promise<BillSubjects> {
+  return getJson(`/api/bills/${billId}/subjects`)
+}
+
+export function addBillSubject(billId: string, code: string): Promise<SubjectCode> {
+  return sendJson(`/api/bills/${billId}/subjects`, 'POST', { code })
+}
+
+export function removeBillSubject(billId: string, code: string): Promise<void> {
+  return sendJson(`/api/bills/${billId}/subjects/${encodeURIComponent(code)}`, 'DELETE')
 }
 
 export function getBillTags(billId: string): Promise<Tag[]> {
