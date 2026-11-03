@@ -47,6 +47,7 @@ import type {
   SubjectCode,
   BillSubjects,
   SubjectWatch,
+  WatchSuggestions,
   Tag,
   TeamBoardSummary,
   TeamMember,
@@ -401,6 +402,10 @@ export function getSubjectWatches(): Promise<SubjectWatch[]> {
 
 export function getSubjectWatchBills(watchId: string): Promise<SubjectWatchBillMatch[]> {
   return getJson(`/api/subject-watches/${watchId}/bills`)
+}
+
+export function getWatchSuggestions(): Promise<WatchSuggestions> {
+  return getJson('/api/subject-watches/suggestions')
 }
 
 export function createSubjectWatch(params: { name: string; subjectCodes: string[]; tagIds: string[] }): Promise<{ id: string; createdAt: string }> {

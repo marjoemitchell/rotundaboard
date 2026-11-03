@@ -1788,6 +1788,112 @@ export async function getSubjectWatchBills(watchId: number, workspaceId: number)
   }))
 }
 
+// Bills to suggest from the AI bill summaries (bill_summaries). A suggestion
+// is a bill of the working session that agrees with all of these conditions:
+//   - The AI summary of the bill contains the words of a subject of a watch.
+//   - The subject codes and custom subjects of the bill do not match that watch.
+//     (The watch already shows those bills.)
+//   - The workspace does not track the bill.
+// A subject matches when the summary has all of its words. Postgres full text
+// search compares the word stems, so "schools" matches the subject "School".
+// With no subject watches, the result has no bills.
+export async function getWatchSuggestions(workspaceId: number, limit: number) {
+  const { rows: countRows } = await pool.query<{ n: string }>(
+    'SELECT count(*) AS n FROM subject_watches WHERE workspace_id = $1',
+    [workspaceId],
+  )
+  const hasWatches = Number(countRows[0]?.n ?? 0) > 0
+  if (!hasWatches) return { hasWatches, bills: [] }
+
+  const { rows } = await pool.query<{
+    bill_id: number
+    bill_type_code: string | null
+    bill_number: number | null
+    draft_number: string
+    short_title: string
+    status_name: string | null
+    summary: string
+    watches: string[]
+    matched_subjects: string[]
+  }>(
+    `
+    WITH terms AS (
+      SELECT w.id AS watch_id, w.name AS watch_name, t.label, plainto_tsquery('english', t.label) AS q
+      FROM subject_watches w
+      CROSS JOIN LATERAL (
+        SELECT sc.description AS label FROM subject_codes sc WHERE sc.code = ANY(w.subject_codes)
+        UNION
+        SELECT tg.name FROM tags tg WHERE tg.id = ANY(w.tag_ids) AND tg.workspace_id = $1
+      ) t
+      WHERE w.workspace_id = $1
+    ),
+    hits AS (
+      SELECT b.id AS bill_id, terms.watch_id, terms.watch_name, terms.label,
+             ts_rank(to_tsvector('english', bsum.summary), terms.q) AS rank
+      FROM bills b
+      JOIN drafts d ON d.id = b.draft_id
+      JOIN bill_summaries bsum ON bsum.bill_id = b.id
+      -- A subject with only stop words (for example "The") makes an empty query. It matches nothing.
+      JOIN terms ON numnode(terms.q) > 0 AND to_tsvector('english', bsum.summary) @@ terms.q
+      JOIN subject_watches w ON w.id = terms.watch_id
+      WHERE b.session_id = ${WORKING_SESSION_SQL}
+        AND NOT EXISTS (SELECT 1 FROM tracked_bills tb WHERE tb.bill_id = b.id AND tb.workspace_id = $1)
+        AND NOT EXISTS (
+          SELECT 1 FROM draft_subjects ds JOIN subject_codes sc ON sc.id = ds.subject_code_id
+          WHERE ds.draft_id = d.id AND sc.code = ANY(w.subject_codes)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM workspace_bill_subjects wbs JOIN subject_codes sc ON sc.id = wbs.subject_code_id
+          WHERE wbs.workspace_id = $1 AND wbs.bill_id = b.id AND sc.code = ANY(w.subject_codes)
+        )
+        AND NOT EXISTS (SELECT 1 FROM bill_tags bt WHERE bt.bill_id = b.id AND bt.tag_id = ANY(w.tag_ids))
+    ),
+    ranked AS (
+      SELECT bill_id,
+             array_agg(DISTINCT watch_name ORDER BY watch_name) AS watches,
+             array_agg(DISTINCT label ORDER BY label) AS matched_subjects,
+             count(DISTINCT label) AS subject_hits,
+             max(rank) AS best_rank
+      FROM hits
+      GROUP BY bill_id
+    )
+    SELECT
+      b.id AS bill_id, bt.code AS bill_type_code, b.bill_number, d.draft_number, d.short_title,
+      latest_status.status_name, bsum.summary, r.watches, r.matched_subjects
+    FROM ranked r
+    JOIN bills b ON b.id = r.bill_id
+    JOIN drafts d ON d.id = b.draft_id
+    JOIN bill_summaries bsum ON bsum.bill_id = b.id
+    LEFT JOIN bill_types bt ON bt.id = b.bill_type_id
+    LEFT JOIN LATERAL (
+      SELECT bsc.name AS status_name
+      FROM bill_statuses bs
+      LEFT JOIN bill_status_codes bsc ON bsc.id = bs.bill_status_code_id
+      WHERE bs.draft_id = d.id
+      ORDER BY bs.occurred_at DESC
+      LIMIT 1
+    ) latest_status ON true
+    -- A bill that matches more subjects comes first, then the better text match.
+    ORDER BY r.subject_hits DESC, r.best_rank DESC, b.bill_number NULLS LAST, d.draft_number
+    LIMIT $2
+    `,
+    [workspaceId, limit],
+  )
+
+  return {
+    hasWatches,
+    bills: rows.map((r) => ({
+      id: String(r.bill_id),
+      identifier: formatIdentifier(r.bill_type_code, r.bill_number, r.draft_number),
+      title: r.short_title,
+      status: r.status_name ?? 'Unknown',
+      summary: r.summary,
+      watches: r.watches,
+      matchedSubjects: r.matched_subjects,
+    })),
+  }
+}
+
 // --- Interim committees ----------------------------------------------------
 // Unlike standing committees (session-scoped, tied to bills), non-standing
 // ("interim") committees run year-round between sessions on study topics, not
