@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as client from '../data/client'
-import type { LoadState, SubjectCode, SubjectWatch, SubjectWatchBillMatch, Tag } from '../types'
+import type { LoadState, SubjectCode, SubjectWatch, SubjectWatchBillMatch, Tag, WatchSuggestions } from '../types'
 import { EmptyState } from '../components/shared/EmptyState'
 import { useConfirm } from '../hooks/useConfirm'
 import styles from './SubjectWatchesPage.module.css'
@@ -179,6 +179,70 @@ function WatchBills({ watchId, onTracked }: { watchId: string; onTracked: () => 
   )
 }
 
+// Bills that the AI summaries match to the subject watches, and that the
+// subject codes do not match. With no watches, the section does not show.
+function WatchSuggestionsSection({ reloadKey, onTracked }: { reloadKey: number; onTracked: () => void }) {
+  const [data, setData] = useState<WatchSuggestions | null>(null)
+
+  const load = () => {
+    client
+      .getWatchSuggestions()
+      .then(setData)
+      .catch(() => setData(null))
+  }
+
+  useEffect(load, [reloadKey])
+
+  if (!data || !data.hasWatches) return null
+
+  const handleTrack = async (billId: string) => {
+    // Remove the row at once. The next load shows the new list.
+    setData((d) => (d ? { ...d, bills: d.bills.filter((b) => b.id !== billId) } : d))
+    await client.trackBill(billId)
+    load()
+    onTracked()
+  }
+
+  return (
+    <section className={styles.suggestions} aria-label="Suggested from AI summaries">
+      <h2 className={styles.suggestionsTitle}>Suggested from AI summaries</h2>
+      <p className={styles.suggestionsSubhead}>
+        The AI summaries of these bills mention the subjects of your watches, but the bills do not have those
+        subjects. AI summaries can be wrong. Read the bill before you track it.
+      </p>
+      {data.bills.length === 0 ? (
+        <EmptyState message="No AI summaries match your watches yet." />
+      ) : (
+        <div className={styles.matchList}>
+          {data.bills.map((b) => (
+            <div key={b.id} className={styles.matchRow}>
+              <Link to={`/bills/${b.id}`} className={styles.matchIdentifier}>
+                {b.identifier}
+              </Link>
+              <div className={styles.matchMain}>
+                <span className={styles.matchTitle}>{b.title}</span>
+                <span className={styles.suggestionSummary}>{b.summary}</span>
+                <span className={styles.matchReason} title={b.matchedSubjects.join(', ')}>
+                  {b.watches.length === 1 ? 'Watch' : 'Watches'}: {b.watches.join(', ')}, via{' '}
+                  {b.matchedSubjects.join(', ')}
+                </span>
+              </div>
+              <span className={styles.matchStatus}>{b.status}</span>
+              <button
+                className={styles.trackButton}
+                onClick={() => handleTrack(b.id)}
+                aria-label={`Track ${b.identifier}`}
+              >
+                + Track
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function SubjectWatchesPage() {
   const [watches, setWatches] = useState<LoadState<SubjectWatch[]>>({ status: 'loading' })
   const [subjectCodes, setSubjectCodes] = useState<SubjectCode[]>([])
@@ -186,12 +250,19 @@ export function SubjectWatchesPage() {
   const [creating, setCreating] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const { confirm, confirmDialog } = useConfirm()
+  // A change to the watches or to the tracked bills loads the suggestions again.
+  const [suggestionsKey, setSuggestionsKey] = useState(0)
 
   const loadWatches = () => {
     client
       .getSubjectWatches()
       .then((data) => setWatches(data.length === 0 ? { status: 'empty' } : { status: 'ready', data }))
       .catch(() => setWatches({ status: 'empty' }))
+  }
+
+  const refresh = () => {
+    loadWatches()
+    setSuggestionsKey((k) => k + 1)
   }
 
   useEffect(() => {
@@ -203,14 +274,14 @@ export function SubjectWatchesPage() {
   const handleCreate = async (params: { name: string; subjectCodes: string[]; tagIds: string[] }) => {
     await client.createSubjectWatch(params)
     setCreating(false)
-    loadWatches()
+    refresh()
   }
 
   const handleDelete = async (id: string, name: string) => {
     if (!(await confirm(`Delete the "${name}" watch?`, { confirmLabel: 'Delete' }))) return
     await client.deleteSubjectWatch(id)
     if (expandedId === id) setExpandedId(null)
-    loadWatches()
+    refresh()
   }
 
   return (
@@ -272,11 +343,13 @@ export function SubjectWatchesPage() {
                   </button>
                 </div>
               </div>
-              {expandedId === w.id && <WatchBills watchId={w.id} onTracked={loadWatches} />}
+              {expandedId === w.id && <WatchBills watchId={w.id} onTracked={refresh} />}
             </div>
           ))}
         </div>
       )}
+
+      <WatchSuggestionsSection reloadKey={suggestionsKey} onTracked={loadWatches} />
     </div>
   )
 }

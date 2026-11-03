@@ -20,6 +20,7 @@ import { getLastEmailTo } from '../auth/email.js'
 import {
   ageHearingAlertFixture,
   billSummaryFixture,
+  summarizedBillFixture,
   billTextFixture,
   committeeMeetingFixture,
   openDraftsFixture,
@@ -165,6 +166,14 @@ if (process.env.NODE_ENV !== 'production') {
       res.json({ ok: true })
     } catch (err) {
       handleError(res, 'POST /api/__test__/bill-summary', err)
+    }
+  })
+
+  app.post('/api/__test__/summarized-bill', async (req, res) => {
+    try {
+      res.json(await summarizedBillFixture(req.body as Parameters<typeof summarizedBillFixture>[0]))
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/summarized-bill', err)
     }
   })
 
@@ -428,6 +437,10 @@ route('/api/notes', (req) => queries.getNotes(req.auth!.workspaceId))
 route('/api/subject-codes', () => queries.getSubjectCodes())
 route('/api/tags', (req) => queries.getTags(req.auth!.workspaceId))
 route('/api/subject-watches', (req) => queries.getSubjectWatches(req.auth!.workspaceId))
+// Bills that the AI summaries match to the subject watches. See getWatchSuggestions.
+route('/api/subject-watches/suggestions', (req) =>
+  queries.getWatchSuggestions(req.auth!.workspaceId, Math.min(Math.max(Number(req.query.limit) || 10, 1), 50)),
+)
 route('/api/committees', (req) => queries.getNonStandingCommittees(req.auth!.workspaceId))
 route('/api/followed-committees', (req) => queries.getFollowedCommittees(req.auth!.workspaceId))
 route('/api/testimony', (req) => queries.getTestimony(req.auth!.workspaceId))

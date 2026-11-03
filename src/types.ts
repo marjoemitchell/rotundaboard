@@ -257,6 +257,25 @@ export interface SubjectWatch {
   createdAt: string
 }
 
+/** A bill that the AI summary matches to a subject watch. See getWatchSuggestions in queries.ts. */
+export interface WatchSuggestion {
+  id: string
+  identifier: string
+  title: string
+  status: string
+  /** The AI summary of the bill. */
+  summary: string
+  /** The names of the watches that the summary matches. */
+  watches: string[]
+  /** The subjects of the watches that the summary matches. */
+  matchedSubjects: string[]
+}
+
+export interface WatchSuggestions {
+  hasWatches: boolean
+  bills: WatchSuggestion[]
+}
+
 export interface NonStandingCommittee {
   id: string
   name: string

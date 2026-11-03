@@ -313,3 +313,30 @@
   color: var(--accent, #b9723d);
   border-color: var(--accent, #b9723d);
 }
+
+.suggestions {
+  margin-top: 28px;
+  padding: 14px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.suggestionsTitle {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.suggestionsSubhead {
+  margin-top: 4px;
+  max-width: 640px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.suggestionSummary {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}

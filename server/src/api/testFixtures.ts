@@ -335,6 +335,29 @@ export async function billSummaryFixture(input: {
   )
 }
 
+// A bill of the working session (the session of the subject watches) with an
+// AI summary and no subject codes. A negative id marks the fixture for
+// e2eCleanup.ts.
+export async function summarizedBillFixture(input: {
+  title: string
+  summary: string
+}): Promise<{ billId: string; identifier: string }> {
+  const { rows: sessions } = await pool.query<{ id: number }>(
+    `SELECT id FROM sessions WHERE id IN (SELECT DISTINCT session_id FROM bills WHERE id > 0) ORDER BY start_date DESC LIMIT 1`,
+  )
+  if (!sessions[0]) throw new Error('no session with scraped bills to attach a summary fixture to')
+  const id = -(Math.floor(Math.random() * 1_000_000_000) + 1)
+  // The fixture is an LC draft with a number that no scraped draft has.
+  const draftNumber = `LC${String(-id).padStart(10, '0')}`
+  await pool.query(
+    `INSERT INTO drafts (id, session_id, draft_number, drafted_at, short_title) VALUES ($1, $2, $3, now(), $4)`,
+    [id, sessions[0].id, draftNumber, input.title],
+  )
+  await pool.query(`INSERT INTO bills (id, session_id, draft_id, bill_number) VALUES ($1, $2, $1, NULL)`, [id, sessions[0].id])
+  await billSummaryFixture({ billId: id, summary: input.summary, source: 'metadata' })
+  return { billId: String(id), identifier: `LC ${String(-id).padStart(10, '0')}` }
+}
+
 // A system account in a real Senate seat, like "Service ZZ-User" in the
 // Legislature's data. The term started after the term of the real member,
 // so without the filter the map shows the account. A negative id marks the
