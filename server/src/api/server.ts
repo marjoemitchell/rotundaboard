@@ -34,6 +34,7 @@ import {
 } from './testFixtures.js'
 import { checkStaleness, getDataFreshness, simulateRun, startScrapeWatchdog } from '../scrapeHealth.js'
 import { processAlerts } from '../alerts.js'
+import { warnIfNoProxySecret } from './rateLimit.js'
 
 const app = express()
 // Railway (and most PaaS runtimes) assign the listen port via $PORT at
@@ -1106,6 +1107,7 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 
 app.listen(PORT, () => {
   console.log(`rotunda-board API listening on http://localhost:${PORT}`)
+  warnIfNoProxySecret()
   // An alert if a scrape job does not have a successful run in time, for
   // example because its cron stopped. See scrapeHealth.ts.
   startScrapeWatchdog()

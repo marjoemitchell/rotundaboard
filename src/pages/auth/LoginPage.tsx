@@ -51,7 +51,11 @@ export function LoginPage() {
               {notice}
             </div>
           )}
-          {error && <div className={styles.error}>{error}</div>}
+          {error && (
+            <div className={styles.error} role="alert">
+              {error}
+            </div>
+          )}
           <div className={styles.formRow}>
             <label className={styles.formLabel} htmlFor="email">
               Email

@@ -8,13 +8,18 @@ export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    setError(null)
     setSubmitting(true)
     try {
       await client.forgotPassword(email.trim())
       setSent(true)
+    } catch (err) {
+      // For example 429: too many requests for this email.
+      setError(err instanceof Error ? err.message.replace(/^.*: /, '') : 'Could not send the reset link.')
     } finally {
       setSubmitting(false)
     }
@@ -38,6 +43,11 @@ export function ForgotPasswordPage() {
           </div>
         ) : (
           <form className={styles.form} onSubmit={handleSubmit}>
+            {error && (
+              <div className={styles.error} role="alert">
+                {error}
+              </div>
+            )}
             <div className={styles.formRow}>
               <label className={styles.formLabel} htmlFor="email">
                 Email

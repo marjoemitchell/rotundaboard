@@ -1,6 +1,24 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// The API limits requests for each client (server/src/api/rateLimit.ts). All
+// production requests come to the API from this proxy, so the proxy sends the
+// address of the client in a header. The secret shows the API that the header
+// comes from this proxy. Keep these names the same as in rateLimit.ts.
+const PROXY_SECRET_HEADER = 'x-rotunda-proxy-secret'
+const PROXY_CLIENT_IP_HEADER = 'x-rotunda-client-ip'
+
+type ProxiedRequest = {
+  headers: Record<string, string | string[] | undefined>
+  socket: { remoteAddress?: string }
+}
+
+// The Railway edge sets X-Real-IP to the address of the client.
+function clientAddress(req: ProxiedRequest): string {
+  const realIp = req.headers['x-real-ip']
+  return (Array.isArray(realIp) ? realIp[0] : realIp)?.trim() || req.socket.remoteAddress || 'unknown'
+}
+
 export default defineConfig({
   plugins: [react()],
   preview: {
@@ -21,6 +39,17 @@ export default defineConfig({
       '/api': {
         target: process.env.API_PROXY_TARGET ?? 'http://localhost:4000',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            // Remove the values that the client sent. Then add the real values.
+            proxyReq.removeHeader(PROXY_SECRET_HEADER)
+            proxyReq.removeHeader(PROXY_CLIENT_IP_HEADER)
+            const secret = process.env.API_PROXY_SECRET
+            if (!secret) return
+            proxyReq.setHeader(PROXY_SECRET_HEADER, secret)
+            proxyReq.setHeader(PROXY_CLIENT_IP_HEADER, clientAddress(req))
+          })
+        },
       },
     },
   },
