@@ -5,6 +5,7 @@
 // A limit stops new work only. When a workspace changes to a smaller plan,
 // its tracked bills, notes, testimony, and members stay. The workspace
 // cannot add more until it is under the limit again.
+import type { PoolClient } from 'pg'
 import { pool } from './db.js'
 import { MutationError } from './api/mutations.js'
 
@@ -133,10 +134,24 @@ export async function requireTrackingRoom(workspaceId: number): Promise<void> {
 // An admin sends an invite: an open invite holds a place, so count the open
 // invites too. A person accepts an invite: count only the members, and tell
 // the person to ask an admin, because the person cannot change the plan.
-export async function requireMemberRoom(workspaceId: number, { accepting }: { accepting: boolean }): Promise<void> {
-  const plan = await getWorkspacePlan(workspaceId)
+//
+// Give `db` to do the check in an open transaction. The check then locks the
+// workspace row until the transaction ends. Thus two requests at the same time
+// cannot both take the last place.
+export async function requireMemberRoom(
+  workspaceId: number,
+  { accepting, db }: { accepting: boolean; db?: PoolClient },
+): Promise<void> {
+  let plan: Plan
+  if (db) {
+    const { rows } = await db.query<{ plan: string }>('SELECT plan FROM workspaces WHERE id = $1 FOR UPDATE', [workspaceId])
+    const key = rows[0]?.plan
+    plan = isPlanKey(key) ? PLANS[key] : PLANS.free
+  } else {
+    plan = await getWorkspacePlan(workspaceId)
+  }
   if (plan.memberLimit == null) return
-  const { rows } = await pool.query<{ members: string; invites: string }>(
+  const { rows } = await (db ?? pool).query<{ members: string; invites: string }>(
     `SELECT (SELECT count(*) FROM workspace_members WHERE workspace_id = $1) AS members,
             (SELECT count(*) FROM workspace_invites
              WHERE workspace_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()) AS invites`,

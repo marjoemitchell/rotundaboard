@@ -84,27 +84,28 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
     ])
     if (sameInbox.length > 0) throw new MutationError(409, SAME_INBOX_MESSAGE)
 
-    // Signing up with an invite token joins that invite's workspace at its
-    // role instead of creating a new one — validated inside the same
-    // transaction so a token can't be redeemed twice by a race.
-    let invite: { id: number; workspace_id: number; role: 'admin' | 'member' } | null = null
-    if (inviteToken) {
-      const { rows } = await pool.query<{ id: number; workspace_id: number; role: 'admin' | 'member' }>(
-        `SELECT id, workspace_id, role FROM workspace_invites
-         WHERE token_hash = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()`,
-        [hashToken(inviteToken)],
-      )
-      if (rows.length === 0) throw new MutationError(400, 'this invite is invalid or has expired')
-      invite = rows[0]
-      await requireMemberRoom(invite.workspace_id, { accepting: true })
-    }
-
     const passwordHash = await hashPassword(password)
     const client = await pool.connect()
     let userId: number
     let workspaceId: number
     try {
       await client.query('BEGIN')
+      // A signup with an invite token joins the workspace of the invite, with the role of the invite.
+      // One statement claims the invite. When two signups use one token at the same time, only one gets the row.
+      // The seat check runs in the same transaction, so two signups cannot both take the last place.
+      let invite: { id: number; workspace_id: number; role: 'admin' | 'member' } | null = null
+      if (inviteToken) {
+        const { rows } = await client.query<{ id: number; workspace_id: number; role: 'admin' | 'member' }>(
+          `UPDATE workspace_invites SET accepted_at = now()
+           WHERE token_hash = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+           RETURNING id, workspace_id, role`,
+          [hashToken(inviteToken)],
+        )
+        if (rows.length === 0) throw new MutationError(400, 'this invite is invalid or has expired')
+        invite = rows[0]
+        await requireMemberRoom(invite.workspace_id, { accepting: true, db: client })
+      }
+
       const userResult = await client.query<{ id: number }>(
         `INSERT INTO users (email, name, initials, color, password_hash) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
         [email.trim().toLowerCase(), name.trim(), deriveInitials(name), pickColor(email.trim().toLowerCase()), passwordHash],
@@ -118,7 +119,6 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
           userId,
           invite.role,
         ])
-        await client.query('UPDATE workspace_invites SET accepted_at = now() WHERE id = $1', [invite.id])
       } else {
         const workspaceResult = await client.query<{ id: number }>(
           'INSERT INTO workspaces (name, plan) VALUES ($1, $2) RETURNING id',
@@ -239,19 +239,36 @@ authRouter.post('/reset-password', async (req: Request, res: Response) => {
     if (!token) throw new MutationError(400, 'token is required')
     if (!newPassword || newPassword.length < 8) throw new MutationError(400, 'password must be at least 8 characters')
 
-    const { rows } = await pool.query<{ id: string; user_id: number }>(
-      'SELECT id, user_id FROM password_reset_tokens WHERE id = $1 AND consumed_at IS NULL AND expires_at > now()',
-      [hashToken(token)],
-    )
-    if (rows.length === 0) throw new MutationError(400, 'this reset link is invalid or has expired')
-
     const passwordHash = await hashPassword(newPassword)
-    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, rows[0].user_id])
-    await pool.query('UPDATE password_reset_tokens SET consumed_at = now() WHERE id = $1', [rows[0].id])
-    // A password reset ends every session of the user, also the session that
-    // was open when the reset was requested. The reset does not sign the
-    // person in. The person logs in again with the new password.
-    await destroyAllSessionsForUser(rows[0].user_id)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      // One statement claims the token. When two requests use one token at the same time, only one gets the row.
+      const { rows } = await client.query<{ user_id: number }>(
+        `UPDATE password_reset_tokens SET consumed_at = now()
+         WHERE id = $1 AND consumed_at IS NULL AND expires_at > now()
+         RETURNING user_id`,
+        [hashToken(token)],
+      )
+      if (rows.length === 0) throw new MutationError(400, 'this reset link is invalid or has expired')
+      const userId = rows[0].user_id
+
+      await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId])
+      // The other reset links of the user stop working.
+      await client.query('UPDATE password_reset_tokens SET consumed_at = now() WHERE user_id = $1 AND consumed_at IS NULL', [
+        userId,
+      ])
+      // A password reset ends every session of the user, also the session that
+      // was open when the reset was requested. The reset does not sign the
+      // person in. The person logs in again with the new password.
+      await destroyAllSessionsForUser(userId, client)
+      await client.query('COMMIT')
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
     clearSessionCookie(res)
     res.status(200).json({ ok: true })
   } catch (err) {

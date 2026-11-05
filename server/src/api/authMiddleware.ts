@@ -3,6 +3,7 @@
 // and workspace are read here, server-side, off a row only the server could
 // have created — never trusted from anything the client sends per-request.
 import type { NextFunction, Request, Response } from 'express'
+import type { PoolClient } from 'pg'
 import { pool } from '../db.js'
 import { generateToken, hashToken } from '../auth/tokens.js'
 import { MutationError } from './mutations.js'
@@ -33,8 +34,9 @@ export async function destroySession(rawToken: string): Promise<void> {
   await pool.query('DELETE FROM user_sessions WHERE id = $1', [hashToken(rawToken)])
 }
 
-export async function destroyAllSessionsForUser(userId: number): Promise<void> {
-  await pool.query('DELETE FROM user_sessions WHERE user_id = $1', [userId])
+// Give `db` to delete the sessions in an open transaction.
+export async function destroyAllSessionsForUser(userId: number, db: Pick<PoolClient, 'query'> = pool): Promise<void> {
+  await db.query('DELETE FROM user_sessions WHERE user_id = $1', [userId])
 }
 
 // In production the frontend and API are deployed as separate Railway
