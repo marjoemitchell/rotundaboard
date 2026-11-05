@@ -35,6 +35,7 @@ import {
 import { checkStaleness, getDataFreshness, simulateRun, startScrapeWatchdog } from '../scrapeHealth.js'
 import { processAlerts } from '../alerts.js'
 import { warnIfNoProxySecret } from './rateLimit.js'
+import { appOrigin, rejectCrossSiteRequests } from './originCheck.js'
 
 const app = express()
 // Railway (and most PaaS runtimes) assign the listen port via $PORT at
@@ -45,6 +46,9 @@ const PORT = Number(process.env.PORT ?? process.env.API_PORT ?? 4000)
 // cors package's wildcard default — APP_BASE_URL does double duty as that
 // origin and as the base for invite/reset links (see auth.ts).
 app.use(cors({ origin: process.env.APP_BASE_URL ?? 'http://localhost:5173', credentials: true }))
+// Before all routes: refuse requests that change data from pages on other
+// origins (CSRF). See originCheck.ts.
+app.use(rejectCrossSiteRequests)
 app.use(cookieParser())
 // Gzip the JSON responses. A session bill list is about 870 kB of JSON. The
 // filter skips the hearing audio proxy: its media is compressed already.
@@ -1108,6 +1112,7 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 app.listen(PORT, () => {
   console.log(`rotunda-board API listening on http://localhost:${PORT}`)
   warnIfNoProxySecret()
+  console.log(`requests that change data must come from ${appOrigin()}`)
   // An alert if a scrape job does not have a successful run in time, for
   // example because its cron stopped. See scrapeHealth.ts.
   startScrapeWatchdog()

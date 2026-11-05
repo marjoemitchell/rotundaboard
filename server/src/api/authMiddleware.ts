@@ -44,6 +44,10 @@ export async function destroyAllSessionsForUser(userId: number): Promise<void> {
 // None requires) is the correct setting once they're cross-site; Lax stays
 // fine for local dev, where both run on http://localhost at different
 // ports (same site).
+// SameSite=None lets other sites send requests with the cookie. The API
+// refuses those requests when they change data (originCheck.ts). When the web
+// app and the API are on subdomains of one domain, change this to
+// SameSite=Lax. Then the browser itself blocks cross-site requests.
 function sessionCookieOptions() {
   const isProd = process.env.NODE_ENV === 'production'
   return {
