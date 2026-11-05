@@ -129,30 +129,43 @@ export async function getInviteByToken(rawToken: string) {
 // For someone who's already logged in (with an existing account) accepting
 // an invite — the fresh-account path goes through POST /api/auth/signup
 // with inviteToken set instead, since it also has to create the user.
+//
+// All the steps are in one transaction. If a step fails, the invite stays open.
 export async function acceptInviteForExistingUser(rawToken: string, userId: number) {
-  const { rows } = await pool.query<{ id: number; workspace_id: number; role: Role; email: string }>(
-    `SELECT id, workspace_id, role, email FROM workspace_invites
-     WHERE token_hash = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()`,
-    [hashToken(rawToken)],
-  )
-  const invite = rows[0]
-  if (!invite) throw new MutationError(400, 'this invite is invalid or has expired')
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    // One statement claims the invite. When two requests use one token at the same time, only one gets the row.
+    const { rows } = await client.query<{ workspace_id: number; role: Role; email: string }>(
+      `UPDATE workspace_invites SET accepted_at = now()
+       WHERE token_hash = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+       RETURNING workspace_id, role, email`,
+      [hashToken(rawToken)],
+    )
+    const invite = rows[0]
+    if (!invite) throw new MutationError(400, 'this invite is invalid or has expired')
 
-  const { rows: userRows } = await pool.query<{ email: string }>('SELECT email FROM users WHERE id = $1', [userId])
-  if (userRows[0]?.email !== invite.email) {
-    throw new MutationError(403, 'this invite was sent to a different email address')
+    const { rows: userRows } = await client.query<{ email: string }>('SELECT email FROM users WHERE id = $1', [userId])
+    if (userRows[0]?.email !== invite.email) {
+      throw new MutationError(403, 'this invite was sent to a different email address')
+    }
+    const { rows: memberRows } = await client.query(
+      'SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2',
+      [invite.workspace_id, userId],
+    )
+    if (memberRows.length === 0) await requireMemberRoom(invite.workspace_id, { accepting: true, db: client })
+
+    await client.query(
+      `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)
+       ON CONFLICT (workspace_id, user_id) DO NOTHING`,
+      [invite.workspace_id, userId, invite.role],
+    )
+    await client.query('COMMIT')
+    return { workspaceId: invite.workspace_id }
+  } catch (err) {
+    await client.query('ROLLBACK')
+    throw err
+  } finally {
+    client.release()
   }
-  const { rows: memberRows } = await pool.query('SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2', [
-    invite.workspace_id,
-    userId,
-  ])
-  if (memberRows.length === 0) await requireMemberRoom(invite.workspace_id, { accepting: true })
-
-  await pool.query(
-    `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)
-     ON CONFLICT (workspace_id, user_id) DO NOTHING`,
-    [invite.workspace_id, userId, invite.role],
-  )
-  await pool.query('UPDATE workspace_invites SET accepted_at = now() WHERE id = $1', [invite.id])
-  return { workspaceId: invite.workspace_id }
 }
