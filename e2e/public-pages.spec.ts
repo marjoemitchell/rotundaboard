@@ -581,9 +581,13 @@ test.describe('public bill API', () => {
   })
 
   test('the public API refuses a client that sends too many requests', async ({ playwright }) => {
-    // Its own client address, so that the other public specs keep their limit.
+    // The headers of the web service proxy, with its own client address. The
+    // e2e API has no client limits for the loopback address (playwright.config.ts).
     const client = await playwright.request.newContext({
-      extraHTTPHeaders: { 'X-Forwarded-For': `203.0.113.${Math.floor(Math.random() * 250) + 1}, 10.0.0.1` },
+      extraHTTPHeaders: {
+        'X-Rotunda-Proxy-Secret': 'e2e-proxy-secret',
+        'X-Rotunda-Client-Ip': `203.0.113.${Math.floor(Math.random() * 250) + 1}`,
+      },
     })
     let status = 0
     for (let i = 0; i < 125 && status !== 429; i++) {

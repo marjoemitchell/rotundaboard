@@ -35,7 +35,15 @@ export default defineConfig({
       // New workspaces get the organization plan (no limits), so that the
       // specs of paid features need no extra step. The plan specs set the
       // plan that they test (setWorkspacePlan in e2e/fixtures.ts).
-      env: { RESEND_API_KEY: '', NEW_WORKSPACE_PLAN: 'organization' },
+      env: {
+        RESEND_API_KEY: '',
+        NEW_WORKSPACE_PLAN: 'organization',
+        // All tests come from the loopback address. Without this value, the
+        // tests use up the client request limits (server/src/api/rateLimit.ts).
+        // The rate limit specs send the proxy headers with their own address.
+        RATE_LIMIT_EXEMPT_ADDRESSES: '127.0.0.1,::1,::ffff:127.0.0.1',
+        API_PROXY_SECRET: 'e2e-proxy-secret',
+      },
       url: 'http://localhost:4000/api/health',
       reuseExistingServer: true,
       timeout: 30_000,

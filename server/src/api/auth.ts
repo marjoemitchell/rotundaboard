@@ -10,8 +10,29 @@ import { clearSessionCookie, destroyAllSessionsForUser, destroySession, issueSes
 import { emailInboxKey, emailInboxKeySql } from '../auth/emailAddress.js'
 import { MutationError } from './mutations.js'
 import { getWorkspacePlan, newWorkspacePlan, requireMemberRoom } from '../plans.js'
+import { emailKey, hitClientLimit, limitEachClient, RateLimiter, sendTooManyRequests } from './rateLimit.js'
 
 export const authRouter = Router()
+
+// Request limits (see rateLimit.ts). The client limits use the client address.
+// The email limits stop many attempts on one account from many addresses.
+const MINUTE = 60_000
+const HOUR = 60 * MINUTE
+const LIMITS = {
+  // All the routes in this router.
+  anyAuthRequest: new RateLimiter(120, MINUTE),
+  // Login attempts of a client, and failed logins for an email address.
+  loginByClient: new RateLimiter(50, 15 * MINUTE),
+  failedLoginByEmail: new RateLimiter(10, 15 * MINUTE),
+  signupByClient: new RateLimiter(20, HOUR),
+  // Each request for an email counts, also for an email that has no account.
+  // Thus the limit does not show if an account exists.
+  forgotPasswordByClient: new RateLimiter(20, HOUR),
+  forgotPasswordByEmail: new RateLimiter(3, HOUR),
+  resetPasswordByClient: new RateLimiter(20, HOUR),
+}
+
+authRouter.use(limitEachClient(LIMITS.anyAuthRequest))
 
 const SAME_INBOX_MESSAGE =
   'an account with this email already exists. At this email provider, an address with "+" (or with dots, at Gmail) goes to the same inbox as the address without them'
@@ -40,6 +61,7 @@ async function getUserWorkspaces(userId: number) {
 }
 
 authRouter.post('/signup', async (req: Request, res: Response) => {
+  if (!hitClientLimit(LIMITS.signupByClient, req, res)) return
   try {
     const { email, password, name, workspaceName, inviteToken } = req.body as {
       email?: string
@@ -130,16 +152,28 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
 })
 
 authRouter.post('/login', async (req: Request, res: Response) => {
+  if (!hitClientLimit(LIMITS.loginByClient, req, res)) return
   try {
-    const { email, password } = req.body as { email?: string; password?: string }
+    const { email, password } = (req.body ?? {}) as { email?: string; password?: string }
     const genericError = new MutationError(401, 'invalid email or password')
     if (!email?.trim() || !password) throw genericError
+
+    // Check the email limit before bcrypt runs. At the limit, a correct
+    // password also gets 429.
+    const wait = LIMITS.failedLoginByEmail.check(emailKey(email))
+    if (wait > 0) {
+      sendTooManyRequests(res, wait)
+      return
+    }
 
     const { rows } = await pool.query<{ id: number; password_hash: string }>(
       'SELECT id, password_hash FROM users WHERE email = $1',
       [email.trim().toLowerCase()],
     )
-    if (rows.length === 0 || !(await verifyPassword(password, rows[0].password_hash))) throw genericError
+    if (rows.length === 0 || !(await verifyPassword(password, rows[0].password_hash))) {
+      LIMITS.failedLoginByEmail.hit(emailKey(email))
+      throw genericError
+    }
 
     const workspaces = await getUserWorkspaces(rows[0].id)
     await issueSession(res, rows[0].id, workspaces[0]?.id ?? null)
@@ -161,9 +195,15 @@ authRouter.post('/logout', async (req: Request, res: Response) => {
 })
 
 authRouter.post('/forgot-password', async (req: Request, res: Response) => {
+  if (!hitClientLimit(LIMITS.forgotPasswordByClient, req, res)) return
   try {
-    const { email } = req.body as { email?: string }
+    const { email } = (req.body ?? {}) as { email?: string }
     if (email?.trim()) {
+      const wait = LIMITS.forgotPasswordByEmail.hit(emailKey(email))
+      if (wait > 0) {
+        sendTooManyRequests(res, wait)
+        return
+      }
       const { rows } = await pool.query<{ id: number }>('SELECT id FROM users WHERE email = $1', [email.trim().toLowerCase()])
       if (rows.length > 0) {
         const rawToken = generateToken()
@@ -193,6 +233,7 @@ authRouter.post('/forgot-password', async (req: Request, res: Response) => {
 })
 
 authRouter.post('/reset-password', async (req: Request, res: Response) => {
+  if (!hitClientLimit(LIMITS.resetPasswordByClient, req, res)) return
   try {
     const { token, newPassword } = req.body as { token?: string; newPassword?: string }
     if (!token) throw new MutationError(400, 'token is required')

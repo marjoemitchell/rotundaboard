@@ -2,49 +2,17 @@
 // Legislature: what a free workspace sees, without workspace data. The
 // server mounts this router before the session check (server.ts).
 import { Router } from 'express'
-import type { NextFunction, Request, Response } from 'express'
+import type { Response } from 'express'
 import * as queries from './queries.js'
 import * as billTexts from './billTexts.js'
 import { hasFeature, PLAN_KEYS, PLANS } from '../plans.js'
+import { limitEachClient, RateLimiter } from './rateLimit.js'
 
 export const publicRouter = Router()
 
-// A limit on the requests of each client, against scrapers.
-const WINDOW_MS = 60_000
-const MAX_REQUESTS_PER_WINDOW = 120
-const hits = new Map<string, { count: number; windowStart: number }>()
-
-// In production the request comes through the Railway edge and the web
-// service proxy, so req.ip is a proxy address. Use the first address in
-// X-Forwarded-For. A client can set that header, so a client can avoid the
-// limit, but a client cannot use up the limit of another person.
-function clientKey(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for']
-  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim()
-  return first || req.socket.remoteAddress || 'unknown'
-}
-
-function rateLimit(req: Request, res: Response, next: NextFunction) {
-  const now = Date.now()
-  const key = clientKey(req)
-  const entry = hits.get(key)
-  if (!entry || now - entry.windowStart >= WINDOW_MS) {
-    hits.set(key, { count: 1, windowStart: now })
-  } else if (++entry.count > MAX_REQUESTS_PER_WINDOW) {
-    res.setHeader('Retry-After', String(Math.ceil((entry.windowStart + WINDOW_MS - now) / 1000)))
-    res.status(429).json({ error: 'too many requests' })
-    return
-  }
-  next()
-}
-
-// Remove the old entries, so that the map does not grow without a limit.
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, entry] of hits) if (now - entry.windowStart >= WINDOW_MS) hits.delete(key)
-}, WINDOW_MS).unref()
-
-publicRouter.use(rateLimit)
+// A limit on the requests of each client, against scrapers. See rateLimit.ts
+// for how the API finds the client.
+publicRouter.use(limitEachClient(new RateLimiter(120, 60_000)))
 
 function parseId(value: string, res: Response, what: string): number | null {
   const id = Number(value)

@@ -37,6 +37,9 @@ export default defineRailway(() => {
       // Gets the scrape health alerts. The API runs the hourly check for
       // scrape jobs that stopped (src/scrapeHealth.ts).
       MAINTAINER_EMAIL: preserve(),
+      // A shared variable. The web service sends it with each proxied request.
+      // The API then trusts the client address of the request (src/api/rateLimit.ts).
+      API_PROXY_SECRET: preserve(),
     },
   });
 
@@ -54,6 +57,8 @@ export default defineRailway(() => {
       // build on this host, so leaving it unset is the correct state, not
       // an oversight.
       API_PROXY_TARGET: preserve(),
+      // The same shared variable as on the api service (see vite.config.ts).
+      API_PROXY_SECRET: preserve(),
     },
   });
 
