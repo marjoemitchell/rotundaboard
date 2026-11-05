@@ -948,6 +948,25 @@ app.delete('/api/testimony/:id', async (req, res) => {
   }
 })
 
+/**
+ * The Content-Disposition value for a file name that a user gave (RFC 6266).
+ *
+ * A header value can contain only Latin-1 characters. Thus the value has two forms
+ * of the name:
+ *
+ * - `filename`: an ASCII fallback. Each character outside printable ASCII becomes "_".
+ *   The fallback has no `"` and no `\`.
+ * - `filename*`: the full name in UTF-8, percent-encoded (RFC 5987).
+ */
+function attachmentContentDisposition(filename: string): string {
+  const fallback = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '')
+  const encoded = encodeURIComponent(filename).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`
+}
+
 app.get('/api/testimony/:id/attachment', async (req, res) => {
   const id = Number(req.params.id)
   if (!Number.isInteger(id)) {
@@ -960,11 +979,10 @@ app.get('/api/testimony/:id/attachment', async (req, res) => {
       res.status(404).json({ error: 'no attachment' })
       return
     }
-    // Strip quotes/control chars from the filename before it goes into a
-    // header — it's user-supplied (whatever they named the file locally).
-    const safeName = attachment.filename.replace(/["\r\n]/g, '')
     res.setHeader('Content-Type', attachment.mimeType)
-    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`)
+    res.setHeader('Content-Disposition', attachmentContentDisposition(attachment.filename))
+    // The browser must use the Content-Type above and must not guess a type from the data.
+    res.setHeader('X-Content-Type-Options', 'nosniff')
     res.send(attachment.data)
   } catch (err) {
     handleError(res, `GET /api/testimony/${req.params.id}/attachment`, err)

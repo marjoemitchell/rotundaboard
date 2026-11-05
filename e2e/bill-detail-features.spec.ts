@@ -69,9 +69,10 @@ test.describe('testimony from the bill page', () => {
     await page.click('button:has-text("Save draft")')
     await expect(page.locator('text=testimony.txt')).toBeVisible()
 
-    const download = page.waitForEvent('download').catch(() => null)
+    const downloadPromise = page.waitForEvent('download')
     await page.click('text=📎 testimony.txt')
-    await download
+    const download = await downloadPromise
+    expect(await download.failure()).toBeNull()
 
     await page.click('button:has-text("Remove")')
     await expect(page.locator('text=testimony.txt')).not.toBeVisible()

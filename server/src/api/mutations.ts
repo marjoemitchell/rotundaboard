@@ -377,6 +377,28 @@ export async function deleteTestimony(workspaceId: number, id: number) {
 
 const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024
 
+// The MIME types that a testimony attachment can keep. The download sends the stored
+// type, so the server does not keep a type that the browser can run (HTML, SVG).
+const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.oasis.opendocument.text',
+  'application/rtf',
+  'text/rtf',
+  'text/plain',
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+])
+
+// Returns the type when it is on the list. Returns application/octet-stream for other types.
+export function attachmentMimeType(mimeType: string): string {
+  const type = (mimeType ?? '').split(';')[0].trim().toLowerCase()
+  return ALLOWED_ATTACHMENT_MIME_TYPES.has(type) ? type : 'application/octet-stream'
+}
+
 export async function setTestimonyAttachment(workspaceId: number, id: number, filename: string, mimeType: string, dataBase64: string) {
   await requireTestimony(workspaceId, id)
   await requireFeature(workspaceId, 'testimony')
@@ -388,7 +410,7 @@ export async function setTestimonyAttachment(workspaceId: number, id: number, fi
   await pool.query(
     `UPDATE testimony SET attachment_filename = $1, attachment_mime_type = $2, attachment_data = $3, updated_at = now()
      WHERE workspace_id = $4 AND id = $5`,
-    [filename.trim(), mimeType || 'application/octet-stream', buffer, workspaceId, id],
+    [filename.trim(), attachmentMimeType(mimeType), buffer, workspaceId, id],
   )
   return { id, filename: filename.trim() }
 }
