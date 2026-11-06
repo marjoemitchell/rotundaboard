@@ -443,3 +443,97 @@
   font-size: 13px;
   color: var(--muted);
 }
+
+/* The address search (issue #69). */
+.lookup {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.lookupLabel {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.lookupRow {
+  display: flex;
+  gap: 8px;
+}
+
+.lookupRow input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--border-2);
+}
+
+.lookupRow button {
+  flex: 0 0 auto;
+  padding: 8px 18px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--ink);
+  border: 1px solid var(--ink);
+}
+
+.lookupRow button:disabled {
+  opacity: 0.55;
+}
+
+.lookupResult {
+  margin-top: 14px;
+}
+
+.lookupMatched {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.lookupMembers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lookupMember {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+}
+
+.lookupEmail {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--teal);
+  overflow-wrap: anywhere;
+}
+
+.lookupError {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--oppose-fg);
+}
+
+.lookupNote {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}

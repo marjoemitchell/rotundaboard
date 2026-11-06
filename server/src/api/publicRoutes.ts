@@ -6,7 +6,8 @@ import type { Response } from 'express'
 import * as queries from './queries.js'
 import * as billTexts from './billTexts.js'
 import { hasFeature, PLAN_KEYS, PLANS } from '../plans.js'
-import { limitEachClient, RateLimiter } from './rateLimit.js'
+import { hitClientLimit, limitEachClient, RateLimiter } from './rateLimit.js'
+import { AddressLookupUnavailableError, lookupDistricts } from '../addressLookup.js'
 
 export const publicRouter = Router()
 
@@ -59,6 +60,36 @@ publicRouter.get('/legislators', (_req, res) => sendJson(res, '/legislators', ()
 
 // Before /legislators/:id, so that "map" is not taken as an id.
 publicRouter.get('/legislators/map', (_req, res) => sendJson(res, '/legislators/map', () => queries.getLegislatorMap(null)))
+
+// The House and Senate districts of a street address (issue #69). Each
+// request calls an outside service, so this route has a lower client limit.
+// Do not log the address: it is personal data.
+const addressLookupLimiter = new RateLimiter(10, 60_000)
+
+publicRouter.get('/legislators/lookup', async (req, res) => {
+  const address = typeof req.query.address === 'string' ? req.query.address.trim() : ''
+  if (address.length < 5 || address.length > 200) {
+    res.status(400).json({ error: 'Type a street address, for example "1301 E 6th Ave, Helena, MT".' })
+    return
+  }
+  if (!hitClientLimit(addressLookupLimiter, req, res)) return
+  try {
+    const result = await lookupDistricts(address)
+    if (!result) {
+      res.status(404).json({ error: 'No Montana address matches.' })
+      return
+    }
+    res.json(result)
+  } catch (err) {
+    if (err instanceof AddressLookupUnavailableError) {
+      console.error(`GET /api/public/legislators/lookup: the geocoder failed (${err.message})`)
+      res.status(503).json({ error: 'The address search is not available now.' })
+      return
+    }
+    console.error('GET /api/public/legislators/lookup failed:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
 
 publicRouter.get('/legislators/:id', (req, res) => {
   const id = parseId(req.params.id, res, 'legislator')

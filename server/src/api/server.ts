@@ -17,6 +17,7 @@ import * as plans from '../plans.js'
 import { pool } from '../db.js'
 import { hashToken } from '../auth/tokens.js'
 import { getLastEmailTo } from '../auth/email.js'
+import { setAddressLookupStub } from '../addressLookup.js'
 import {
   ageHearingAlertFixture,
   billSummaryFixture,
@@ -113,6 +114,18 @@ if (process.env.NODE_ENV !== 'production') {
     } catch (err) {
       handleError(res, 'POST /api/__test__/status-change', err)
     }
+  })
+
+  // Sets the result of the address search for one address (addressLookup.ts).
+  // Thus the e2e suite does not call the real Census Geocoder.
+  app.post('/api/__test__/address-lookup', (req, res) => {
+    const body = req.body as { address?: string; result?: 'no-match' | 'unavailable' | { matchedAddress: string; house: number; senate: number } }
+    if (!body.address || !body.result) {
+      res.status(400).json({ error: 'address and result are required' })
+      return
+    }
+    setAddressLookupStub(body.address, body.result)
+    res.status(204).end()
   })
 
   // Parallel tests call this route at the same time. Each waiting run holds a

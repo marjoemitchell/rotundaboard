@@ -222,6 +222,31 @@ export function getPublicLegislatorMap(): Promise<LegislatorMap> {
   return getJson('/api/public/legislators/map')
 }
 
+export type DistrictLookup = { matchedAddress: string; house: number; senate: number }
+
+// The result of the address search. The UI shows a different message for each kind of failure.
+export type DistrictLookupResult =
+  | { status: 'found'; result: DistrictLookup }
+  | { status: 'no-match' | 'invalid' | 'unavailable' | 'too-many'; message: string }
+
+// The House and Senate districts of a street address. The route is public, so
+// visitors and workspace members use the same route.
+export async function lookupLegislatorDistricts(address: string): Promise<DistrictLookupResult> {
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}/api/public/legislators/lookup?${new URLSearchParams({ address })}`, { credentials: 'include' })
+  } catch {
+    return { status: 'unavailable', message: 'The address search is not available now.' }
+  }
+  const payload = await res.json().catch(() => ({}))
+  if (res.ok) return { status: 'found', result: payload as DistrictLookup }
+  const message: string = payload.error ?? 'The address search is not available now.'
+  if (res.status === 404) return { status: 'no-match', message }
+  if (res.status === 400) return { status: 'invalid', message }
+  if (res.status === 429) return { status: 'too-many', message }
+  return { status: 'unavailable', message }
+}
+
 export function getPublicLegislators(): Promise<LegislatorSummary[]> {
   return getJson('/api/public/legislators')
 }

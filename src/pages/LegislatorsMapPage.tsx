@@ -168,6 +168,17 @@ export function LegislatorsMapPage() {
         </div>
       </div>
 
+      {map && (
+        <AddressLookup
+          byDistrict={byDistrict}
+          onFound={(house) => {
+            const next = new URLSearchParams(search)
+            next.set('district', `house-${house}`)
+            setSearch(next, { replace: true })
+          }}
+        />
+      )}
+
       {data.status === 'empty' && <EmptyState message="The legislator data could not be loaded." />}
 
       {data.status !== 'empty' && (
@@ -270,7 +281,7 @@ export function LegislatorsMapPage() {
             </div>
             <div className={styles.mapFoot}>
               {!isPublic && <span>Shading: members in the county who sponsor a bill that your team tracks</span>}
-              <span>Districts: US Census 2024 boundaries</span>
+              <span>Districts: US Census 2024 boundaries. Address search: US Census Geocoder</span>
             </div>
           </section>
 
@@ -308,6 +319,95 @@ export function LegislatorsMapPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// The address search (issue #69). It finds the House and Senate districts of a
+// street address and shows the member of each district.
+function AddressLookup({ byDistrict, onFound }: { byDistrict: Map<string, MapMember>; onFound: (house: number) => void }) {
+  const [address, setAddress] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [outcome, setOutcome] = useState<client.DistrictLookupResult | null>(null)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!address.trim() || busy) return
+    setBusy(true)
+    const result = await client.lookupLegislatorDistricts(address.trim())
+    setBusy(false)
+    setOutcome(result)
+    if (result.status === 'found') onFound(result.result.house)
+  }
+
+  const card = (chamber: 'house' | 'senate', district: number) => {
+    const member = byDistrict.get(`${chamber}:${district}`)
+    const label = `${chamber === 'house' ? 'House' : 'Senate'} District ${district}`
+    return (
+      <li className={styles.lookupMember} aria-label={label}>
+        <span className="eyebrow">{label}</span>
+        {member ? (
+          <>
+            <Link to={`/legislators/${member.id}`} className={styles.memberName}>
+              {chamber === 'house' ? 'Rep.' : 'Sen.'} {member.name}
+            </Link>
+            <div className={styles.memberMeta}>
+              {[member.party, member.homeCounty && `${member.homeCounty} County`].filter(Boolean).join(' · ')}
+            </div>
+            {member.email && (
+              <a className={styles.lookupEmail} href={`mailto:${member.email}`}>
+                {member.email}
+              </a>
+            )}
+          </>
+        ) : (
+          <div className={styles.memberMeta}>No current member in our data for this district.</div>
+        )}
+      </li>
+    )
+  }
+
+  return (
+    <section className={styles.lookup}>
+      <form className={styles.lookupForm} onSubmit={submit} role="search" aria-label="Find my legislators">
+        <label className={styles.lookupLabel} htmlFor="legislator-address">
+          Find my legislators
+        </label>
+        <div className={styles.lookupRow}>
+          <input
+            id="legislator-address"
+            type="text"
+            autoComplete="street-address"
+            placeholder="Street address, for example 1301 E 6th Ave, Helena, MT"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            maxLength={200}
+          />
+          <button type="submit" disabled={busy || !address.trim()}>
+            {busy ? 'Searching…' : 'Find'}
+          </button>
+        </div>
+      </form>
+
+      {outcome?.status === 'found' && (
+        <div className={styles.lookupResult} aria-label="Your legislators" role="region">
+          <div className={styles.lookupMatched}>
+            Results for <b>{outcome.result.matchedAddress}</b>
+          </div>
+          <ul className={styles.lookupMembers}>
+            {card('house', outcome.result.house)}
+            {card('senate', outcome.result.senate)}
+          </ul>
+        </div>
+      )}
+      {outcome && outcome.status !== 'found' && (
+        <p className={styles.lookupError} role="alert">
+          {outcome.status === 'no-match'
+            ? 'No Montana address matches. Type a street address, not a PO box, or choose your county on the map.'
+            : outcome.message}
+        </p>
+      )}
+      <p className={styles.lookupNote}>The address goes to the US Census Geocoder to find the districts. Rotunda Board does not keep it.</p>
+    </section>
   )
 }
 
