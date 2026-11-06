@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { politeFetch } from './politeFetch.js'
 import { recordFetchError, recordResponse } from './scrapeHealth.js'
 import type {
   RawAmendment,
@@ -26,7 +27,6 @@ const BASE = process.env.LEGMT_API_BASE ?? 'https://bearbeta.legmt.gov'
 // served by legmt.gov's public WordPress site, not the bearbeta API — a
 // completely separate host and system.
 const WP_BASE = process.env.LEGMT_WP_BASE ?? 'https://www.legmt.gov'
-const USER_AGENT = 'RotundaBoard/0.1 (bill-tracking research tool; contact: rotundaboard project)'
 
 // Each request names its endpoint for the scrape health checks
 // (scrapeHealth.ts). They count the items, check the shape of each item,
@@ -46,30 +46,40 @@ async function monitored<T>(endpoint: string, request: () => Promise<T>, items: 
 
 const asList = <T>(data: T) => (Array.isArray(data) ? data : [data])
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`GET ${url} -> ${res.status}: ${body.slice(0, 300)}`)
+// Reads a JSON response body. A firewall can send an HTML block page with a
+// 200 status. The error then gives the status, the content type, and the page
+// title, so the log shows which page came back.
+async function readJson<T>(method: string, url: string, res: Response): Promise<T> {
+  const text = await res.text().catch(() => '')
+  if (!res.ok) throw new Error(`${method} ${url} -> ${res.status}: ${text.slice(0, 300)}`)
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    const title = text.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim()
+    const summary = title ? `page title "${title}"` : `body starts ${JSON.stringify(text.slice(0, 200))}`
+    throw new Error(
+      `${method} ${url} -> ${res.status} (${res.headers.get('content-type') ?? 'no content type'}) is not JSON: ${summary}`,
+    )
   }
-  return res.json() as Promise<T>
 }
 
-function getList<T>(endpoint: string, url: string): Promise<T> {
+async function getJson<T>(url: string): Promise<T> {
+  const res = await politeFetch(url, { headers: { Accept: 'application/json' } })
+  return readJson<T>('GET', url, res)
+}
+
+/** A monitored GET request. The e2e test route also uses it (api/server.ts). */
+export function getList<T>(endpoint: string, url: string): Promise<T> {
   return monitored(endpoint, () => getJson<T>(url), asList)
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
+  const res = await politeFetch(url, {
     method: 'POST',
-    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`POST ${url} -> ${res.status}: ${text.slice(0, 300)}`)
-  }
-  return res.json() as Promise<T>
+  return readJson<T>('POST', url, res)
 }
 
 export function getSessions(): Promise<RawSession[]> {
@@ -222,13 +232,9 @@ async function getDocumentList(endpoint: string, path: string, ref: BillDocument
   return monitored(
     endpoint,
     async () => {
-      const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } })
+      const res = await politeFetch(url, { headers: { Accept: 'application/json' } })
       if (res.status === 404) return []
-      if (!res.ok) {
-        const body = await res.text().catch(() => '')
-        throw new Error(`GET ${url} -> ${res.status}: ${body.slice(0, 300)}`)
-      }
-      return (await res.json()) as RawDocument[]
+      return readJson<RawDocument[]>('GET', url, res)
     },
     asList,
   )
@@ -245,7 +251,7 @@ export function getBillAmendmentDocuments(ref: BillDocumentRef): Promise<RawDocu
 /** The bytes of a document (a PDF for bill versions and amendments). */
 export async function getDocumentContent(documentId: number): Promise<Uint8Array> {
   const url = `${BASE}/docs/v1/documents/getContent?documentId=${documentId}`
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } })
+  const res = await politeFetch(url)
   if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`)
   return new Uint8Array(await res.arrayBuffer())
 }

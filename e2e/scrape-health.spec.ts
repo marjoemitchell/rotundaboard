@@ -1,5 +1,7 @@
 import { test, expect, signUpFreshWorkspace, uniqueSuffix } from './fixtures'
 import type { APIRequestContext } from '@playwright/test'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 
 const API_BASE = 'http://localhost:4000'
 
@@ -160,5 +162,69 @@ test.describe('data freshness on the dashboard', () => {
     // Retry checks the data freshness again.
     await freshness.getByRole('button', { name: 'Retry' }).click()
     await expect(freshness.getByRole('button', { name: 'Retry' })).toBeVisible()
+  })
+})
+
+// A local copy of a Legislature host. Its robots.txt asks for 1 second between
+// requests and disallows one path. Its "blocked" path sends an HTML firewall
+// page with a 200 status, as legmt.gov did on 5 November 2026.
+async function startMockHost() {
+  const hits: { url: string; at: number; userAgent: string }[] = []
+  const server = http.createServer((req, res) => {
+    if (req.url === '/robots.txt') {
+      res.end('User-agent: *\nCrawl-delay: 1\nDisallow: /private\n')
+      return
+    }
+    hits.push({ url: req.url ?? '', at: Date.now(), userAgent: req.headers['user-agent'] ?? '' })
+    if (req.url === '/blocked') {
+      res.setHeader('Content-Type', 'text/html')
+      res.end('<html lang="en"><head><title>Request Rejected</title></head><body>Your support ID is 123.</body></html>')
+      return
+    }
+    res.setHeader('Content-Type', 'application/json')
+    res.end('[{"id":1}]')
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  return { base, hits, close: () => new Promise((resolve) => server.close(resolve)) }
+}
+
+test.describe('scraper requests obey robots.txt', () => {
+  test('requests keep the crawl delay, skip disallowed paths, and the alert names a firewall page', async ({ request }) => {
+    const host = await startMockHost()
+    try {
+      const job = `e2e-robots-${uniqueSuffix()}`
+      const maintainer = `e2e-maintainer-${uniqueSuffix()}@example.dev`
+      const res = await request.post(`${API_BASE}/api/__test__/scrape-health/fetch`, {
+        data: {
+          job,
+          alertTo: maintainer,
+          requests: [
+            { endpoint: 'committeeTabs', url: `${host.base}/tabs/1` },
+            { endpoint: 'committeeTabs', url: `${host.base}/tabs/2` },
+            { endpoint: 'committeeTabs', url: `${host.base}/tabs/3` },
+            { endpoint: 'blockedPage', url: `${host.base}/blocked` },
+            { endpoint: 'privatePage', url: `${host.base}/private/1` },
+          ],
+        },
+        timeout: 30_000,
+      })
+      expect(res.ok()).toBeTruthy()
+      const run = (await res.json()) as RunResult
+      expect(run.status).toBe('failed')
+
+      // The requests go one at a time, 1 second apart. The private path gets no request.
+      expect(host.hits.map((h) => h.url).sort()).toEqual(['/blocked', '/tabs/1', '/tabs/2', '/tabs/3'])
+      const times = host.hits.map((h) => h.at).sort((a, b) => a - b)
+      for (let i = 1; i < times.length; i += 1) expect(times[i] - times[i - 1]).toBeGreaterThanOrEqual(950)
+      for (const hit of host.hits) expect(hit.userAgent).toContain('support@rotundaboard.com')
+
+      // The maintainer email names the firewall page and the disallowed path.
+      const email = await lastEmail(request, maintainer)
+      expect(email?.html).toContain('Request Rejected')
+      expect(email?.html).toContain('robots.txt does not let RotundaBoard request')
+    } finally {
+      await host.close()
+    }
   })
 })
