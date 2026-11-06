@@ -33,6 +33,7 @@ import {
   type HearingFixtureInput,
 } from './testFixtures.js'
 import { checkStaleness, getDataFreshness, simulateRun, startScrapeWatchdog } from '../scrapeHealth.js'
+import { getList } from '../legmtClient.js'
 import { processAlerts } from '../alerts.js'
 import { warnIfNoProxySecret } from './rateLimit.js'
 import { appOrigin, rejectCrossSiteRequests } from './originCheck.js'
@@ -145,6 +146,32 @@ if (process.env.NODE_ENV !== 'production') {
       res.json(await simulateRun(job, responses, alertTo))
     } catch (err) {
       handleError(res, 'POST /api/__test__/scrape-health/simulate', err)
+    }
+  })
+
+  // Sends real scraper requests to a local mock host, in one monitored run.
+  // The e2e suite uses it to test the robots.txt rules (politeFetch.ts).
+  app.post('/api/__test__/scrape-health/fetch', async (req, res) => {
+    try {
+      const { job, alertTo, requests } = req.body as {
+        job: string
+        alertTo: string
+        requests: { endpoint: string; url: string }[]
+      }
+      if (!job?.startsWith('e2e-')) {
+        res.status(400).json({ error: 'job must start with e2e-' })
+        return
+      }
+      if (!requests.every((r) => ['127.0.0.1', 'localhost'].includes(new URL(r.url).hostname))) {
+        res.status(400).json({ error: 'requests must go to a local host' })
+        return
+      }
+      const run = await simulateRun(job, [], alertTo, async () => {
+        await Promise.allSettled(requests.map((r) => getList(r.endpoint, r.url)))
+      })
+      res.json(run)
+    } catch (err) {
+      handleError(res, 'POST /api/__test__/scrape-health/fetch', err)
     }
   })
 

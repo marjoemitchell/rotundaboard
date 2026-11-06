@@ -10,7 +10,7 @@ schema for it — request shapes were reverse-engineered from live responses.
 | Script | What it does | Cost |
 |---|---|---|
 | `npm run scrape` | Full pull: sessions, legislators, committees, requesting agencies, bills for the scraped sessions | Slow: pulls every bill again |
-| `npm run scrape:details` | Per-bill detail pass (status history, votes, cosponsors, amendments) | Slow, concurrency-limited |
+| `npm run scrape:details` | Per-bill detail pass (status history, votes, cosponsors, amendments) | Slow: 5 requests for each bill, 10 seconds apart (see "Robots.txt and request rate") |
 | `npm run refresh-meetings` | Interim-committee meeting times/locations/agendas only, for committees already in the DB | Fast — no bill data touched |
 | `npm run refresh-hearings` | The bill hearing schedule of all standing committees in one paged search, then hearing alerts and reminders | Fast: about 8 requests for a full session |
 | `npm run refresh-bill-texts` | The text of bill versions and amendments (PDF files from the document store), and an AI summary of each amendment | About 3 seconds for each bill. A run checks at most 300 bills (`--limit=N`). One Claude Haiku call for each new amendment |
@@ -18,6 +18,30 @@ schema for it — request shapes were reverse-engineered from live responses.
 | `npm run send-alert-digest` | Daily email digest of change alerts (immediate alerts are sent by the scrape scripts themselves) | Cheap — database only, plus one email per person |
 | `npm run summarize-hearings` | An AI summary of each finished hearing transcript: overview, topics with times, decisions and next steps | One Claude Sonnet call for each hearing |
 | `npm run transcribe-hearings` | Finds newly posted committee hearing videos, ingests their captions, and produces speaker-attributed transcripts | Discovery + captions are free; diarization is free on the self-hosted GPU (WhisperX) or ~$0.006/audio-minute on the OpenAI fallback, plus one Claude call per hearing for speaker names |
+
+## Robots.txt and request rate
+
+All scraper requests go through `src/politeFetch.ts`. It reads the
+robots.txt file of each host and obeys it:
+
+- It does not request a path that robots.txt disallows for `RotundaBoard`.
+- It keeps the `Crawl-delay` gap between requests to the host.
+- It sends the User-Agent `RotundaBoard/0.1 (+https://rotundaboard.com; support@rotundaboard.com)`.
+
+The gap applies to all scraper processes together. The jobs share one row
+for each host in the `crawl_slots` table.
+
+On 5 November 2026, these are the requests:
+
+| Host | robots.txt asks for | Effect |
+|---|---|---|
+| `bearbeta.legmt.gov` (bills, committees, documents) | `Crawl-delay: 10` for all agents | One request each 10 seconds, at most 360 each hour for all jobs together |
+| `www.legmt.gov` (committee materials, legislator contacts) | Limits for two AI crawlers only | No limit for us |
+| `streaming-api.legmt.gov`, `streaming-content.legmt.gov` (hearing video) | No robots.txt (4xx) | No limit |
+
+`scrape:details` sends 5 requests for each introduced bill. For the 1,759
+bills of the 2025 session, a run takes about 24 hours. Railway does not
+start a cron while the previous run continues.
 
 ## Legislators map data
 

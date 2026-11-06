@@ -90,6 +90,8 @@ async function main() {
 
   // Scrape health fixtures: simulated jobs ("e2e-...") and fixture runs.
   await pool.query(`DELETE FROM scrape_runs WHERE job LIKE 'e2e-%' OR counts ? 'e2eFixture'`)
+  // The request times of the local mock hosts in scrape-health.spec.ts.
+  await pool.query(`DELETE FROM crawl_slots WHERE host LIKE '127.0.0.1:%' OR host LIKE 'localhost:%'`)
   // The staleness alerts follow the fixture runs, so clear them too (dev and test only).
   await pool.query(`DELETE FROM scrape_health_alerts WHERE key LIKE 'e2e-%' OR key LIKE 'stale:%'`)
 

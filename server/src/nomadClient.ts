@@ -14,9 +14,9 @@ import { createWriteStream } from 'node:fs'
 import { once } from 'node:events'
 import type { Writable } from 'node:stream'
 import { extractAudioFromStream } from './hearingAudio.js'
+import { politeFetch } from './politeFetch.js'
 
 const API_BASE = process.env.NOMAD_API_BASE ?? 'https://streaming-api.legmt.gov'
-const USER_AGENT = 'RotundaBoard/0.1 (bill-tracking research tool; contact: rotundaboard project)'
 
 export interface NomadSearchResult {
   itemId: string
@@ -36,9 +36,9 @@ export interface NomadItem {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await politeFetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
@@ -120,7 +120,7 @@ export function parseVtt(vtt: string): Cue[] {
 }
 
 export async function getText(url: string): Promise<string> {
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } })
+  const res = await politeFetch(url)
   if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`)
   return res.text()
 }
@@ -166,7 +166,7 @@ const SEGMENT_RETRIES = 3
 async function fetchSegment(url: string): Promise<Buffer> {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } })
+      const res = await politeFetch(url)
       if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`)
       return Buffer.from(await res.arrayBuffer())
     } catch (err) {

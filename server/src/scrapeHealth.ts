@@ -371,18 +371,28 @@ function logResult(job: string, result: RunResult) {
 
 /**
  * For the e2e suite: a run with the given responses, without a real scrape.
- * The responses go through the same checks as a real run.
+ * The responses go through the same checks as a real run. If you give a
+ * `requests` function, the run also records the real requests that it sends.
  */
 export async function simulateRun(
   job: string,
   responses: { endpoint: string; items?: unknown[]; errors?: number }[],
   alertTo: string,
+  requests?: () => Promise<void>,
 ): Promise<RunResult> {
   const { rows } = await pool.query<{ id: number }>('INSERT INTO scrape_runs (job) VALUES ($1) RETURNING id', [job])
   const monitor = new RunMonitor()
   for (const r of responses) {
     if (r.items) monitor.response(r.endpoint, r.items)
     for (let i = 0; i < (r.errors ?? 0); i += 1) monitor.fetchError(r.endpoint, new Error('HTTP 500'))
+  }
+  if (requests) {
+    current = monitor
+    try {
+      await requests()
+    } finally {
+      current = null
+    }
   }
   return finishRun(job, rows[0].id, monitor, null, alertTo)
 }
