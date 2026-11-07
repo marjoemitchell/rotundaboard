@@ -465,6 +465,38 @@
   gap: 8px;
 }
 
+.lookupCombo {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lookupSuggestions {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: 20;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--border-2);
+  box-shadow: 0 6px 18px rgba(15, 37, 71, 0.12);
+}
+
+.lookupSuggestions li {
+  padding: 7px 10px;
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.lookupSuggestionActive {
+  background: var(--soft);
+}
+
 .lookupRow input {
   flex: 1 1 auto;
   min-width: 0;

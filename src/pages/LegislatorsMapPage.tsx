@@ -281,7 +281,12 @@ export function LegislatorsMapPage() {
             </div>
             <div className={styles.mapFoot}>
               {!isPublic && <span>Shading: members in the county who sponsor a bill that your team tracks</span>}
-              <span>Districts: US Census 2024 boundaries. Address search: US Census Geocoder</span>
+              <span>
+                Districts: US Census 2024 boundaries. Address search: US Census Geocoder. Address suggestions: Photon,{' '}
+                <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+                  © OpenStreetMap contributors
+                </a>
+              </span>
             </div>
           </section>
 
@@ -324,19 +329,88 @@ export function LegislatorsMapPage() {
 
 // The address search (issue #69). It finds the House and Senate districts of a
 // street address and shows the member of each district.
+//
+// While the person types, the field shows address suggestions from Photon
+// (OpenStreetMap). The arrow keys move through the suggestions, and Enter
+// chooses one. When no suggestion is highlighted, Enter starts the search.
+// A suggestion with a house number starts the search immediately.
+const SUGGEST_DELAY_MS = 250
+const SUGGEST_MIN_LENGTH = 3
+
 function AddressLookup({ byDistrict, onFound }: { byDistrict: Map<string, MapMember>; onFound: (house: number) => void }) {
   const [address, setAddress] = useState('')
   const [busy, setBusy] = useState(false)
   const [outcome, setOutcome] = useState<client.DistrictLookupResult | null>(null)
+  const [suggestions, setSuggestions] = useState<client.AddressSuggestion[]>([])
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(-1)
+  // True only after the person types. A chosen suggestion does not get new suggestions.
+  const typed = useRef(false)
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!address.trim() || busy) return
+  useEffect(() => {
+    if (!typed.current) return
+    const text = address.trim()
+    if (text.length < SUGGEST_MIN_LENGTH) {
+      setSuggestions([])
+      setOpen(false)
+      return
+    }
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      const result = await client.suggestAddresses(text, controller.signal)
+      // A search or a chosen suggestion after the request stops the suggestions.
+      if (controller.signal.aborted || !typed.current) return
+      setSuggestions(result)
+      setActive(-1)
+      setOpen(result.length > 0)
+    }, SUGGEST_DELAY_MS)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [address])
+
+  const runLookup = async (text: string) => {
+    if (!text.trim() || busy) return
+    setOpen(false)
+    typed.current = false
     setBusy(true)
-    const result = await client.lookupLegislatorDistricts(address.trim())
+    const result = await client.lookupLegislatorDistricts(text.trim())
     setBusy(false)
     setOutcome(result)
     if (result.status === 'found') onFound(result.result.house)
+  }
+
+  const choose = (s: client.AddressSuggestion) => {
+    typed.current = false
+    setAddress(s.label)
+    setOpen(false)
+    setActive(-1)
+    if (s.hasHouseNumber) void runLookup(s.label)
+  }
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void runLookup(address)
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' && suggestions.length > 0) {
+      e.preventDefault()
+      setOpen(true)
+      setActive((i) => (i + 1) % suggestions.length)
+    } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
+      e.preventDefault()
+      setOpen(true)
+      setActive((i) => (i <= 0 ? suggestions.length - 1 : i - 1))
+    } else if (e.key === 'Enter' && open && active >= 0) {
+      // Choose the highlighted suggestion. Do not send the form.
+      e.preventDefault()
+      choose(suggestions[active])
+    } else if (e.key === 'Escape' && open) {
+      e.preventDefault()
+      setOpen(false)
+    }
   }
 
   const card = (chamber: 'house' | 'senate', district: number) => {
@@ -368,20 +442,54 @@ function AddressLookup({ byDistrict, onFound }: { byDistrict: Map<string, MapMem
 
   return (
     <section className={styles.lookup}>
-      <form className={styles.lookupForm} onSubmit={submit} role="search" aria-label="Find my legislators">
+      <form className={styles.lookupForm} onSubmit={submit} role="search" aria-label="Address search">
         <label className={styles.lookupLabel} htmlFor="legislator-address">
           Find my legislators
         </label>
         <div className={styles.lookupRow}>
-          <input
-            id="legislator-address"
-            type="text"
-            autoComplete="street-address"
-            placeholder="Street address, for example 1301 E 6th Ave, Helena, MT"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            maxLength={200}
-          />
+          <div className={styles.lookupCombo}>
+            <input
+              id="legislator-address"
+              type="text"
+              role="combobox"
+              aria-expanded={open}
+              aria-controls="legislator-address-suggestions"
+              aria-autocomplete="list"
+              aria-activedescendant={open && active >= 0 ? `legislator-address-suggestion-${active}` : undefined}
+              // The suggestions replace the address autofill of the browser.
+              autoComplete="off"
+              placeholder="Street address, for example 1301 E 6th Ave, Helena, MT"
+              value={address}
+              onChange={(e) => {
+                typed.current = true
+                setAddress(e.target.value)
+              }}
+              onKeyDown={onKeyDown}
+              onBlur={() => setOpen(false)}
+              maxLength={200}
+            />
+            {open && (
+              <ul id="legislator-address-suggestions" role="listbox" aria-label="Address suggestions" className={styles.lookupSuggestions}>
+                {suggestions.map((s, i) => (
+                  <li
+                    key={s.label}
+                    id={`legislator-address-suggestion-${i}`}
+                    role="option"
+                    aria-selected={i === active}
+                    className={i === active ? styles.lookupSuggestionActive : undefined}
+                    // mousedown comes before the blur of the field, so the list is still open.
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      choose(s)
+                    }}
+                    onMouseEnter={() => setActive(i)}
+                  >
+                    {s.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <button type="submit" disabled={busy || !address.trim()}>
             {busy ? 'Searching…' : 'Find'}
           </button>
@@ -406,7 +514,7 @@ function AddressLookup({ byDistrict, onFound }: { byDistrict: Map<string, MapMem
             : outcome.message}
         </p>
       )}
-      <p className={styles.lookupNote}>The address goes to the US Census Geocoder to find the districts. Rotunda Board does not keep it.</p>
+      <p className={styles.lookupNote}>While you type, the address goes to Photon for suggestions. The search sends it to the US Census Geocoder to find the districts. Rotunda Board does not keep it.</p>
     </section>
   )
 }

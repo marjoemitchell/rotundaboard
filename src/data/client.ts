@@ -247,6 +247,23 @@ export async function lookupLegislatorDistricts(address: string): Promise<Distri
   return { status: 'unavailable', message }
 }
 
+export type AddressSuggestion = { label: string; hasHouseNumber: boolean }
+
+// Montana addresses that start with the typed text, for the address search.
+// The suggestions are optional, so a failure gives an empty list.
+export async function suggestAddresses(text: string, signal?: AbortSignal): Promise<AddressSuggestion[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/public/legislators/address-suggestions?${new URLSearchParams({ q: text })}`, {
+      credentials: 'include',
+      signal,
+    })
+    if (!res.ok) return []
+    return ((await res.json()) as { suggestions: AddressSuggestion[] }).suggestions
+  } catch {
+    return []
+  }
+}
+
 export function getPublicLegislators(): Promise<LegislatorSummary[]> {
   return getJson('/api/public/legislators')
 }
