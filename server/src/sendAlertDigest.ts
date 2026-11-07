@@ -11,6 +11,10 @@ async function main() {
     console.log('another alert run is in progress; exiting.')
     return
   }
+  if (result.disabled) {
+    console.log(`${result.newEvents} new change(s) recorded; user emails are off (ALERT_EMAILS_ENABLED).`)
+    return
+  }
   console.log(
     result.baseline
       ? 'first run — recorded the current state as a baseline; no alerts sent.'

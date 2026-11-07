@@ -15,7 +15,14 @@ const API_BASE = 'http://localhost:4000'
 // file's runs from interleaving. No other spec creates changes or runs alerts.
 test.describe.configure({ mode: 'serial' })
 
-type AlertRun = { baseline: boolean; newEvents: number; queued: number; emails: number; alerts: number }
+type AlertRun = {
+  baseline: boolean
+  newEvents: number
+  queued: number
+  emails: number
+  alerts: number
+  disabled?: boolean
+}
 
 // Stand-ins for "a scrape just ran": record a fake status change on a bill,
 // then run the alert pipeline the scrapers call at the end of each run.
@@ -24,8 +31,8 @@ async function scrapeStatusChange(request: APIRequestContext, billId: string) {
   expect(res.ok()).toBeTruthy()
 }
 
-async function runAlerts(request: APIRequestContext, digest = false): Promise<AlertRun> {
-  const res = await request.post(`${API_BASE}/api/__test__/alerts/run`, { data: { digest } })
+async function runAlerts(request: APIRequestContext, digest = false, emailsEnabled?: boolean): Promise<AlertRun> {
+  const res = await request.post(`${API_BASE}/api/__test__/alerts/run`, { data: { digest, emailsEnabled } })
   expect(res.ok()).toBeTruthy()
   return res.json()
 }
@@ -199,5 +206,28 @@ test.describe('alerts and plans', () => {
     await scrapeStatusChange(page.request, billId)
     await runAlerts(page.request)
     expect((await lastEmail(page.request, info.email))?.subject).toContain('Rotunda Board')
+  })
+
+  // ALERT_EMAILS_ENABLED off: the run records the change but sends no email.
+  // A later run with emails on does not send that change (no backlog).
+  test('with alert emails off, a change sends no email, and no backlog goes out when they are on', async ({ page }) => {
+    const user: FreshWorkspace = await signUpFreshWorkspace(page)
+    const { billId } = await trackFirstAvailableBill(page)
+
+    await scrapeStatusChange(page.request, billId)
+    await scrapeStatusChange(page.request, billId)
+    const off = await runAlerts(page.request, true, false)
+    expect(off.disabled).toBe(true)
+    expect(off.newEvents).toBeGreaterThanOrEqual(2)
+    expect(off.emails).toBe(0)
+    expect(await lastEmail(page.request, user.email)).toBeNull()
+
+    await runAlerts(page.request, true, true)
+    expect(await lastEmail(page.request, user.email)).toBeNull()
+
+    // A new change after emails are on sends an email.
+    await scrapeStatusChange(page.request, billId)
+    await runAlerts(page.request, false, true)
+    expect((await lastEmail(page.request, user.email))?.subject).toMatch(/update/)
   })
 })

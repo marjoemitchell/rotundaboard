@@ -134,8 +134,10 @@ if (process.env.NODE_ENV !== 'production') {
   let alertRunQueue: Promise<unknown> = Promise.resolve()
   app.post('/api/__test__/alerts/run', async (req, res) => {
     try {
-      const digest = Boolean((req.body as { digest?: boolean } | undefined)?.digest)
-      const run = alertRunQueue.then(() => processAlerts({ digest, waitForLock: true }))
+      const body = req.body as { digest?: boolean; emailsEnabled?: boolean } | undefined
+      const digest = Boolean(body?.digest)
+      const emailsEnabled = typeof body?.emailsEnabled === 'boolean' ? body.emailsEnabled : undefined
+      const run = alertRunQueue.then(() => processAlerts({ digest, waitForLock: true, emailsEnabled }))
       alertRunQueue = run.catch(() => undefined)
       res.json(await run)
     } catch (err) {

@@ -38,6 +38,8 @@ export default defineConfig({
       env: {
         RESEND_API_KEY: '',
         NEW_WORKSPACE_PLAN: 'organization',
+        // User alert emails are off by default (server/src/alerts.ts). The alert specs need them on.
+        ALERT_EMAILS_ENABLED: 'true',
         // All tests come from the loopback address. Without this value, the
         // tests use up the client request limits (server/src/api/rateLimit.ts).
         // The rate limit specs send the proxy headers with their own address.
