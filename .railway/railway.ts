@@ -204,6 +204,9 @@ export default defineRailway(() => {
   // Daily digest of change alerts for people on 'daily' delivery (immediate
   // alerts go out from the scrape crons above). 14:00 UTC is 7–8am in
   // Montana, after the overnight scrapes.
+  // User alert emails are off because no service sets ALERT_EMAILS_ENABLED
+  // (server/src/alerts.ts). To turn them on, set ALERT_EMAILS_ENABLED to
+  // "true" on each scrape cron and on this cron.
   const cronSendAlertDigest = service("cron-send-alert-digest", {
     source: repo,
     root: "server",

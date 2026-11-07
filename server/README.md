@@ -226,6 +226,10 @@ ever reads local files (that static build also segfaults on network input).
 follow changes: a new bill status, a new amendment, a bill hearing scheduled or
 rescheduled, or a followed interim committee scheduling or moving a meeting.
 
+The emails are off unless `ALERT_EMAILS_ENABLED=true`. When they are off, each
+run does step 1 (Detect) only. It queues and sends no alerts, so a change to
+`true` later does not send a backlog of old changes.
+
 It runs at the end of every scrape (`scrape`, `scrape:details`,
 `refresh-meetings`, `refresh-hearings`) and once a day from
 `send-alert-digest`:

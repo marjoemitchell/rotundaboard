@@ -15,6 +15,10 @@
 //      when its plan includes them (plans.ts).
 //   4. Send — each person's unsent alerts as one email: right away for
 //      'immediate', or batched by the daily digest for 'daily'.
+//
+// Steps 2 to 4 run only when ALERT_EMAILS_ENABLED is "true". When the value
+// is not "true", step 1 records the events and the run stops. Thus, a
+// change to "true" does not send a backlog of old changes.
 import { pool } from './db.js'
 import { sendLayoutEmail } from './auth/email.js'
 import { appBaseUrl, escapeHtml, type EmailContent } from './emailLayout.js'
@@ -42,6 +46,11 @@ const REMINDER_SLACK_HOURS = 1
 const REMINDER_MIN_NOTICE_HOURS = 6
 // The maximum time that an amendment alert waits for the amendment summary.
 const AMENDMENT_SUMMARY_WAIT_HOURS = 12
+
+/** User alert emails are off unless ALERT_EMAILS_ENABLED is "true". */
+export function alertEmailsEnabled(): boolean {
+  return process.env.ALERT_EMAILS_ENABLED === 'true'
+}
 
 export type DeliveryMode = 'immediate' | 'daily' | 'off'
 export const DEFAULT_DELIVERY: DeliveryMode = 'immediate'
@@ -408,6 +417,8 @@ export interface AlertRunResult {
   queued: number
   emails: number
   alerts: number
+  /** True when ALERT_EMAILS_ENABLED is not set: events were recorded, nothing was queued or sent. */
+  disabled?: boolean
 }
 
 /**
@@ -415,7 +426,9 @@ export interface AlertRunResult {
  * delivery (the daily cron); otherwise only 'immediate' people get mail.
  * Serialized with a Postgres advisory lock, since three scrape crons call it.
  */
-export async function processAlerts(opts: { digest?: boolean; waitForLock?: boolean } = {}): Promise<AlertRunResult | null> {
+export async function processAlerts(
+  opts: { digest?: boolean; waitForLock?: boolean; emailsEnabled?: boolean } = {},
+): Promise<AlertRunResult | null> {
   const client = await pool.connect()
   try {
     // waitForLock: wait for a run that is in progress, then run. The e2e
@@ -428,6 +441,10 @@ export async function processAlerts(opts: { digest?: boolean; waitForLock?: bool
     }
     try {
       const { newEventIds, baseline } = await detectChanges()
+      // The e2e test route can set emailsEnabled to override the variable.
+      if (!(opts.emailsEnabled ?? alertEmailsEnabled())) {
+        return { baseline, newEvents: newEventIds.length, queued: 0, emails: 0, alerts: 0, disabled: true }
+      }
       const queued = await queueDeliveries(newEventIds)
       const immediate = await sendPending('immediate')
       const daily = opts.digest ? await sendPending('daily') : { emails: 0, alerts: 0 }
@@ -452,6 +469,8 @@ export async function runAlertsAfterScrape(): Promise<void> {
     const result = await processAlerts()
     if (!result) {
       console.log('alerts: another alert run is in progress; skipping.')
+    } else if (result.disabled) {
+      console.log(`alerts: ${result.newEvents} new change(s) recorded; user emails are off (ALERT_EMAILS_ENABLED).`)
     } else if (result.baseline) {
       console.log('alerts: first run — recorded the current state as a baseline; no alerts sent.')
     } else {
