@@ -96,4 +96,80 @@ test.describe('legislator address search', () => {
 
     await expect(page.getByRole('alert')).toContainText('The address search is not available now.')
   })
+
+  test('Enter in the address field starts the search', async ({ page }) => {
+    const { house, senate } = await membersInData(page.request)
+    const address = await stubAddress(page.request, { matchedAddress: 'ENTER KEY ADDRESS, MT', house: house.district, senate: senate.district })
+
+    await page.goto('/legislators')
+    const field = page.getByRole('combobox', { name: 'Find my legislators' })
+    await field.fill(address)
+    await field.press('Enter')
+
+    const result = page.getByRole('region', { name: 'Your legislators' })
+    await expect(result).toContainText('ENTER KEY ADDRESS, MT')
+    await expect(result.getByRole('link', { name: `Rep. ${house.name}` })).toBeVisible()
+    await expect(page.getByRole('alert')).toHaveCount(0)
+  })
+})
+
+// Address suggestions from Photon (server/src/addressSuggest.ts). The tests
+// set the suggestions for their own typed text with a test-only route.
+test.describe('address suggestions', () => {
+  async function stubSuggestions(request: APIRequestContext, text: string, suggestions: { label: string; hasHouseNumber: boolean }[]) {
+    const res = await request.post(`${API_BASE}/api/__test__/address-suggestions`, { data: { text, suggestions } })
+    expect(res.status()).toBe(204)
+  }
+
+  test('the arrow keys and Enter choose a suggestion, and a suggestion with a house number starts the search', async ({ page }) => {
+    const { house, senate } = await membersInData(page.request)
+    const full = await stubAddress(page.request, { matchedAddress: 'SUGGESTED ADDRESS, MT', house: house.district, senate: senate.district })
+    const typed = `e2e typed ${uniqueSuffix()}`
+    const street = `E2E Street Only ${uniqueSuffix()}, Helena, MT 59601`
+    await stubSuggestions(page.request, typed, [
+      { label: street, hasHouseNumber: false },
+      { label: full, hasHouseNumber: true },
+    ])
+
+    await page.goto('/legislators')
+    const field = page.getByRole('combobox', { name: 'Find my legislators' })
+    await field.fill(typed)
+    const list = page.getByRole('listbox', { name: 'Address suggestions' })
+    await expect(list.getByRole('option')).toHaveText([street, full])
+
+    await field.press('ArrowDown')
+    await field.press('ArrowDown')
+    await expect(list.getByRole('option', { name: full })).toHaveAttribute('aria-selected', 'true')
+    await field.press('Enter')
+
+    await expect(field).toHaveValue(full)
+    await expect(list).toHaveCount(0)
+    const result = page.getByRole('region', { name: 'Your legislators' })
+    await expect(result).toContainText('SUGGESTED ADDRESS, MT')
+    await expect(result.getByRole('link', { name: `Sen. ${senate.name}` })).toBeVisible()
+  })
+
+  test('a click on a street without a house number fills the field and does not search', async ({ page }) => {
+    const typed = `e2e street ${uniqueSuffix()}`
+    const street = `E2E Main Street ${uniqueSuffix()}, Bozeman, MT 59715`
+    await stubSuggestions(page.request, typed, [{ label: street, hasHouseNumber: false }])
+
+    await page.goto('/legislators')
+    const field = page.getByRole('combobox', { name: 'Find my legislators' })
+    await field.fill(typed)
+    await page.getByRole('option', { name: street }).click()
+
+    await expect(field).toHaveValue(street)
+    await expect(page.getByRole('listbox', { name: 'Address suggestions' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Your legislators' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Find', exact: true })).toBeEnabled()
+  })
+
+  test('the map credits OpenStreetMap for the suggestions', async ({ page }) => {
+    await page.goto('/legislators')
+    await expect(page.getByRole('link', { name: '© OpenStreetMap contributors' })).toHaveAttribute(
+      'href',
+      'https://www.openstreetmap.org/copyright',
+    )
+  })
 })

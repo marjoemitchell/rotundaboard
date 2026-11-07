@@ -91,6 +91,8 @@ The API reads `server/.env`. See `server/.env.example` for the variables.
 - Bill version and amendment text: PDF files in the document store of the same API (`docs/v1`). See "Bill text" in `server/README.md`.
 - Committee meeting materials and legislator contact data (phone, city, county): the `legmt.gov` WordPress site.
 - County and district boundaries for the legislators map: US Census files, built by `server/scripts/buildCountyDistricts.mjs`. See "Legislators map data" in `server/README.md`.
+- Address search on the Legislators page: the US Census Geocoder finds the districts (`server/src/addressLookup.ts`).
+  Photon (`photon.komoot.io`, OpenStreetMap data) gives the address suggestions while a person types (`server/src/addressSuggest.ts`).
 - Hearing video: the Nomad Media archive at `streaming-video.legmt.gov` (`server/src/nomadClient.ts`).
   The media CDN sends no CORS headers. The browser plays hearing audio through the API proxy at `/api/hearings/:id/audio/`.
 

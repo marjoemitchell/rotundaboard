@@ -8,6 +8,7 @@ import * as billTexts from './billTexts.js'
 import { hasFeature, PLAN_KEYS, PLANS } from '../plans.js'
 import { hitClientLimit, limitEachClient, RateLimiter } from './rateLimit.js'
 import { AddressLookupUnavailableError, lookupDistricts } from '../addressLookup.js'
+import { suggestAddresses } from '../addressSuggest.js'
 
 export const publicRouter = Router()
 
@@ -89,6 +90,22 @@ publicRouter.get('/legislators/lookup', async (req, res) => {
     console.error('GET /api/public/legislators/lookup failed:', err)
     res.status(500).json({ error: 'internal error' })
   }
+})
+
+// Address suggestions while a person types in the address search
+// (addressSuggest.ts). The page waits for a pause in typing before each
+// request, but one address still makes some requests, so the limit is higher.
+// This route must come before /legislators/:id. Do not log the text.
+const addressSuggestLimiter = new RateLimiter(60, 60_000)
+
+publicRouter.get('/legislators/address-suggestions', async (req, res) => {
+  const text = typeof req.query.q === 'string' ? req.query.q.trim() : ''
+  if (text.length < 3 || text.length > 200) {
+    res.json({ suggestions: [] })
+    return
+  }
+  if (!hitClientLimit(addressSuggestLimiter, req, res)) return
+  res.json({ suggestions: await suggestAddresses(text) })
 })
 
 publicRouter.get('/legislators/:id', (req, res) => {

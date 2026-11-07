@@ -18,6 +18,7 @@ import { pool } from '../db.js'
 import { hashToken } from '../auth/tokens.js'
 import { getLastEmailTo } from '../auth/email.js'
 import { setAddressLookupStub } from '../addressLookup.js'
+import { setAddressSuggestStub, type AddressSuggestion } from '../addressSuggest.js'
 import {
   ageHearingAlertFixture,
   billSummaryFixture,
@@ -125,6 +126,18 @@ if (process.env.NODE_ENV !== 'production') {
       return
     }
     setAddressLookupStub(body.address, body.result)
+    res.status(204).end()
+  })
+
+  // Sets the address suggestions for typed text that starts with `text`
+  // (addressSuggest.ts). Thus the e2e suite does not call the real Photon service.
+  app.post('/api/__test__/address-suggestions', (req, res) => {
+    const body = req.body as { text?: string; suggestions?: AddressSuggestion[] }
+    if (!body.text || !Array.isArray(body.suggestions)) {
+      res.status(400).json({ error: 'text and suggestions are required' })
+      return
+    }
+    setAddressSuggestStub(body.text, body.suggestions)
     res.status(204).end()
   })
 
